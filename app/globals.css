@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #1a1a1a;
+
+  /* ByakuyaAI Brand */
+  --brand-orange: #f7931e;
+  --brand-orange-light: #f9a825;
+  --brand-orange-dark: #c75f00;
+  --brand-cream: #fef9f0;
+  --brand-cream-2: #fff3e0;
+  --brand-ink: #1a1a1a;
+  --brand-gray: #555;
+  --brand-gray-light: #888;
+  --brand-border: #e0e0e0;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-brand: var(--brand-orange);
+  --color-brand-light: var(--brand-orange-light);
+  --color-brand-dark: var(--brand-orange-dark);
+  --color-cream: var(--brand-cream);
+  --color-ink: var(--brand-ink);
+  --font-sans: var(--font-noto-sans-jp);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-noto-sans-jp), "Noto Sans JP", sans-serif;
+  font-feature-settings: "palt";
+}
+
+/* Left orange accent bar for brand consistency with A4 proposal */
+.brand-accent-bar {
+  background: linear-gradient(
+    180deg,
+    var(--brand-orange) 0%,
+    var(--brand-orange-light) 100%
+  );
+}
