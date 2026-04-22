@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="sun" cx="42%" cy="38%" r="62%">
+      <stop offset="0%" stop-color="#ffe9a8"/>
+      <stop offset="35%" stop-color="#ffb347"/>
+      <stop offset="70%" stop-color="#f7931e"/>
+      <stop offset="100%" stop-color="#a83d00"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f7931e" stop-opacity="0.35"/>
+      <stop offset="60%" stop-color="#f7931e" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#f7931e" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ambient glow -->
+  <circle cx="256" cy="256" r="240" fill="url(#glow)"/>
+
+  <!-- saturn ring (back half) -->
+  <path d="M 56 256 A 200 38 0 0 1 456 256" fill="none" stroke="#1a1a1a" stroke-width="14" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- sun sphere -->
+  <circle cx="256" cy="256" r="160" fill="url(#sun)"/>
+
+  <!-- saturn ring (front half, in front of sphere) -->
+  <path d="M 56 256 A 200 38 0 0 0 456 256" fill="none" stroke="#1a1a1a" stroke-width="14" stroke-linecap="round"/>
+
+  <!-- specular highlight -->
+  <ellipse cx="218" cy="210" rx="42" ry="22" fill="#ffffff" opacity="0.45" transform="rotate(-25 218 210)"/>
+</svg>
