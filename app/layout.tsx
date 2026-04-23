@@ -39,6 +39,9 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "https://byakuyaai.com",
   },
+  verification: {
+    google: "easK3IX3a8fgLYyP7fqNhi14rxAeBztfotOF5DKWsxM",
+  },
   openGraph: {
     title: SITE_TITLE,
     description:
