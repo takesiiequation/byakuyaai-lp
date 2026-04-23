@@ -627,24 +627,28 @@ function PricingSection() {
 
         {/* Feature comparison table */}
         <div className="mt-16 overflow-hidden rounded-2xl border border-[var(--brand-border)] bg-white shadow-sm">
-          <div className="border-b border-[var(--brand-border)] bg-gray-50 px-6 py-4">
+          <div className="flex items-center justify-between gap-3 border-b border-[var(--brand-border)] bg-gray-50 px-6 py-4">
             <h3 className="text-sm font-bold text-[var(--brand-ink)]">
               機能比較表
             </h3>
+            <span className="text-[10px] text-[var(--brand-gray-light)] sm:hidden">
+              ← 横スクロールできます →
+            </span>
           </div>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="border-b border-[var(--brand-border)] text-xs">
-                <th className="px-4 py-3 text-left font-bold text-[var(--brand-gray)]">
+                <th className="whitespace-nowrap px-4 py-3 text-left font-bold text-[var(--brand-gray)]">
                   機能
                 </th>
-                <th className="px-4 py-3 text-center font-bold text-[var(--brand-gray)]">
+                <th className="whitespace-nowrap px-4 py-3 text-center font-bold text-[var(--brand-gray)]">
                   ライト
                 </th>
-                <th className="bg-[var(--brand-cream)] px-4 py-3 text-center font-bold text-[var(--brand-orange-dark)]">
+                <th className="whitespace-nowrap bg-[var(--brand-cream)] px-4 py-3 text-center font-bold text-[var(--brand-orange-dark)]">
                   スタンダード
                 </th>
-                <th className="px-4 py-3 text-center font-bold text-[var(--brand-gray)]">
+                <th className="whitespace-nowrap px-4 py-3 text-center font-bold text-[var(--brand-gray)]">
                   プレミアム
                 </th>
               </tr>
@@ -701,6 +705,7 @@ function PricingSection() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
 
         <p className="mt-6 text-center text-xs text-[var(--brand-gray-light)]">
