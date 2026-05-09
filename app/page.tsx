@@ -138,7 +138,7 @@ function Hero() {
                   <p className="text-[11px] font-semibold text-[var(--brand-ink)]">
                     byakuyaai
                   </p>
-                  <p className="text-[9px] text-gray-500">サンプル物件</p>
+                  <p className="text-[9px] text-gray-500">白金台 / 賃貸</p>
                 </div>
                 <svg
                   className="h-4 w-4 text-gray-700"
@@ -218,79 +218,21 @@ function Hero() {
                 </svg>
               </div>
 
-              {/* Caption */}
-              <div className="flex-shrink-0 px-3 pb-1">
-                <p className="text-[10px] leading-snug text-[var(--brand-ink)]">
+              {/* Caption (property listing style) */}
+              <div className="flex-shrink-0 px-3 pb-3 pt-0.5">
+                <p className="text-[10px] leading-relaxed text-[var(--brand-ink)]">
                   <span className="font-semibold">byakuyaai</span>{" "}
                   <span className="text-gray-700">
-                    マイソク 1 枚から AI が自動生成
+                    白金台駅 徒歩10分 ・ 2LDK / 168㎡ ・ 月額¥3,500,000
                   </span>
                 </p>
-              </div>
-
-              {/* Spacer to push bottom nav down */}
-              <div className="flex-1" />
-
-              {/* Instagram bottom navigation */}
-              <div className="flex flex-shrink-0 items-center justify-around border-t border-gray-100 px-3 py-1.5">
-                {/* Home */}
-                <svg
-                  className="h-5 w-5 text-[var(--brand-ink)]"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  aria-hidden
-                >
-                  <path d="M12 3l-9 8h2v9h5v-6h4v6h5v-9h2z" />
-                </svg>
-                {/* Search */}
-                <svg
-                  className="h-5 w-5 text-gray-500"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
-                >
-                  <circle cx="11" cy="11" r="7" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
-                {/* Reels */}
-                <svg
-                  className="h-5 w-5 text-gray-500"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
-                >
-                  <rect x="3" y="3" width="18" height="18" rx="3" />
-                  <polygon points="10 9 16 12 10 15" fill="currentColor" />
-                </svg>
-                {/* Shop */}
-                <svg
-                  className="h-5 w-5 text-gray-500"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
-                >
-                  <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
-                  <line x1="3" y1="6" x2="21" y2="6" />
-                  <path d="M16 10a4 4 0 01-8 0" />
-                </svg>
-                {/* Profile */}
-                <div className="h-5 w-5 rounded-full bg-gradient-to-br from-orange-400 via-pink-500 to-purple-600 p-[1.5px]">
-                  <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-[7px] font-black text-[var(--brand-ink)]">
-                    B
-                  </div>
-                </div>
+                <p className="mt-0.5 text-[9px] leading-snug text-gray-600">
+                  大理石尽くしのプライベートサウナ付きペントハウス。
+                  ルーフバルコニー × 防音室 × ワインセラー完備の別格空間。
+                </p>
+                <p className="mt-1 text-[9px] text-[var(--brand-orange-dark)]">
+                  #白金台 #高級賃貸 #ペントハウス
+                </p>
               </div>
             </div>
           </div>
