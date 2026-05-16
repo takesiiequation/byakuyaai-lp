@@ -385,7 +385,7 @@ function FlowSection() {
  * ============================================================ */
 function PricingSection() {
   const features = [
-    { label: "動画本数", light: "月10本", standard: "月20本", premium: "月30本" },
+    { label: "動画本数", light: "月5本", standard: "月10本", premium: "月30本" },
     { label: "バーチャルステージング(空室に家具合成)", light: true, standard: true, premium: true },
     {
       label: "SNS自動投稿(Instagram/TikTok/YouTube Shorts)",
@@ -447,7 +447,7 @@ function PricingSection() {
             </div>
             <ul className="mt-6 flex-1 space-y-2 text-sm text-[var(--brand-gray)]">
               <li className="flex items-start gap-2">
-                <Check /> 動画月10本の制作・納品
+                <Check /> 動画月5本の制作・納品
               </li>
               <li className="flex items-start gap-2">
                 <Check /> バーチャルステージング込み
@@ -486,7 +486,7 @@ function PricingSection() {
             </div>
             <ul className="mt-6 flex-1 space-y-2 text-sm text-[var(--brand-gray)]">
               <li className="flex items-start gap-2">
-                <Check /> 動画月20本の制作・納品
+                <Check /> 動画月10本の制作・納品
               </li>
               <li className="flex items-start gap-2">
                 <Check /> バーチャルステージング込み

@@ -53,7 +53,7 @@ const STANDARD_COSTS = {
     label: "ByakuyaAI スタンダード",
     sub: "AI に任せる場合",
     rows: [
-      { label: "AI 動画制作(月20本)", cost: "込み" },
+      { label: "AI 動画制作(月10本)", cost: "込み" },
       { label: "SNS自動投稿・最適化", cost: "込み" },
       { label: "採用・教育・要件定義の工数", cost: "¥0" },
     ],
