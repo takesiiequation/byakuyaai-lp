@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { faqs } from "./_data/faqs";
 import { JsonLd } from "./_components/JsonLd";
+import { PlanSwitcher } from "./_components/PlanSwitcher";
 
 export default function Home() {
   return (
@@ -8,9 +9,7 @@ export default function Home() {
       <JsonLd />
       <SiteHeader />
       <Hero />
-      <BannerShowcase />
-      <PainSection />
-      <CostCompareSection />
+      <PlanSwitcher />
       <FlowSection />
       <PricingSection />
       <FaqSection />
@@ -303,234 +302,6 @@ function Hero() {
   );
 }
 
-/* ============================================================
- * Banner Showcase (full-width hero banner break)
- * ============================================================ */
-function BannerShowcase() {
-  return (
-    <section className="relative overflow-hidden bg-gradient-to-b from-[var(--brand-cream-2)] via-[var(--brand-cream)] to-white py-8 sm:py-10 lg:py-10">
-      {/* Soft ambient glow */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/2 -z-0 h-[110%] w-[70%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--brand-orange)]/10 blur-3xl"
-      />
-
-      <div className="relative mx-auto max-w-3xl px-4 sm:px-6 lg:max-w-5xl lg:px-6 xl:max-w-6xl">
-        <div className="mb-4 text-center sm:mb-5">
-          <p className="mb-1 text-[10px] font-bold tracking-[0.25em] text-[var(--brand-orange)] sm:text-xs">
-            CONCEPT
-          </p>
-          <h2 className="text-lg font-black leading-snug text-[var(--brand-ink)] sm:text-xl lg:text-2xl">
-            あなたの会社専属の、
-            <br className="sm:hidden" />
-            AI 広報担当者です。
-          </h2>
-        </div>
-
-        <div className="relative overflow-hidden rounded-2xl border border-white/80 bg-white shadow-2xl shadow-orange-200/40 ring-1 ring-black/5 sm:rounded-3xl">
-          <Image
-            src="/banner.png"
-            alt="月10万円で、SNS担当者を雇う。24時間眠らない、AI不動産動画クリエイター ByakuyaAI"
-            width={1024}
-            height={768}
-            priority
-            sizes="(min-width: 1280px) 1152px, (min-width: 1024px) 1024px, 100vw"
-            className="block h-auto w-full"
-          />
-
-          {/* Spec badge — bottom center */}
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-[var(--brand-ink)]/85 px-4 py-1.5 text-[10px] font-bold tracking-wider text-white shadow-lg backdrop-blur-sm sm:bottom-4 sm:px-5 sm:py-2 sm:text-xs">
-            45秒 / 縦型ショート
-          </div>
-        </div>
-
-        <p className="mt-5 text-center text-xs leading-relaxed text-[var(--brand-gray)] sm:mt-6 sm:text-sm">
-          外注ライター・動画編集者・SNS運用代行を一人にまとめたら、
-          <br className="hidden sm:block" />
-          24時間眠らず働く ByakuyaAI になりました。
-        </p>
-      </div>
-    </section>
-  );
-}
-
-/* ============================================================
- * Pain Section
- * ============================================================ */
-function PainSection() {
-  const pains = [
-    {
-      title: "SNS で何を投稿すればいいか分からない",
-      desc: "Instagram・TikTok を始めたいが、撮影も編集もノウハウもない。",
-    },
-    {
-      title: "外注コストが高すぎる",
-      desc: "動画1本に1〜3万円、SNS運用代行は月25〜50万円。投資回収が見えない。",
-    },
-    {
-      title: "ポータルサイト頼みから抜け出せない",
-      desc: "SUUMO・at home の掲載料は上がる一方。差別化できず価格競争に陥る。",
-    },
-  ];
-
-  return (
-    <section className="relative bg-white py-20 sm:py-24">
-      <div className="brand-accent-bar absolute left-0 top-0 h-full w-1.5 sm:w-2" />
-
-      <div className="mx-auto max-w-5xl px-6 sm:px-8">
-        <div className="mb-12 text-center">
-          <p className="mb-2 text-sm font-bold tracking-[0.2em] text-[var(--brand-orange)]">
-            PROBLEM
-          </p>
-          <h2 className="text-3xl font-black text-[var(--brand-ink)] sm:text-4xl">
-            こんなお悩み、ありませんか？
-          </h2>
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-3">
-          {pains.map((pain, i) => (
-            <div
-              key={i}
-              className="group relative rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-cream)] p-7 transition hover:border-[var(--brand-orange)] hover:shadow-lg"
-            >
-              <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--brand-orange)] font-black text-white">
-                {String(i + 1).padStart(2, "0")}
-              </div>
-              <h3 className="mb-3 text-lg font-bold leading-snug text-[var(--brand-ink)]">
-                {pain.title}
-              </h3>
-              <p className="text-sm leading-relaxed text-[var(--brand-gray)]">
-                {pain.desc}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ============================================================
- * Cost Comparison Section
- * ============================================================ */
-function CostCompareSection() {
-  return (
-    <section className="relative bg-gradient-to-b from-white to-[var(--brand-cream)] py-20 sm:py-24">
-      <div className="brand-accent-bar absolute left-0 top-0 h-full w-1.5 sm:w-2" />
-
-      <div className="mx-auto max-w-6xl px-6 sm:px-8">
-        <div className="mb-14 text-center">
-          <p className="mb-2 text-sm font-bold tracking-[0.2em] text-[var(--brand-orange)]">
-            COST COMPARISON
-          </p>
-          <h2 className="text-3xl font-black text-[var(--brand-ink)] sm:text-4xl">
-            SNS の運用コスト、比べてみてください。
-          </h2>
-        </div>
-
-        <div className="grid items-stretch gap-6 md:grid-cols-[1fr_auto_1fr]">
-          {/* Traditional */}
-          <div className="rounded-3xl border border-gray-200 bg-gray-50 p-8 shadow-sm">
-            <div className="mb-1 text-xs font-bold tracking-widest text-[var(--brand-gray-light)]">
-              従来の方法
-            </div>
-            <div className="mb-6 text-xl font-bold text-[var(--brand-ink)]">
-              人に頼む場合
-            </div>
-
-            <ul className="space-y-3 text-sm">
-              <CostRow label="ショート動画の制作外注" cost="1〜3万円/本" />
-              <CostRow label="SNS運用代行" cost="25〜50万円/月" />
-              <CostRow label="自社で採用する" cost="25〜40万円/月" />
-            </ul>
-
-            <div className="mt-6 border-t-2 border-gray-300 pt-4">
-              <div className="text-xs text-[var(--brand-gray-light)]">
-                月額目安（いずれか選択）
-              </div>
-              <div className="text-3xl font-black text-[#c0392b]">
-                ¥25〜50万
-              </div>
-            </div>
-          </div>
-
-          {/* VS */}
-          <div className="flex items-center justify-center py-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--brand-ink)] text-lg font-black tracking-wider text-white shadow-lg">
-              VS
-            </div>
-          </div>
-
-          {/* ByakuyaAI */}
-          <div className="relative rounded-3xl border-2 border-[var(--brand-orange)] bg-gradient-to-br from-[#fff8ee] to-[var(--brand-cream-2)] p-8 shadow-xl">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[var(--brand-orange)] px-4 py-1 text-xs font-bold text-white shadow-md">
-              圧倒的コスト削減
-            </div>
-
-            <div className="mb-1 text-xs font-bold tracking-widest text-[var(--brand-orange-dark)]">
-              ByakuyaAI
-            </div>
-            <div className="mb-6 text-xl font-bold text-[var(--brand-orange-dark)]">
-              AI に任せる場合
-            </div>
-
-            <ul className="space-y-3 text-sm">
-              <CostRow label="AI 動画制作(月20本)" cost="込み" highlight />
-              <CostRow label="SNS自動投稿・分析レポート" cost="込み" highlight />
-              <CostRow label="採用・教育・要件定義の工数" cost="¥0" highlight />
-            </ul>
-
-            <div className="mt-6 border-t-2 border-[var(--brand-orange)] pt-4">
-              <div className="text-xs text-[var(--brand-gray-light)]">
-                月額(スタンダードプラン)
-              </div>
-              <div className="text-3xl font-black text-[var(--brand-orange)]">
-                ¥100,000
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Savings bar */}
-        <div className="mt-10 flex items-center justify-center rounded-2xl bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] px-6 py-5 text-center shadow-lg">
-          <p className="text-base font-bold leading-snug text-white sm:text-lg">
-            外注と比較して 月15〜40万円
-            <span className="mx-2 text-white/70">→</span>
-            <span className="text-2xl font-black sm:text-3xl">
-              年間最大 ¥480万円
-            </span>
-            <span className="ml-2">のコスト削減</span>
-          </p>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function CostRow({
-  label,
-  cost,
-  highlight = false,
-}: {
-  label: string;
-  cost: string;
-  highlight?: boolean;
-}) {
-  return (
-    <li className="flex items-center justify-between gap-3 border-b border-dotted border-gray-300 pb-2.5 last:border-none">
-      <span className="text-[var(--brand-gray)]">{label}</span>
-      <span
-        className={`whitespace-nowrap font-bold ${
-          highlight
-            ? "text-[var(--brand-orange-dark)]"
-            : "text-[var(--brand-ink)]"
-        }`}
-      >
-        {cost}
-      </span>
-    </li>
-  );
-}
 
 /* ============================================================
  * Flow Section (導入の流れ)
@@ -614,19 +385,20 @@ function FlowSection() {
  * ============================================================ */
 function PricingSection() {
   const features = [
-    { label: "動画本数", light: "月10本", standard: "月20本", premium: "毎日自動配信" },
-    { label: "バーチャルステージング", light: true, standard: true, premium: true },
+    { label: "動画本数", light: "月10本", standard: "月20本", premium: "月30本" },
+    { label: "バーチャルステージング(空室に家具合成)", light: true, standard: true, premium: true },
     {
-      label: "SNS自動投稿(Instagram/TikTok/YouTube)",
+      label: "SNS自動投稿(Instagram/TikTok/YouTube Shorts)",
       light: false,
       standard: true,
       premium: true,
     },
     { label: "ハッシュタグ・投稿時間の最適化", light: false, standard: true, premium: true },
-    { label: "効果分析レポート(月次)", light: false, standard: true, premium: true },
-    { label: "LINE公式アカウントのAI自動応答", light: false, standard: false, premium: true },
-    { label: "まとめて物件登録するだけで全自動運用", light: false, standard: false, premium: true },
-    { label: "優先サポート(LINE直通)", light: false, standard: false, premium: true },
+    { label: "LINE公式アカウントのAI自動応答(24時間)", light: false, standard: false, premium: true },
+    { label: "HP動画埋め込みサポート(コード提供・マニュアル)", light: false, standard: false, premium: true },
+    { label: "SEO対策(地域KW・物件詳細ページ最適化)", light: false, standard: false, premium: true },
+    { label: "月次効果分析レポート(再生数・問い合わせ・成約推移)", light: false, standard: false, premium: true },
+    { label: "専属担当(LINE直通・優先対応)", light: false, standard: false, premium: true },
   ];
 
   const Check = () => (
@@ -725,9 +497,6 @@ function PricingSection() {
               <li className="flex items-start gap-2">
                 <Check /> ハッシュタグ・投稿時間の最適化
               </li>
-              <li className="flex items-start gap-2">
-                <Check /> 月次分析レポート
-              </li>
             </ul>
             <a
               href="#contact"
@@ -738,40 +507,56 @@ function PricingSection() {
           </div>
 
           {/* Premium */}
-          <div className="flex flex-col rounded-3xl border border-[var(--brand-ink)] bg-gradient-to-br from-[var(--brand-ink)] to-gray-800 p-8 text-white shadow-lg">
+          <div className="relative flex flex-col rounded-3xl border border-[var(--brand-ink)] bg-gradient-to-br from-[var(--brand-ink)] to-gray-800 p-8 text-white shadow-lg">
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] px-4 py-1 text-xs font-bold text-white shadow-md">
+              WEBマーケ全部入り
+            </div>
             <div className="mb-1 text-sm font-bold tracking-widest text-[var(--brand-orange-light)]">
               PREMIUM
             </div>
             <h3 className="text-2xl font-black">プレミアム</h3>
-            <p className="mt-1 text-xs text-white/60">
-              AI完全おまかせ運用 / 毎日自動配信
+            <p className="mt-1 text-xs leading-relaxed text-white/70">
+              動画 × SNS × LINE × HP × SEO × 分析。
+              <br />
+              WEBマーケティング部門ごと、AIに丸投げ。
             </p>
             <div className="mt-6 flex items-baseline">
-              <span className="text-4xl font-black text-[var(--brand-orange-light)]">
+              <span className="text-5xl font-black text-[var(--brand-orange-light)]">
                 ¥300,000
               </span>
               <span className="ml-1 text-sm text-white/60">/月</span>
             </div>
-            <ul className="mt-6 flex-1 space-y-2 text-sm text-white/80">
+            <p className="mt-2 text-[11px] text-white/50">
+              ※ 業界相場 月¥90〜225万の半額以下
+            </p>
+            <ul className="mt-6 flex-1 space-y-2.5 text-sm text-white/85">
               <li className="flex items-start gap-2">
                 <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
-                毎日自動配信(月30本相当)
+                動画月30本+バーチャルステージング
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
-                スタンダードの全機能
+                SNS自動投稿+ハッシュタグ最適化
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
-                LINE公式のAI自動応答
+                LINE公式AI自動応答(24時間対応)
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
-                まとめて物件登録するだけで全自動
+                HP動画埋め込みサポート
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
-                優先サポート(LINE直通)
+                SEO対策(地域KW・物件ページ最適化)
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
+                月次効果分析レポート
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
+                専属担当(LINE直通・優先対応)
               </li>
             </ul>
             <a

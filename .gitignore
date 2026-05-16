@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Internal visit-manual A4 docs (kept local, never deploy to byakuyaai.com)
+/app/visit-manual/
+/app/all-plans-a4/
+/app/premium-a4/
+/app/hp-options-a4/
+/app/sugita-tasks/
+/app/business-plan-a4/
