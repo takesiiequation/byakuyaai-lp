@@ -24,94 +24,121 @@ export default async function AdminDashboard() {
     clients = [];
   }
 
+  const totalQuota = clients.reduce((s, c) => s + c.monthly_quota, 0);
+  const totalUsed = clients.reduce((s, c) => s + c.used_this_month, 0);
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">顧客管理</h1>
-        <span className="text-sm text-gray-500">
-          {clients.length} 社
-        </span>
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-xl sm:text-2xl font-bold text-[var(--brand-ink)]">
+          顧客管理
+        </h1>
       </div>
 
+      {clients.length > 0 && (
+        <div className="flex items-center gap-3 mb-5 text-sm text-gray-500">
+          <span className="inline-flex items-center gap-1.5 bg-white border border-gray-200 rounded-full px-3 py-1">
+            <span className="w-2 h-2 rounded-full bg-[var(--brand-orange)]" />
+            {clients.length} 社
+          </span>
+          <span className="inline-flex items-center gap-1.5 bg-white border border-gray-200 rounded-full px-3 py-1">
+            {totalUsed} / {totalQuota} 本
+          </span>
+        </div>
+      )}
+
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4 mb-6 text-sm">
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 mb-6 text-sm">
           <p className="font-bold mb-1">接続エラー</p>
-          <p>{error}</p>
-          <p className="mt-2 text-red-500">
-            GOOGLE_SERVICE_ACCOUNT_KEY と GOOGLE_SHEET_ID が Vercel に設定されているか確認してください。
+          <p className="break-all">{error}</p>
+          <p className="mt-2 text-red-500 text-xs">
+            GOOGLE_SERVICE_ACCOUNT_KEY と GOOGLE_SHEET_ID が Vercel
+            に設定されているか確認してください。
           </p>
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {clients.map((c) => {
           const pct =
             c.monthly_quota > 0
               ? Math.round((c.used_this_month / c.monthly_quota) * 100)
               : 0;
-          const planClass = PLAN_COLORS[c.plan] || "bg-gray-100 text-gray-700";
+          const planClass =
+            PLAN_COLORS[c.plan] || "bg-gray-100 text-gray-700";
+          const barColor =
+            pct >= 90
+              ? "#ef4444"
+              : pct >= 70
+                ? "#f59e0b"
+                : "var(--brand-orange)";
 
           return (
             <a
               key={c.client_id}
               href={`/admin/clients/${c.client_id}`}
-              className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow"
+              className="group bg-white rounded-2xl border border-gray-200 p-4 sm:p-5 hover:shadow-md active:scale-[0.98] transition-all"
             >
               <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h2 className="font-bold text-base">
+                <div className="min-w-0 flex-1">
+                  <h2 className="font-bold text-[15px] sm:text-base truncate text-[var(--brand-ink)] group-hover:text-[var(--brand-orange)] transition-colors">
                     {c.company_name || c.client_id}
                   </h2>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-xs text-gray-400 mt-0.5 truncate">
                     {c.client_id}
                   </p>
                 </div>
                 <span
-                  className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${planClass}`}
+                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ml-2 ${planClass}`}
                 >
                   {PLAN_LABELS[c.plan] || c.plan}
                 </span>
               </div>
 
               <div className="mb-3">
-                <div className="flex justify-between text-xs text-gray-500 mb-1">
-                  <span>使用量</span>
-                  <span>
-                    {c.used_this_month} / {c.monthly_quota}
+                <div className="flex justify-between text-xs text-gray-500 mb-1.5">
+                  <span>今月の使用量</span>
+                  <span className="font-medium tabular-nums">
+                    {c.used_this_month}
+                    <span className="text-gray-400">
+                      {" "}
+                      / {c.monthly_quota}
+                    </span>
                   </span>
                 </div>
-                <div className="w-full bg-gray-100 rounded-full h-2">
+                <div className="w-full bg-gray-100 rounded-full h-2.5">
                   <div
-                    className="h-2 rounded-full transition-all"
+                    className="h-2.5 rounded-full transition-all"
                     style={{
                       width: `${Math.min(pct, 100)}%`,
-                      backgroundColor:
-                        pct >= 90
-                          ? "#ef4444"
-                          : pct >= 70
-                            ? "#f59e0b"
-                            : "var(--brand-orange)",
+                      backgroundColor: barColor,
                     }}
                   />
                 </div>
               </div>
 
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-1.5 flex-wrap">
                 {c.line_bot_user_id && (
-                  <span className="text-[10px] bg-green-50 text-green-600 px-1.5 py-0.5 rounded">
+                  <span className="text-[10px] font-medium bg-green-50 text-green-600 border border-green-100 px-2 py-0.5 rounded-full">
                     LINE AI
                   </span>
                 )}
                 {c.require_approval === "true" && (
-                  <span className="text-[10px] bg-yellow-50 text-yellow-600 px-1.5 py-0.5 rounded">
+                  <span className="text-[10px] font-medium bg-amber-50 text-amber-600 border border-amber-100 px-2 py-0.5 rounded-full">
                     承認制
                   </span>
                 )}
                 {c.next_post_slot && (
-                  <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">
-                    次回: {c.next_post_slot.slice(0, 10)}
+                  <span className="text-[10px] font-medium bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-full">
+                    次回 {c.next_post_slot.slice(0, 10)}
                   </span>
                 )}
+              </div>
+
+              <div className="mt-3 pt-3 border-t border-gray-100 flex justify-end">
+                <span className="text-xs text-gray-400 group-hover:text-[var(--brand-orange)] transition-colors">
+                  詳細 →
+                </span>
               </div>
             </a>
           );
@@ -119,13 +146,46 @@ export default async function AdminDashboard() {
       </div>
 
       {clients.length === 0 && !error && (
-        <div className="text-center py-20 text-gray-400">
-          <p className="text-lg mb-2">顧客がまだ登録されていません</p>
+        <div className="text-center py-20">
+          <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+            <svg
+              className="w-8 h-8 text-gray-300"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"
+              />
+            </svg>
+          </div>
+          <p className="text-base font-medium text-gray-500 mb-1">
+            顧客がまだ登録されていません
+          </p>
+          <p className="text-sm text-gray-400 mb-4">
+            最初の顧客を追加しましょう
+          </p>
           <a
             href="/admin/clients/new"
-            className="text-[var(--brand-orange)] hover:underline"
+            className="inline-flex items-center gap-1.5 bg-[var(--brand-orange)] text-white font-medium rounded-xl px-5 py-2.5 text-sm hover:bg-[var(--brand-orange-dark)] active:scale-[0.98] transition-all"
           >
-            + 新規顧客を追加
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 6v12m6-6H6"
+              />
+            </svg>
+            新規顧客を追加
           </a>
         </div>
       )}

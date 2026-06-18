@@ -285,6 +285,11 @@ body {
   z-index: 0;
 }
 
+/* Admin: safe area for mobile bottom nav */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 /* Blog article body typography */
 .prose-custom {
   color: var(--brand-ink);
