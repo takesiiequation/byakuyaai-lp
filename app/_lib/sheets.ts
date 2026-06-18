@@ -2,7 +2,7 @@ import { google } from "googleapis";
 import type { Client } from "./types";
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID!;
-const TAB = process.env.GOOGLE_SHEET_TAB || "契約社リスト";
+const TAB = process.env.GOOGLE_SHEET_TAB || "リスト";
 
 function getAuth() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
