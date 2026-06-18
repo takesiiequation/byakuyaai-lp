@@ -395,7 +395,7 @@ function PricingSection() {
     },
     { label: "ハッシュタグ・投稿時間の最適化", light: false, standard: true, premium: true },
     { label: "LINE公式アカウントのAI自動応答(24時間)", light: false, standard: false, premium: true },
-    { label: "HP動画埋め込みサポート(コード提供・マニュアル)", light: false, standard: false, premium: true },
+    { label: "専用動画サイト無料構築(サブドメイン)", light: false, standard: false, premium: true },
     { label: "SEO対策(地域KW・物件詳細ページ最適化)", light: false, standard: false, premium: true },
     { label: "月次効果分析レポート(再生数・問い合わせ・成約推移)", light: false, standard: false, premium: true },
     { label: "専属担当(LINE直通・優先対応)", light: false, standard: false, premium: true },
@@ -544,7 +544,7 @@ function PricingSection() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
-                HP動画埋め込みサポート
+                専用動画サイト無料構築(サブドメイン)
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-[var(--brand-orange-light)]">✓</span>{" "}

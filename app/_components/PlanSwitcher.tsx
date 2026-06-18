@@ -87,7 +87,7 @@ const PREMIUM_COSTS = {
       { label: "SNS自動投稿+最適化", cost: "込み" },
       { label: "LINE公式AI自動応答", cost: "込み" },
       { label: "SEO対策(地域KW・物件ページ)", cost: "込み" },
-      { label: "HP動画埋め込みサポート", cost: "込み" },
+      { label: "専用動画サイト無料構築", cost: "込み" },
       { label: "月次効果分析レポート", cost: "込み" },
     ],
     totalLabel: "月額(プレミアムプラン)",
