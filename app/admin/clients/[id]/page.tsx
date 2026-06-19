@@ -99,6 +99,15 @@ export default async function ClientDetailPage({
       fields: [
         { key: "client_folder_id", label: "DriveフォルダID" },
         { key: "line_data_sheet_id", label: "LINEデータシートID" },
+        {
+          key: "blocked",
+          label: "使用ブロック",
+          type: "select",
+          options: [
+            { value: "", label: "通常（利用可能）" },
+            { value: "true", label: "ブロック中（利用停止）" },
+          ],
+        },
       ],
     },
   ];

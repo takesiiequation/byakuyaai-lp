@@ -44,6 +44,7 @@ function rowToClient(headers: string[], row: string[]): Client {
     line_bot_user_id: obj.line_bot_user_id ?? "",
     line_data_sheet_id: obj.line_data_sheet_id ?? "",
     client_folder_id: obj.client_folder_id ?? "",
+    blocked: obj.blocked ?? "",
   };
 }
 

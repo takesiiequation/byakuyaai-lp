@@ -19,6 +19,7 @@ export interface Client {
   line_bot_user_id: string;
   line_data_sheet_id: string;
   client_folder_id: string;
+  blocked: string;
 }
 
 export const PLAN_FEATURES: Record<string, { label: string; plans: string[] }> = {
