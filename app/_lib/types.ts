@@ -18,7 +18,14 @@ export interface Client {
   line_channel_secret: string;
   line_bot_user_id: string;
   line_data_sheet_id: string;
+  client_folder_id: string;
 }
+
+export const PLAN_FEATURES: Record<string, { label: string; plans: string[] }> = {
+  video: { label: "動画生成", plans: ["light", "standard", "premium"] },
+  sns: { label: "SNS自動投稿", plans: ["standard", "premium"] },
+  line_ai: { label: "LINE AI", plans: ["premium"] },
+};
 
 export const PLAN_LABELS: Record<string, string> = {
   light: "ライト",

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Client } from "@/app/_lib/types";
+import { PLAN_FEATURES } from "@/app/_lib/types";
 
 interface FieldDef {
   key: string;
@@ -31,11 +32,18 @@ export default function ClientEditor({
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
+  const [onboarding, setOnboarding] = useState(false);
+  const [onboardResult, setOnboardResult] = useState<{
+    ok: boolean;
+    text: string;
+  } | null>(null);
 
   const hasChanges = Object.entries(form).some(
     ([k, v]) =>
       v !== String((client as unknown as Record<string, unknown>)[k] ?? "")
   );
+
+  const isOnboarded = !!(client.client_folder_id && client.line_data_sheet_id);
 
   function set(key: string, val: string) {
     setForm((f) => ({ ...f, [key]: val }));
@@ -73,8 +81,163 @@ export default function ClientEditor({
     setSaving(false);
   }
 
+  async function runOnboard() {
+    setOnboarding(true);
+    setOnboardResult(null);
+    try {
+      const res = await fetch(`/api/clients/${client.client_id}/onboard`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        const parts = [];
+        if (data.data.folder_skipped) {
+          parts.push("フォルダ: 既存");
+        } else {
+          parts.push("フォルダ: 作成完了");
+        }
+        if (data.data.sheet_skipped) {
+          parts.push("LINEシート: 既存");
+        } else {
+          parts.push("LINEシート: 作成完了");
+        }
+        setOnboardResult({ ok: true, text: parts.join(" / ") });
+        if (data.data.client_folder_id) {
+          setForm((f) => ({
+            ...f,
+            client_folder_id: data.data.client_folder_id,
+          }));
+        }
+        if (data.data.line_data_sheet_id) {
+          setForm((f) => ({
+            ...f,
+            line_data_sheet_id: data.data.line_data_sheet_id,
+          }));
+        }
+      } else {
+        setOnboardResult({
+          ok: false,
+          text: data.error || "オンボーディングに失敗しました",
+        });
+      }
+    } catch (e) {
+      setOnboardResult({ ok: false, text: String(e) });
+    }
+    setOnboarding(false);
+  }
+
+  const currentPlan = form.plan || client.plan;
+
   return (
     <div className="space-y-4 sm:space-y-6">
+      {/* プラン別機能バッジ */}
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <div className="px-4 sm:px-6 py-3 bg-gray-50 border-b border-gray-100">
+          <h2 className="font-bold text-xs text-gray-500 uppercase tracking-wider">
+            利用可能な機能
+          </h2>
+        </div>
+        <div className="p-4 sm:p-6">
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(PLAN_FEATURES).map(([key, feat]) => {
+              const active = feat.plans.includes(currentPlan);
+              return (
+                <div
+                  key={key}
+                  className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border ${
+                    active
+                      ? "bg-green-50 text-green-700 border-green-200"
+                      : "bg-gray-50 text-gray-400 border-gray-200"
+                  }`}
+                >
+                  <span className="text-[10px]">{active ? "●" : "○"}</span>
+                  {feat.label}
+                  {!active && (
+                    <span className="text-[10px] text-gray-300 ml-0.5">
+                      準備済
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* オンボーディング */}
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <div className="px-4 sm:px-6 py-3 bg-gray-50 border-b border-gray-100">
+          <h2 className="font-bold text-xs text-gray-500 uppercase tracking-wider">
+            セットアップ
+          </h2>
+        </div>
+        <div className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="flex-1 min-w-0">
+              {isOnboarded ? (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm text-green-600 font-medium">
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    セットアップ完了
+                  </div>
+                  <p className="text-xs text-gray-400 truncate">
+                    フォルダ: {client.client_folder_id}
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-sm text-gray-600">
+                    Driveフォルダ + LINEデータシートを自動作成します
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    フォーム複製とApps Scriptは手動で設定してください
+                  </p>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={runOnboard}
+              disabled={onboarding}
+              className={`shrink-0 font-semibold rounded-xl px-5 py-2.5 text-sm transition-all active:scale-[0.98] ${
+                isOnboarded
+                  ? "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  : "bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:shadow-lg hover:shadow-blue-500/25"
+              } disabled:opacity-40`}
+            >
+              {onboarding
+                ? "実行中..."
+                : isOnboarded
+                  ? "再実行"
+                  : "セットアップ実行"}
+            </button>
+          </div>
+          {onboardResult && (
+            <div
+              className={`mt-3 text-sm px-3 py-2 rounded-lg ${
+                onboardResult.ok
+                  ? "bg-green-50 text-green-700"
+                  : "bg-red-50 text-red-600"
+              }`}
+            >
+              {onboardResult.text}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 既存セクション */}
       {sections.map((s) => (
         <div
           key={s.title}
