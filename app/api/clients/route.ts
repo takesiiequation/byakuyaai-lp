@@ -62,6 +62,7 @@ export async function POST(req: NextRequest) {
       line_channel_token: body.line_channel_token || "",
       line_channel_secret: body.line_channel_secret || "",
       line_bot_user_id: body.line_bot_user_id || "",
+      line_data_sheet_id: body.line_data_sheet_id || "",
     };
     await addClient(client);
     return Response.json({ ok: true, data: { client_id: client.client_id } });

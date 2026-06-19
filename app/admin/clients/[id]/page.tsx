@@ -86,6 +86,7 @@ export default async function ClientDetailPage({
           sensitive: true,
         },
         { key: "line_bot_user_id", label: "ボットユーザーID" },
+        { key: "line_data_sheet_id", label: "LINEデータシートID" },
       ],
     },
     {

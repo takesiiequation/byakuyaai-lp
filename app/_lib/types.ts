@@ -17,6 +17,7 @@ export interface Client {
   line_channel_token: string;
   line_channel_secret: string;
   line_bot_user_id: string;
+  line_data_sheet_id: string;
 }
 
 export const PLAN_LABELS: Record<string, string> = {

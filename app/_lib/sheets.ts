@@ -42,6 +42,7 @@ function rowToClient(headers: string[], row: string[]): Client {
     line_channel_token: obj.line_channel_token ?? "",
     line_channel_secret: obj.line_channel_secret ?? "",
     line_bot_user_id: obj.line_bot_user_id ?? "",
+    line_data_sheet_id: obj.line_data_sheet_id ?? "",
   };
 }
 
