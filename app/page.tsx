@@ -2,6 +2,8 @@ import Image from "next/image";
 import { faqs } from "./_data/faqs";
 import { JsonLd } from "./_components/JsonLd";
 import { PlanSwitcher } from "./_components/PlanSwitcher";
+import { Reveal, RevealStagger, RevealItem, CountUp, TiltCard } from "./_components/Motion";
+import HeroBackground from "./_components/HeroBackground";
 
 export default function Home() {
   return (
@@ -62,20 +64,21 @@ function SiteHeader() {
 function Hero() {
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-[var(--brand-cream)] via-white to-[var(--brand-cream-2)]">
+      <HeroBackground />
       {/* Left accent bar — brand consistency with A4 proposal */}
       <div className="brand-accent-bar absolute left-0 top-0 h-full w-1.5 sm:w-2" />
 
       <div className="mx-auto grid max-w-6xl gap-10 px-6 py-16 sm:px-8 lg:grid-cols-2 lg:gap-12 lg:py-24">
         {/* Left: Copy */}
-        <div className="flex flex-col justify-center">
-          <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-[var(--brand-orange)] bg-white px-4 py-1.5 text-xs font-bold tracking-wider text-[var(--brand-orange-dark)]">
+        <RevealStagger className="flex flex-col justify-center">
+          <RevealItem className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-[var(--brand-orange)] bg-white px-4 py-1.5 text-xs font-bold tracking-wider text-[var(--brand-orange-dark)]">
             <span className="text-[var(--brand-orange)]">✓</span>
             賃貸
             <span className="text-[var(--brand-orange)]">✓</span>
             売買 どちらにも対応
-          </div>
+          </RevealItem>
 
-          <h1 className="text-[2.25rem] font-black leading-[1.2] tracking-tight text-[var(--brand-ink)] sm:text-5xl lg:text-[3.5rem]">
+          <RevealItem as="h1" className="text-[2.25rem] font-black leading-[1.2] tracking-tight text-[var(--brand-ink)] sm:text-5xl lg:text-[3.5rem]">
             写真を送るだけ。
             <br />
             あとは
@@ -86,15 +89,15 @@ function Hero() {
             が
             <br className="sm:hidden" />
             全部やります。
-          </h1>
+          </RevealItem>
 
-          <p className="mt-6 text-base leading-relaxed text-[var(--brand-gray)] sm:text-lg">
+          <RevealItem as="p" className="mt-6 text-base leading-relaxed text-[var(--brand-gray)] sm:text-lg">
             マイソクと物件写真をアップロードするだけで、
             <br className="hidden sm:block" />
             プロ品質のショート動画を毎日自動で生成・配信。
-          </p>
+          </RevealItem>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <RevealItem className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
             <a
               href="#contact"
               className="inline-flex items-center justify-center rounded-full bg-[var(--brand-orange)] px-7 py-3.5 text-base font-bold text-white shadow-lg shadow-orange-200 transition hover:translate-y-[-1px] hover:bg-[var(--brand-orange-dark)] hover:shadow-xl"
@@ -108,16 +111,16 @@ function Hero() {
             >
               料金プランを見る
             </a>
-          </div>
+          </RevealItem>
 
-          <p className="mt-4 text-xs text-[var(--brand-gray-light)]">
+          <RevealItem as="p" className="mt-4 text-xs text-[var(--brand-gray-light)]">
             契約期間の縛りなし／いつでも解約OK
-          </p>
-        </div>
+          </RevealItem>
+        </RevealStagger>
 
         {/* Right: Instagram-on-iPhone sample video frame */}
-        <div className="flex items-center justify-center">
-          <div className="relative aspect-[9/16] w-full max-w-[280px] overflow-hidden rounded-[2.5rem] border-[6px] border-[var(--brand-ink)] bg-white shadow-2xl sm:max-w-[320px]">
+        <Reveal className="flex items-center justify-center">
+          <div className="relative aspect-[9/16] w-full max-w-[280px] overflow-hidden rounded-[2.5rem] border-[6px] border-[var(--brand-ink)] bg-white shadow-2xl sm:max-w-[320px] animate-float-y">
             {/* Phone notch */}
             <div className="absolute left-1/2 top-0 z-10 h-6 w-24 -translate-x-1/2 rounded-b-2xl bg-[var(--brand-ink)]" />
 
@@ -296,7 +299,7 @@ function Hero() {
               </div>
             </div>
           </div>
-        </div>
+        </Reveal>
       </div>
     </section>
   );
@@ -339,42 +342,43 @@ function FlowSection() {
       <div className="brand-accent-bar absolute left-0 top-0 h-full w-1.5 sm:w-2" />
 
       <div className="mx-auto max-w-6xl px-6 sm:px-8">
-        <div className="mb-14 text-center">
-          <p className="mb-2 text-sm font-bold tracking-[0.2em] text-[var(--brand-orange)]">
-            HOW IT WORKS
-          </p>
-          <h2 className="text-3xl font-black text-[var(--brand-ink)] sm:text-4xl">
-            導入は4ステップ、最短10分で開始。
-          </h2>
-          <p className="mt-4 text-sm text-[var(--brand-gray)] sm:text-base">
-            特別な機材・知識・人材は一切不要です。
-          </p>
-        </div>
+        <Reveal>
+          <div className="mb-14 text-center">
+            <p className="mb-2 text-sm font-bold tracking-[0.2em] text-[var(--brand-orange)]">
+              HOW IT WORKS
+            </p>
+            <h2 className="text-3xl font-black text-[var(--brand-ink)] sm:text-4xl">
+              導入は4ステップ、最短10分で開始。
+            </h2>
+            <p className="mt-4 text-sm text-[var(--brand-gray)] sm:text-base">
+              特別な機材・知識・人材は一切不要です。
+            </p>
+          </div>
+        </Reveal>
 
-        <div className="relative grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <RevealStagger className="relative grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {/* Connector line for desktop */}
           <div className="absolute left-0 right-0 top-10 hidden h-0.5 bg-gradient-to-r from-transparent via-[var(--brand-orange)]/40 to-transparent lg:block" />
 
           {steps.map((step) => (
-            <div
-              key={step.num}
-              className="relative rounded-2xl border border-[var(--brand-border)] bg-white p-6 transition hover:border-[var(--brand-orange)] hover:shadow-lg"
-            >
-              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[var(--brand-orange)] text-lg font-black text-white shadow-md">
-                {step.num}
-              </div>
-              <h3 className="mb-2 text-lg font-bold text-[var(--brand-ink)]">
-                {step.title}
-              </h3>
-              <p className="mb-3 text-sm leading-relaxed text-[var(--brand-gray)]">
-                {step.desc}
-              </p>
-              <p className="border-t border-dotted border-gray-300 pt-2 text-xs text-[var(--brand-orange-dark)]">
-                {step.detail}
-              </p>
-            </div>
+            <RevealItem key={step.num} className="grid">
+              <TiltCard className="relative rounded-2xl border border-[var(--brand-border)] bg-white p-6 transition hover:border-[var(--brand-orange)] hover:shadow-lg">
+                <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[var(--brand-orange)] text-lg font-black text-white shadow-md">
+                  {step.num}
+                </div>
+                <h3 className="mb-2 text-lg font-bold text-[var(--brand-ink)]">
+                  {step.title}
+                </h3>
+                <p className="mb-3 text-sm leading-relaxed text-[var(--brand-gray)]">
+                  {step.desc}
+                </p>
+                <p className="border-t border-dotted border-gray-300 pt-2 text-xs text-[var(--brand-orange-dark)]">
+                  {step.detail}
+                </p>
+              </TiltCard>
+            </RevealItem>
           ))}
-        </div>
+        </RevealStagger>
       </div>
     </section>
   );
@@ -416,157 +420,165 @@ function PricingSection() {
       <div className="brand-accent-bar absolute left-0 top-0 h-full w-1.5 sm:w-2" />
 
       <div className="mx-auto max-w-6xl px-6 sm:px-8">
-        <div className="mb-14 text-center">
-          <p className="mb-2 text-sm font-bold tracking-[0.2em] text-[var(--brand-orange)]">
-            PRICING
-          </p>
-          <h2 className="text-3xl font-black text-[var(--brand-ink)] sm:text-4xl">
-            シンプルな3プラン。
-          </h2>
-          <p className="mt-4 text-sm text-[var(--brand-gray)] sm:text-base">
-            まずは14日間、無料でお試しください。契約期間の縛りはありません。
-          </p>
-        </div>
+        <Reveal>
+          <div className="mb-14 text-center">
+            <p className="mb-2 text-sm font-bold tracking-[0.2em] text-[var(--brand-orange)]">
+              PRICING
+            </p>
+            <h2 className="text-3xl font-black text-[var(--brand-ink)] sm:text-4xl">
+              シンプルな3プラン。
+            </h2>
+            <p className="mt-4 text-sm text-[var(--brand-gray)] sm:text-base">
+              まずは14日間、無料でお試しください。契約期間の縛りはありません。
+            </p>
+          </div>
+        </Reveal>
 
         {/* Plan cards */}
-        <div className="grid gap-6 lg:grid-cols-3">
+        <RevealStagger className="grid gap-6 lg:grid-cols-3">
           {/* Light */}
-          <div className="flex flex-col rounded-3xl border border-[var(--brand-border)] bg-white p-8 shadow-sm">
-            <div className="mb-1 text-sm font-bold tracking-widest text-[var(--brand-gray-light)]">
-              LIGHT
+          <RevealItem className="grid">
+            <div className="flex flex-col rounded-3xl border border-[var(--brand-border)] bg-white p-8 shadow-sm">
+              <div className="mb-1 text-sm font-bold tracking-widest text-[var(--brand-gray-light)]">
+                LIGHT
+              </div>
+              <h3 className="text-2xl font-black text-[var(--brand-ink)]">ライト</h3>
+              <p className="mt-1 text-xs text-[var(--brand-gray)]">
+                まずは動画だけ試したい方へ
+              </p>
+              <div className="mt-6 flex items-baseline">
+                <span className="text-4xl font-black text-[var(--brand-ink)]">
+                  <CountUp value={50000} prefix="¥" />
+                </span>
+                <span className="ml-1 text-sm text-[var(--brand-gray)]">/月</span>
+              </div>
+              <ul className="mt-6 flex-1 space-y-2 text-sm text-[var(--brand-gray)]">
+                <li className="flex items-start gap-2">
+                  <Check /> 動画月5本の制作・納品
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check /> バーチャルステージング込み
+                </li>
+                <li className="flex items-start gap-2 text-gray-400">
+                  <Dash /> SNS投稿は自社運用
+                </li>
+              </ul>
+              <a
+                href="#contact"
+                className="mt-8 inline-flex items-center justify-center rounded-full border-2 border-[var(--brand-orange)] bg-white px-6 py-3 text-sm font-bold text-[var(--brand-orange-dark)] transition hover:bg-[var(--brand-cream)]"
+              >
+                ライトを試す
+              </a>
             </div>
-            <h3 className="text-2xl font-black text-[var(--brand-ink)]">ライト</h3>
-            <p className="mt-1 text-xs text-[var(--brand-gray)]">
-              まずは動画だけ試したい方へ
-            </p>
-            <div className="mt-6 flex items-baseline">
-              <span className="text-4xl font-black text-[var(--brand-ink)]">
-                ¥50,000
-              </span>
-              <span className="ml-1 text-sm text-[var(--brand-gray)]">/月</span>
-            </div>
-            <ul className="mt-6 flex-1 space-y-2 text-sm text-[var(--brand-gray)]">
-              <li className="flex items-start gap-2">
-                <Check /> 動画月5本の制作・納品
-              </li>
-              <li className="flex items-start gap-2">
-                <Check /> バーチャルステージング込み
-              </li>
-              <li className="flex items-start gap-2 text-gray-400">
-                <Dash /> SNS投稿は自社運用
-              </li>
-            </ul>
-            <a
-              href="#contact"
-              className="mt-8 inline-flex items-center justify-center rounded-full border-2 border-[var(--brand-orange)] bg-white px-6 py-3 text-sm font-bold text-[var(--brand-orange-dark)] transition hover:bg-[var(--brand-cream)]"
-            >
-              ライトを試す
-            </a>
-          </div>
+          </RevealItem>
 
           {/* Standard (recommended) */}
-          <div className="relative flex flex-col rounded-3xl border-2 border-[var(--brand-orange)] bg-white p-8 shadow-2xl lg:-translate-y-3">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[var(--brand-orange)] px-4 py-1 text-xs font-bold text-white shadow-md">
-              おすすめ
+          <RevealItem className="grid">
+            <div className="relative flex flex-col rounded-3xl border-2 border-[var(--brand-orange)] bg-white p-8 shadow-2xl lg:-translate-y-3">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[var(--brand-orange)] px-4 py-1 text-xs font-bold text-white shadow-md">
+                おすすめ
+              </div>
+              <div className="mb-1 text-sm font-bold tracking-widest text-[var(--brand-orange-dark)]">
+                STANDARD
+              </div>
+              <h3 className="text-2xl font-black text-[var(--brand-ink)]">
+                スタンダード
+              </h3>
+              <p className="mt-1 text-xs text-[var(--brand-gray)]">
+                動画制作からSNS運用まで全部お任せ
+              </p>
+              <div className="mt-6 flex items-baseline">
+                <span className="text-5xl font-black text-[var(--brand-orange)]">
+                  <CountUp value={100000} prefix="¥" />
+                </span>
+                <span className="ml-1 text-sm text-[var(--brand-gray)]">/月</span>
+              </div>
+              <ul className="mt-6 flex-1 space-y-2 text-sm text-[var(--brand-gray)]">
+                <li className="flex items-start gap-2">
+                  <Check /> 動画月10本の制作・納品
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check /> バーチャルステージング込み
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check /> SNS自動投稿(Instagram/TikTok/YouTube)
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check /> ハッシュタグ・投稿時間の最適化
+                </li>
+              </ul>
+              <a
+                href="#contact"
+                className="mt-8 inline-flex items-center justify-center rounded-full bg-[var(--brand-orange)] px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-orange-200 transition hover:translate-y-[-1px] hover:bg-[var(--brand-orange-dark)]"
+              >
+                スタンダードを試す →
+              </a>
             </div>
-            <div className="mb-1 text-sm font-bold tracking-widest text-[var(--brand-orange-dark)]">
-              STANDARD
-            </div>
-            <h3 className="text-2xl font-black text-[var(--brand-ink)]">
-              スタンダード
-            </h3>
-            <p className="mt-1 text-xs text-[var(--brand-gray)]">
-              動画制作からSNS運用まで全部お任せ
-            </p>
-            <div className="mt-6 flex items-baseline">
-              <span className="text-5xl font-black text-[var(--brand-orange)]">
-                ¥100,000
-              </span>
-              <span className="ml-1 text-sm text-[var(--brand-gray)]">/月</span>
-            </div>
-            <ul className="mt-6 flex-1 space-y-2 text-sm text-[var(--brand-gray)]">
-              <li className="flex items-start gap-2">
-                <Check /> 動画月10本の制作・納品
-              </li>
-              <li className="flex items-start gap-2">
-                <Check /> バーチャルステージング込み
-              </li>
-              <li className="flex items-start gap-2">
-                <Check /> SNS自動投稿(Instagram/TikTok/YouTube)
-              </li>
-              <li className="flex items-start gap-2">
-                <Check /> ハッシュタグ・投稿時間の最適化
-              </li>
-            </ul>
-            <a
-              href="#contact"
-              className="mt-8 inline-flex items-center justify-center rounded-full bg-[var(--brand-orange)] px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-orange-200 transition hover:translate-y-[-1px] hover:bg-[var(--brand-orange-dark)]"
-            >
-              スタンダードを試す →
-            </a>
-          </div>
+          </RevealItem>
 
           {/* Premium */}
-          <div className="relative flex flex-col rounded-3xl border border-[var(--brand-ink)] bg-gradient-to-br from-[var(--brand-ink)] to-gray-800 p-8 text-white shadow-lg">
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] px-4 py-1 text-xs font-bold text-white shadow-md">
-              WEBマーケ全部入り
+          <RevealItem className="grid">
+            <div className="relative flex flex-col rounded-3xl border border-[var(--brand-ink)] bg-gradient-to-br from-[var(--brand-ink)] to-gray-800 p-8 text-white shadow-lg">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] px-4 py-1 text-xs font-bold text-white shadow-md">
+                WEBマーケ全部入り
+              </div>
+              <div className="mb-1 text-sm font-bold tracking-widest text-[var(--brand-orange-light)]">
+                PREMIUM
+              </div>
+              <h3 className="text-2xl font-black">プレミアム</h3>
+              <p className="mt-1 text-xs leading-relaxed text-white/70">
+                動画 × SNS × LINE × HP × SEO × 分析。
+                <br />
+                WEBマーケティング部門ごと、AIに丸投げ。
+              </p>
+              <div className="mt-6 flex items-baseline">
+                <span className="text-5xl font-black text-[var(--brand-orange-light)]">
+                  <CountUp value={300000} prefix="¥" />
+                </span>
+                <span className="ml-1 text-sm text-white/60">/月</span>
+              </div>
+              <p className="mt-2 text-[11px] text-white/50">
+                ※ 業界相場 月¥90〜225万の半額以下
+              </p>
+              <ul className="mt-6 flex-1 space-y-2.5 text-sm text-white/85">
+                <li className="flex items-start gap-2">
+                  <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
+                  動画月30本+バーチャルステージング
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
+                  SNS自動投稿+ハッシュタグ最適化
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
+                  LINE公式AI自動応答(24時間対応)
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
+                  専用動画サイト無料構築(サブドメイン)
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
+                  SEO対策(地域KW・物件ページ最適化)
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
+                  月次効果分析レポート
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
+                  専属担当(LINE直通・優先対応)
+                </li>
+              </ul>
+              <a
+                href="#contact"
+                className="mt-8 inline-flex items-center justify-center rounded-full border-2 border-[var(--brand-orange-light)] bg-transparent px-6 py-3 text-sm font-bold text-[var(--brand-orange-light)] transition hover:bg-[var(--brand-orange-light)] hover:text-[var(--brand-ink)]"
+              >
+                プレミアムを相談する
+              </a>
             </div>
-            <div className="mb-1 text-sm font-bold tracking-widest text-[var(--brand-orange-light)]">
-              PREMIUM
-            </div>
-            <h3 className="text-2xl font-black">プレミアム</h3>
-            <p className="mt-1 text-xs leading-relaxed text-white/70">
-              動画 × SNS × LINE × HP × SEO × 分析。
-              <br />
-              WEBマーケティング部門ごと、AIに丸投げ。
-            </p>
-            <div className="mt-6 flex items-baseline">
-              <span className="text-5xl font-black text-[var(--brand-orange-light)]">
-                ¥300,000
-              </span>
-              <span className="ml-1 text-sm text-white/60">/月</span>
-            </div>
-            <p className="mt-2 text-[11px] text-white/50">
-              ※ 業界相場 月¥90〜225万の半額以下
-            </p>
-            <ul className="mt-6 flex-1 space-y-2.5 text-sm text-white/85">
-              <li className="flex items-start gap-2">
-                <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
-                動画月30本+バーチャルステージング
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
-                SNS自動投稿+ハッシュタグ最適化
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
-                LINE公式AI自動応答(24時間対応)
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
-                専用動画サイト無料構築(サブドメイン)
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
-                SEO対策(地域KW・物件ページ最適化)
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
-                月次効果分析レポート
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
-                専属担当(LINE直通・優先対応)
-              </li>
-            </ul>
-            <a
-              href="#contact"
-              className="mt-8 inline-flex items-center justify-center rounded-full border-2 border-[var(--brand-orange-light)] bg-transparent px-6 py-3 text-sm font-bold text-[var(--brand-orange-light)] transition hover:bg-[var(--brand-orange-light)] hover:text-[var(--brand-ink)]"
-            >
-              プレミアムを相談する
-            </a>
-          </div>
-        </div>
+          </RevealItem>
+        </RevealStagger>
 
         {/* Feature comparison table */}
         <div className="mt-16 overflow-hidden rounded-2xl border border-[var(--brand-border)] bg-white shadow-sm">
@@ -671,19 +683,22 @@ function FaqSection() {
       <div className="brand-accent-bar absolute left-0 top-0 h-full w-1.5 sm:w-2" />
 
       <div className="mx-auto max-w-3xl px-6 sm:px-8">
-        <div className="mb-14 text-center">
-          <p className="mb-2 text-sm font-bold tracking-[0.2em] text-[var(--brand-orange)]">
-            FAQ
-          </p>
-          <h2 className="text-3xl font-black text-[var(--brand-ink)] sm:text-4xl">
-            よくあるご質問
-          </h2>
-        </div>
+        <Reveal>
+          <div className="mb-14 text-center">
+            <p className="mb-2 text-sm font-bold tracking-[0.2em] text-[var(--brand-orange)]">
+              FAQ
+            </p>
+            <h2 className="text-3xl font-black text-[var(--brand-ink)] sm:text-4xl">
+              よくあるご質問
+            </h2>
+          </div>
+        </Reveal>
 
-        <div className="space-y-3">
+        <RevealStagger className="space-y-3">
           {faqs.map((item, i) => (
-            <details
+            <RevealItem
               key={i}
+              as="details"
               className="group rounded-2xl border border-[var(--brand-border)] bg-white transition hover:border-[var(--brand-orange)]/60 open:border-[var(--brand-orange)] open:shadow-md"
             >
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5 font-bold text-[var(--brand-ink)]">
@@ -717,9 +732,9 @@ function FaqSection() {
                   </p>
                 </div>
               </div>
-            </details>
+            </RevealItem>
           ))}
-        </div>
+        </RevealStagger>
       </div>
     </section>
   );
@@ -740,143 +755,147 @@ function ContactSection() {
       <div className="brand-accent-bar absolute left-0 top-0 h-full w-1.5 sm:w-2" />
 
       <div className="mx-auto max-w-3xl px-6 sm:px-8">
-        <div className="mb-10 text-center">
-          <p className="mb-2 text-sm font-bold tracking-[0.2em] text-[var(--brand-orange-light)]">
-            CONTACT
-          </p>
-          <h2 className="text-3xl font-black text-white sm:text-4xl">
-            まずは14日間、無料でお試しください。
-          </h2>
-          <p className="mt-4 text-sm text-white/70 sm:text-base">
-            以下のフォームよりお問い合わせください。通常1〜2営業日以内にご返信いたします。
-          </p>
-        </div>
+        <Reveal>
+          <div className="mb-10 text-center">
+            <p className="mb-2 text-sm font-bold tracking-[0.2em] text-[var(--brand-orange-light)]">
+              CONTACT
+            </p>
+            <h2 className="text-3xl font-black text-white sm:text-4xl">
+              まずは14日間、無料でお試しください。
+            </h2>
+            <p className="mt-4 text-sm text-white/70 sm:text-base">
+              以下のフォームよりお問い合わせください。通常1〜2営業日以内にご返信いたします。
+            </p>
+          </div>
+        </Reveal>
 
-        <form
-          action={FORMSPREE_ENDPOINT}
-          method="POST"
-          className="rounded-3xl bg-white p-8 shadow-2xl sm:p-10"
-        >
-          {/* Honeypot field for spam protection */}
-          <input
-            type="text"
-            name="_gotcha"
-            tabIndex={-1}
-            autoComplete="off"
-            className="absolute -left-[9999px] h-0 w-0 opacity-0"
-            aria-hidden="true"
-          />
+        <Reveal>
+          <form
+            action={FORMSPREE_ENDPOINT}
+            method="POST"
+            className="rounded-3xl bg-white p-8 shadow-2xl sm:p-10"
+          >
+            {/* Honeypot field for spam protection */}
+            <input
+              type="text"
+              name="_gotcha"
+              tabIndex={-1}
+              autoComplete="off"
+              className="absolute -left-[9999px] h-0 w-0 opacity-0"
+              aria-hidden="true"
+            />
 
-          <div className="grid gap-5 sm:grid-cols-2">
-            <FormField label="会社名" name="company" required />
-            <FormField label="お名前" name="name" required />
-            <FormField label="メールアドレス" name="email" type="email" required />
-            <FormField label="電話番号(任意)" name="phone" type="tel" />
+            <div className="grid gap-5 sm:grid-cols-2">
+              <FormField label="会社名" name="company" required />
+              <FormField label="お名前" name="name" required />
+              <FormField label="メールアドレス" name="email" type="email" required />
+              <FormField label="電話番号(任意)" name="phone" type="tel" />
 
-            <div className="sm:col-span-2">
-              <label className="mb-2 block text-sm font-bold text-[var(--brand-ink)]">
-                物件種別 <span className="text-red-500">*</span>
-              </label>
-              <div className="flex flex-wrap gap-3">
-                {["賃貸", "売買", "両方"].map((v) => (
-                  <label
-                    key={v}
-                    className="flex cursor-pointer items-center gap-2 rounded-full border border-[var(--brand-border)] bg-white px-4 py-2 text-sm transition hover:border-[var(--brand-orange)]"
-                  >
-                    <input
-                      type="radio"
-                      name="property_type"
-                      value={v}
-                      required
-                      className="accent-[var(--brand-orange)]"
-                    />
-                    {v}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="mb-2 block text-sm font-bold text-[var(--brand-ink)]">
-                月の物件数目安 <span className="text-red-500">*</span>
-              </label>
-              <div className="flex flex-wrap gap-3">
-                {["〜10件", "10〜30件", "30件〜"].map((v) => (
-                  <label
-                    key={v}
-                    className="flex cursor-pointer items-center gap-2 rounded-full border border-[var(--brand-border)] bg-white px-4 py-2 text-sm transition hover:border-[var(--brand-orange)]"
-                  >
-                    <input
-                      type="radio"
-                      name="volume"
-                      value={v}
-                      required
-                      className="accent-[var(--brand-orange)]"
-                    />
-                    {v}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="mb-2 block text-sm font-bold text-[var(--brand-ink)]">
-                希望プラン
-              </label>
-              <div className="flex flex-wrap gap-3">
-                {["ライト", "スタンダード", "プレミアム", "未定・相談希望"].map(
-                  (v) => (
+              <div className="sm:col-span-2">
+                <label className="mb-2 block text-sm font-bold text-[var(--brand-ink)]">
+                  物件種別 <span className="text-red-500">*</span>
+                </label>
+                <div className="flex flex-wrap gap-3">
+                  {["賃貸", "売買", "両方"].map((v) => (
                     <label
                       key={v}
                       className="flex cursor-pointer items-center gap-2 rounded-full border border-[var(--brand-border)] bg-white px-4 py-2 text-sm transition hover:border-[var(--brand-orange)]"
                     >
                       <input
                         type="radio"
-                        name="plan"
+                        name="property_type"
                         value={v}
+                        required
                         className="accent-[var(--brand-orange)]"
                       />
                       {v}
                     </label>
-                  )
-                )}
+                  ))}
+                </div>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="mb-2 block text-sm font-bold text-[var(--brand-ink)]">
+                  月の物件数目安 <span className="text-red-500">*</span>
+                </label>
+                <div className="flex flex-wrap gap-3">
+                  {["〜10件", "10〜30件", "30件〜"].map((v) => (
+                    <label
+                      key={v}
+                      className="flex cursor-pointer items-center gap-2 rounded-full border border-[var(--brand-border)] bg-white px-4 py-2 text-sm transition hover:border-[var(--brand-orange)]"
+                    >
+                      <input
+                        type="radio"
+                        name="volume"
+                        value={v}
+                        required
+                        className="accent-[var(--brand-orange)]"
+                      />
+                      {v}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="mb-2 block text-sm font-bold text-[var(--brand-ink)]">
+                  希望プラン
+                </label>
+                <div className="flex flex-wrap gap-3">
+                  {["ライト", "スタンダード", "プレミアム", "未定・相談希望"].map(
+                    (v) => (
+                      <label
+                        key={v}
+                        className="flex cursor-pointer items-center gap-2 rounded-full border border-[var(--brand-border)] bg-white px-4 py-2 text-sm transition hover:border-[var(--brand-orange)]"
+                      >
+                        <input
+                          type="radio"
+                          name="plan"
+                          value={v}
+                          className="accent-[var(--brand-orange)]"
+                        />
+                        {v}
+                      </label>
+                    )
+                  )}
+                </div>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="mb-2 block text-sm font-bold text-[var(--brand-ink)]">
+                  お問い合わせ内容
+                </label>
+                <textarea
+                  name="message"
+                  rows={5}
+                  placeholder="ご質問・ご相談など、お気軽にお書きください。"
+                  className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-4 py-3 text-sm text-[var(--brand-ink)] outline-none transition focus:border-[var(--brand-orange)] focus:ring-2 focus:ring-[var(--brand-orange)]/20"
+                />
               </div>
             </div>
 
-            <div className="sm:col-span-2">
-              <label className="mb-2 block text-sm font-bold text-[var(--brand-ink)]">
-                お問い合わせ内容
-              </label>
-              <textarea
-                name="message"
-                rows={5}
-                placeholder="ご質問・ご相談など、お気軽にお書きください。"
-                className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-4 py-3 text-sm text-[var(--brand-ink)] outline-none transition focus:border-[var(--brand-orange)] focus:ring-2 focus:ring-[var(--brand-orange)]/20"
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            className="mt-8 flex w-full items-center justify-center rounded-full bg-[var(--brand-orange)] px-8 py-4 text-base font-bold text-white shadow-lg shadow-orange-200 transition hover:translate-y-[-1px] hover:bg-[var(--brand-orange-dark)] hover:shadow-xl"
-          >
-            無料トライアルを申し込む
-            <span className="ml-2 text-lg">→</span>
-          </button>
-
-          <p className="mt-4 text-center text-xs text-[var(--brand-gray-light)]">
-            送信前に{" "}
-            <a
-              href="/privacy"
-              className="underline hover:text-[var(--brand-orange-dark)]"
+            <button
+              type="submit"
+              className="mt-8 flex w-full items-center justify-center rounded-full bg-[var(--brand-orange)] px-8 py-4 text-base font-bold text-white shadow-lg shadow-orange-200 transition hover:translate-y-[-1px] hover:bg-[var(--brand-orange-dark)] hover:shadow-xl"
             >
-              プライバシーポリシー
-            </a>{" "}
-            をご確認ください。
-            <br />
-            いただいた情報は本件のご連絡にのみ使用し、第三者には共有しません。
-          </p>
-        </form>
+              無料トライアルを申し込む
+              <span className="ml-2 text-lg">→</span>
+            </button>
+
+            <p className="mt-4 text-center text-xs text-[var(--brand-gray-light)]">
+              送信前に{" "}
+              <a
+                href="/privacy"
+                className="underline hover:text-[var(--brand-orange-dark)]"
+              >
+                プライバシーポリシー
+              </a>{" "}
+              をご確認ください。
+              <br />
+              いただいた情報は本件のご連絡にのみ使用し、第三者には共有しません。
+            </p>
+          </form>
+        </Reveal>
       </div>
     </section>
   );

@@ -341,3 +341,59 @@ body {
     font-size: 1.2rem;
   }
 }
+
+/* ============================================================
+ * Aurora & float motion — HeroBackground / phone mock
+ * (framer-motion + light CSS only; no 3D / canvas)
+ * ============================================================ */
+
+/* HeroBackground: slow drifting gradient mesh (period ~22s / DUR_AURORA).
+   transform-based so blobs composite on the GPU. */
+@keyframes aurora-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(4%, -3%, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(-3%, 4%, 0) scale(1.04);
+  }
+}
+
+.animate-aurora {
+  animation: aurora-drift 22s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+/* Subtle vertical float for the phone mock
+   (period 6s / DUR_FLOAT, amplitude 8px / FLOAT_AMPLITUDE) */
+@keyframes float-y {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.animate-float-y {
+  animation: float-y 6s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Respect user motion preferences: disable all decorative + neon animations */
+@media (prefers-reduced-motion: reduce) {
+  .animate-aurora,
+  .animate-float-y,
+  .neon-pulse,
+  .neon-border::before,
+  .electric-bg::before,
+  .premium-frame::before,
+  .premium-frame::after,
+  .premium-frame > .frame-left,
+  .premium-frame > .frame-right,
+  .banner-neon::before {
+    animation: none;
+  }
+}
