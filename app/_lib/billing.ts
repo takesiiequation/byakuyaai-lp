@@ -2,8 +2,8 @@ import { google } from "googleapis";
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID!;
 const N8N_BASE = "https://aiboost-takeshi.app.n8n.cloud/webhook";
-const BILLING_KEY = "byk-bill-26";
-const RECON_KEY = "byk-recon-26";
+const BILLING_KEY = process.env.N8N_BILLING_KEY ?? "";
+const RECON_KEY = process.env.N8N_RECON_KEY ?? "";
 
 function getAuth() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
