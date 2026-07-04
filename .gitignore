@@ -47,3 +47,7 @@ next-env.d.ts
 /app/hp-options-a4/
 /app/sugita-tasks/
 /app/business-plan-a4/
+
+# 内部資料(公開リポに載せない・2026-07-04)
+docs/
+提案資料/
