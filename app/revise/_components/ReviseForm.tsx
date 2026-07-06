@@ -7,10 +7,11 @@ import {
   type ReviseTelop,
 } from "@/app/_lib/revise";
 
-/** Telop text is collapsed to a single line before it's ever sent — Enter
- * still works while typing, but newlines become spaces at submit time. */
+/** Telop text now allows newlines through as typed — a newline renders as a
+ * fixed line break at that position in the video. Only leading/trailing
+ * whitespace is trimmed before comparing/sending. */
 function sanitizeTelop(s: string): string {
-  return s.replace(/\r\n|\r|\n/g, " ").trim();
+  return s.trim();
 }
 
 /** Grows a textarea to fit its content instead of scrolling internally. */
@@ -279,7 +280,10 @@ export default function ReviseForm({
         )}
 
         <div className="rounded-2xl bg-[var(--brand-cream)] p-4 text-[11px] leading-relaxed text-[var(--brand-gray)] sm:text-xs">
-          <p>※動画内の読み上げは自動で調整されます</p>
+          <p>
+            ※改行するとその位置で字幕が折り返されます(改行入りのテロップは固定表示になります)
+          </p>
+          <p className="mt-1.5">※動画内の読み上げは自動で調整されます</p>
           <p className="mt-1.5">
             ※家賃・間取りなどの数値は資料(マイソク)にもとづいています。数値そのものに誤りがある場合は、テロップ修正ではなく資料の再送をお願いします
           </p>

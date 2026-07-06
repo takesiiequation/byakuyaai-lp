@@ -11,13 +11,6 @@ export const ROLE_RE = /^[a-z][a-z0-9_]{0,49}$/i;
 export const MAX_TEXT_LEN = 35;
 export const MAX_CAPTION_LEN = 2200;
 
-/** Telop text must render on a single line inside the video — collapse any
- * newlines the client sends into spaces. Caption text is exempt (multi-line
- * captions are expected and preserved as-is). */
-function sanitizeTelopText(s: string): string {
-  return s.replace(/\r\n|\r|\n/g, " ");
-}
-
 export interface ReviseTelop {
   role: string;
   label: string;
@@ -154,7 +147,9 @@ export async function submitRevise(
     if (typeof text !== "string") {
       return { ok: false, error: "invalid_text" };
     }
-    const trimmed = sanitizeTelopText(text).trim();
+    // Telops may include newlines — a newline renders as a fixed line break
+    // at that position in the video. Only the outer edges are trimmed.
+    const trimmed = text.trim();
     if (trimmed.length === 0 || trimmed.length > MAX_TEXT_LEN) {
       return { ok: false, error: "invalid_text" };
     }

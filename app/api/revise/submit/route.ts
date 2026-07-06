@@ -61,10 +61,10 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    // Telops render on a single line in the video — collapse newlines to
-    // spaces here too (the client already does this before sending; this is
-    // the second line of defense, mirroring submitRevise()'s own check).
-    const trimmed = newText.replace(/\r\n|\r|\n/g, " ").trim();
+    // Telops may include newlines — a newline renders as a fixed line break
+    // at that position in the video (second line of defense, mirroring
+    // submitRevise()'s own check).
+    const trimmed = newText.trim();
     if (trimmed.length === 0 || trimmed.length > MAX_TEXT_LEN) {
       return NextResponse.json(
         { ok: false, error: "invalid_text" },
