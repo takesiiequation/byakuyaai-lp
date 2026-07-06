@@ -10,11 +10,18 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-function Shell({ children }: { children: React.ReactNode }) {
+function Shell({
+  children,
+  wide,
+}: {
+  children: React.ReactNode;
+  wide?: boolean;
+}) {
+  const maxWidth = wide ? "max-w-lg lg:max-w-4xl" : "max-w-lg";
   return (
     <main className="min-h-screen bg-[var(--brand-cream)]">
       <header className="sticky top-0 z-30 w-full border-b border-[var(--brand-border)] bg-white/90 backdrop-blur-md">
-        <div className="mx-auto flex h-14 max-w-lg items-center px-4 sm:px-6">
+        <div className={`mx-auto flex h-14 items-center px-4 sm:px-6 ${maxWidth}`}>
           <Image
             src="/logo.png"
             alt="ByakuyaAI"
@@ -24,7 +31,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           />
         </div>
       </header>
-      <div className="mx-auto max-w-lg px-4 py-6 sm:px-6 sm:py-10">
+      <div className={`mx-auto px-4 py-6 sm:px-6 sm:py-10 ${maxWidth}`}>
         {children}
       </div>
       <p className="pb-8 text-center text-xs text-[var(--brand-gray-light)]">
@@ -79,7 +86,7 @@ export default async function RevisePage({
   }
 
   return (
-    <Shell>
+    <Shell wide>
       <ReviseForm
         approvalId={approvalId}
         propertyName={info.property_name ?? ""}

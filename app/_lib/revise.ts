@@ -9,6 +9,7 @@ const REVISE_KEY = process.env.REVISE_RELAY_KEY;
 export const APPROVAL_ID_RE = /^APR-[a-z0-9]+-[a-f0-9]{16,}$/i;
 export const ROLE_RE = /^[a-z][a-z0-9_]{0,49}$/i;
 export const MAX_TEXT_LEN = 120;
+export const MAX_CAPTION_LEN = 2200;
 
 export interface ReviseTelop {
   role: string;
@@ -103,22 +104,41 @@ export interface ReviseSubmitResult {
 }
 
 /**
- * Validate + relay an edit request to the backend. Only `role` and `new_text`
- * are ever forwarded — nothing else from the incoming payload reaches it.
+ * Validate + relay an edit request to the backend. Only `role`, `new_text`
+ * and (optionally) `caption_edit` are ever forwarded — nothing else from the
+ * incoming payload reaches it. `edits` may be empty when `captionEdit` is
+ * present (caption-only changes don't touch telops), but both being empty
+ * is rejected.
  */
 export async function submitRevise(
   approvalId: string,
-  edits: ReviseEditInput[]
+  edits: ReviseEditInput[],
+  captionEdit?: string
 ): Promise<ReviseSubmitResult> {
   if (typeof approvalId !== "string" || !APPROVAL_ID_RE.test(approvalId)) {
     return { ok: false, error: "invalid_approval_id" };
   }
-  if (!Array.isArray(edits) || edits.length === 0) {
-    return { ok: false, error: "edits_required" };
+
+  const editsProvided = Array.isArray(edits) ? edits : [];
+
+  let cleanCaption: string | undefined;
+  if (captionEdit !== undefined) {
+    if (typeof captionEdit !== "string") {
+      return { ok: false, error: "invalid_caption" };
+    }
+    const trimmedCaption = captionEdit.trim();
+    if (trimmedCaption.length === 0 || trimmedCaption.length > MAX_CAPTION_LEN) {
+      return { ok: false, error: "invalid_caption" };
+    }
+    cleanCaption = trimmedCaption;
+  }
+
+  if (editsProvided.length === 0 && cleanCaption === undefined) {
+    return { ok: false, error: "nothing_to_submit" };
   }
 
   const cleanEdits: ReviseEditInput[] = [];
-  for (const e of edits) {
+  for (const e of editsProvided) {
     const role = e?.role;
     const text = e?.new_text;
     if (typeof role !== "string" || !ROLE_RE.test(role)) {
@@ -146,6 +166,7 @@ export async function submitRevise(
         admin_key: REVISE_KEY,
         approval_id: approvalId,
         edits: cleanEdits,
+        ...(cleanCaption !== undefined ? { caption_edit: cleanCaption } : {}),
       }),
       cache: "no-store",
     });

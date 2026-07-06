@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   APPROVAL_ID_RE,
+  MAX_CAPTION_LEN,
   MAX_TEXT_LEN,
   ROLE_RE,
   submitRevise,
@@ -8,7 +9,7 @@ import {
 } from "@/app/_lib/revise";
 
 export async function POST(req: NextRequest) {
-  let body: { approvalId?: unknown; edits?: unknown };
+  let body: { approvalId?: unknown; edits?: unknown; caption_edit?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -26,9 +27,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!Array.isArray(body?.edits) || body.edits.length === 0) {
+  // `edits` may be omitted/empty when a caption-only change is being sent.
+  const editsRaw = body?.edits ?? [];
+  if (!Array.isArray(editsRaw)) {
     return NextResponse.json(
-      { ok: false, error: "edits_required" },
+      { ok: false, error: "invalid_edits" },
       { status: 400 }
     );
   }
@@ -38,7 +41,7 @@ export async function POST(req: NextRequest) {
   // shape, is ever forwarded to the backend relay (submitRevise() re-checks
   // the same rules server-side as a second line of defense).
   const edits: ReviseEditInput[] = [];
-  for (const e of body.edits) {
+  for (const e of editsRaw) {
     const rec = (e && typeof e === "object" ? e : {}) as Record<
       string,
       unknown
@@ -68,6 +71,36 @@ export async function POST(req: NextRequest) {
     edits.push({ role, new_text: trimmed });
   }
 
-  const result = await submitRevise(approvalId, edits);
+  // `caption_edit` is optional and only allow-listed as a trimmed string —
+  // it lets the customer update the post caption without touching telops or
+  // re-rendering the video. Same allow-list discipline: nothing else from
+  // the request body reaches submitRevise()/the backend relay.
+  let captionEdit: string | undefined;
+  const captionEditRaw = body?.caption_edit;
+  if (captionEditRaw !== undefined) {
+    if (typeof captionEditRaw !== "string") {
+      return NextResponse.json(
+        { ok: false, error: "invalid_caption" },
+        { status: 400 }
+      );
+    }
+    const trimmedCaption = captionEditRaw.trim();
+    if (trimmedCaption.length === 0 || trimmedCaption.length > MAX_CAPTION_LEN) {
+      return NextResponse.json(
+        { ok: false, error: "invalid_caption" },
+        { status: 400 }
+      );
+    }
+    captionEdit = trimmedCaption;
+  }
+
+  if (edits.length === 0 && captionEdit === undefined) {
+    return NextResponse.json(
+      { ok: false, error: "nothing_to_submit" },
+      { status: 400 }
+    );
+  }
+
+  const result = await submitRevise(approvalId, edits, captionEdit);
   return NextResponse.json(result, { status: result.ok ? 200 : 400 });
 }
