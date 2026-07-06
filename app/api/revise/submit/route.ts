@@ -35,8 +35,8 @@ export async function POST(req: NextRequest) {
 
   // Allow-list only: pull role/new_text out of whatever the client sent and
   // drop everything else. Nothing beyond these two fields, in this exact
-  // shape, is ever forwarded to n8n (submitRevise() re-checks the same
-  // rules server-side as a second line of defense).
+  // shape, is ever forwarded to the backend relay (submitRevise() re-checks
+  // the same rules server-side as a second line of defense).
   const edits: ReviseEditInput[] = [];
   for (const e of body.edits) {
     const rec = (e && typeof e === "object" ? e : {}) as Record<

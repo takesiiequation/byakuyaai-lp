@@ -1,10 +1,10 @@
 // Server-only relay helpers for the customer-facing telop revision flow.
 // Both app/revise/[approvalId]/page.tsx and app/api/revise/*/route.ts
-// call these functions — the n8n webhook URL and key never reach the client.
+// call these functions — the backend relay URL and key never reach the client.
 
-const INFO_URL = process.env.N8N_REVISE_INFO_URL;
-const SUBMIT_URL = process.env.N8N_REVISE_SUBMIT_URL;
-const REVISE_KEY = process.env.N8N_REVISE_KEY;
+const INFO_URL = process.env.REVISE_INFO_URL;
+const SUBMIT_URL = process.env.REVISE_SUBMIT_URL;
+const REVISE_KEY = process.env.REVISE_RELAY_KEY;
 
 export const APPROVAL_ID_RE = /^APR-[a-z0-9]+-[a-f0-9]{16,}$/i;
 export const ROLE_RE = /^[a-z][a-z0-9_]{0,49}$/i;
@@ -46,7 +46,7 @@ function shapeTelops(raw: unknown): ReviseTelop[] {
   return out;
 }
 
-/** Fetch the editable telop set for an approval from n8n. Never throws. */
+/** Fetch the editable telop set for an approval from the backend relay. Never throws. */
 export async function getReviseInfo(approvalId: string): Promise<ReviseInfo> {
   if (typeof approvalId !== "string" || !APPROVAL_ID_RE.test(approvalId)) {
     return { ok: false, error: "invalid_approval_id" };
@@ -103,8 +103,8 @@ export interface ReviseSubmitResult {
 }
 
 /**
- * Validate + relay an edit request to n8n. Only `role` and `new_text` are
- * ever forwarded — nothing else from the incoming payload reaches n8n.
+ * Validate + relay an edit request to the backend. Only `role` and `new_text`
+ * are ever forwarded — nothing else from the incoming payload reaches it.
  */
 export async function submitRevise(
   approvalId: string,
