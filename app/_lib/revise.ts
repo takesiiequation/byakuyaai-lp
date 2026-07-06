@@ -8,8 +8,15 @@ const REVISE_KEY = process.env.REVISE_RELAY_KEY;
 
 export const APPROVAL_ID_RE = /^APR-[a-z0-9]+-[a-f0-9]{16,}$/i;
 export const ROLE_RE = /^[a-z][a-z0-9_]{0,49}$/i;
-export const MAX_TEXT_LEN = 120;
+export const MAX_TEXT_LEN = 35;
 export const MAX_CAPTION_LEN = 2200;
+
+/** Telop text must render on a single line inside the video — collapse any
+ * newlines the client sends into spaces. Caption text is exempt (multi-line
+ * captions are expected and preserved as-is). */
+function sanitizeTelopText(s: string): string {
+  return s.replace(/\r\n|\r|\n/g, " ");
+}
 
 export interface ReviseTelop {
   role: string;
@@ -147,7 +154,7 @@ export async function submitRevise(
     if (typeof text !== "string") {
       return { ok: false, error: "invalid_text" };
     }
-    const trimmed = text.trim();
+    const trimmed = sanitizeTelopText(text).trim();
     if (trimmed.length === 0 || trimmed.length > MAX_TEXT_LEN) {
       return { ok: false, error: "invalid_text" };
     }

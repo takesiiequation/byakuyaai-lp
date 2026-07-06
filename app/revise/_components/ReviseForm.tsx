@@ -1,10 +1,30 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { ReviseTelop } from "@/app/_lib/revise";
+import {
+  MAX_CAPTION_LEN,
+  MAX_TEXT_LEN,
+  type ReviseTelop,
+} from "@/app/_lib/revise";
 
-const MAX_TEXT_LEN = 120;
-const MAX_CAPTION_LEN = 2200;
+/** Telop text is collapsed to a single line before it's ever sent — Enter
+ * still works while typing, but newlines become spaces at submit time. */
+function sanitizeTelop(s: string): string {
+  return s.replace(/\r\n|\r|\n/g, " ").trim();
+}
+
+/** Grows a textarea to fit its content instead of scrolling internally. */
+function autoGrow(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+}
+
+function telopCounterClass(len: number) {
+  if (len >= MAX_TEXT_LEN) return "text-red-500";
+  if (len > 25) return "text-amber-500";
+  return "text-[var(--brand-gray-light)]";
+}
 
 export default function ReviseForm({
   approvalId,
@@ -29,13 +49,18 @@ export default function ReviseForm({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [done, setDone] = useState(false);
-  const [doneKind, setDoneKind] = useState<"video" | "caption">("video");
+  const [doneKind, setDoneKind] = useState<"video" | "caption" | "both">(
+    "video"
+  );
 
   const changed = useMemo(
     () =>
       telops
-        .filter((t) => (values[t.role] ?? "").trim() !== t.text.trim())
-        .map((t) => ({ role: t.role, new_text: (values[t.role] ?? "").trim() })),
+        .filter((t) => sanitizeTelop(values[t.role] ?? "") !== t.text.trim())
+        .map((t) => ({
+          role: t.role,
+          new_text: sanitizeTelop(values[t.role] ?? ""),
+        })),
     [telops, values]
   );
 
@@ -89,7 +114,14 @@ export default function ReviseForm({
       });
       const data = await res.json();
       if (data.ok) {
-        setDoneKind(changed.length > 0 ? "video" : "caption");
+        const captionAlsoChanged = captionChanged && !captionEmptyInvalid;
+        setDoneKind(
+          changed.length > 0
+            ? captionAlsoChanged
+              ? "both"
+              : "video"
+            : "caption"
+        );
         setDone(true);
         setShowConfirm(false);
       } else {
@@ -118,17 +150,20 @@ export default function ReviseForm({
         <p className="mt-3 text-sm leading-relaxed text-[var(--brand-gray)]">
           {doneKind === "caption"
             ? "投稿時に反映されます。"
-            : "数分で動画を作り直し、確認メールをお送りします。"}
+            : doneKind === "both"
+              ? "動画を作り直し、キャプションも更新します。完了後に確認メールをお送りします。"
+              : "数分で動画を作り直し、確認メールをお送りします。"}
         </p>
       </div>
     );
   }
 
   return (
-    <div className="lg:grid lg:grid-cols-[380px_1fr] lg:items-start lg:gap-8">
-      {/* Left column: video preview, pinned in place on desktop */}
-      <div className="lg:sticky lg:top-20">
-        <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5 sm:p-6">
+    <div className="lg:grid lg:grid-cols-[minmax(300px,auto)_1fr] lg:items-start lg:gap-8">
+      {/* Left column: video preview, pinned in place and sized to the
+          viewport on desktop (height drives width via the 9:16 ratio) */}
+      <div className="lg:sticky lg:top-20 lg:h-[calc(100vh-8rem)]">
+        <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5 sm:p-6 lg:flex lg:h-full lg:flex-col">
           <div className="brand-accent-bar mb-4 h-1 w-16 rounded-full" />
           <h1 className="text-lg font-black text-[var(--brand-ink)] sm:text-xl">
             動画テロップの修正
@@ -145,12 +180,12 @@ export default function ReviseForm({
           )}
 
           {videoUrl && (
-            <div className="mx-auto mt-5 w-full max-w-[260px] lg:max-w-none lg:flex lg:justify-center">
+            <div className="mx-auto mt-5 w-full max-w-[260px] lg:mt-4 lg:flex lg:min-h-0 lg:max-w-none lg:flex-1 lg:items-center lg:justify-center">
               <video
                 controls
                 playsInline
                 src={videoUrl}
-                className="aspect-[9/16] w-full rounded-xl bg-black object-cover lg:h-auto lg:w-auto lg:max-w-full lg:max-h-[80vh]"
+                className="aspect-[9/16] w-full rounded-xl bg-black object-cover lg:h-full lg:w-auto lg:max-w-full"
               />
             </div>
           )}
@@ -159,10 +194,10 @@ export default function ReviseForm({
 
       {/* Right column: telop + caption editing, scrolls independently */}
       <div className="mt-5 space-y-5 lg:mt-0">
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 xl:gap-4">
           {telops.map((t) => {
             const val = values[t.role] ?? "";
-            const isChanged = val.trim() !== t.text.trim();
+            const isChanged = sanitizeTelop(val) !== t.text.trim();
             return (
               <div
                 key={t.role}
@@ -181,14 +216,22 @@ export default function ReviseForm({
                   )}
                 </div>
                 <textarea
+                  ref={autoGrow}
                   value={val}
-                  onChange={(e) => updateValue(t.role, e.target.value)}
+                  onChange={(e) => {
+                    updateValue(t.role, e.target.value);
+                    autoGrow(e.target);
+                  }}
                   maxLength={MAX_TEXT_LEN}
-                  rows={2}
-                  className="w-full resize-none rounded-xl border border-[var(--brand-border)] bg-[var(--brand-cream)]/40 px-3 py-2.5 text-sm text-[var(--brand-ink)] focus:border-[var(--brand-orange)] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-orange)]/30"
+                  className="min-h-[3.25rem] w-full resize-none overflow-hidden rounded-xl border border-[var(--brand-border)] bg-[var(--brand-cream)]/40 px-3 py-2.5 text-sm text-[var(--brand-ink)] focus:border-[var(--brand-orange)] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-orange)]/30"
                 />
-                <div className="mt-1 text-right text-[11px] text-[var(--brand-gray-light)]">
-                  {val.length} / {MAX_TEXT_LEN}
+                <div className="mt-1 flex items-center justify-between text-[11px]">
+                  <span className="text-[var(--brand-gray-light)]">
+                    推奨25字以内
+                  </span>
+                  <span className={telopCounterClass(val.length)}>
+                    {val.length} / {MAX_TEXT_LEN}
+                  </span>
                 </div>
               </div>
             );
@@ -212,11 +255,14 @@ export default function ReviseForm({
               )}
             </div>
             <textarea
+              ref={autoGrow}
               value={captionValue}
-              onChange={(e) => updateCaption(e.target.value)}
+              onChange={(e) => {
+                updateCaption(e.target.value);
+                autoGrow(e.target);
+              }}
               maxLength={MAX_CAPTION_LEN}
-              rows={4}
-              className="w-full resize-none rounded-xl border border-[var(--brand-border)] bg-[var(--brand-cream)]/40 px-3 py-2.5 text-sm text-[var(--brand-ink)] focus:border-[var(--brand-orange)] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-orange)]/30"
+              className="min-h-[10rem] w-full resize-none overflow-hidden rounded-xl border border-[var(--brand-border)] bg-[var(--brand-cream)]/40 px-3 py-2.5 text-sm text-[var(--brand-ink)] focus:border-[var(--brand-orange)] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-orange)]/30"
             />
             <div className="mt-1 flex items-center justify-between text-[11px]">
               <span className="text-red-500">
@@ -233,11 +279,9 @@ export default function ReviseForm({
         )}
 
         <div className="rounded-2xl bg-[var(--brand-cream)] p-4 text-[11px] leading-relaxed text-[var(--brand-gray)] sm:text-xs">
-          <p>
-            ※読み仮名の都合で、画面上の表記と動画内の表示が一部異なる場合があります
-          </p>
+          <p>※動画内の読み上げは自動で調整されます</p>
           <p className="mt-1.5">
-            ※家賃や間取りなどの物件情報の変更はできません。資料の修正が必要な場合はご担当までご連絡ください
+            ※家賃・間取りなどの数値は資料(マイソク)にもとづいています。数値そのものに誤りがある場合は、テロップ修正ではなく資料の再送をお願いします
           </p>
         </div>
 

@@ -17,11 +17,12 @@ function Shell({
   children: React.ReactNode;
   wide?: boolean;
 }) {
-  const maxWidth = wide ? "max-w-lg lg:max-w-4xl" : "max-w-lg";
+  const maxWidth = wide ? "max-w-lg lg:max-w-[1700px]" : "max-w-lg";
+  const padX = wide ? "px-4 sm:px-6 lg:px-8" : "px-4 sm:px-6";
   return (
     <main className="min-h-screen bg-[var(--brand-cream)]">
       <header className="sticky top-0 z-30 w-full border-b border-[var(--brand-border)] bg-white/90 backdrop-blur-md">
-        <div className={`mx-auto flex h-14 items-center px-4 sm:px-6 ${maxWidth}`}>
+        <div className={`mx-auto flex h-14 items-center ${padX} ${maxWidth}`}>
           <Image
             src="/logo.png"
             alt="ByakuyaAI"
@@ -31,7 +32,7 @@ function Shell({
           />
         </div>
       </header>
-      <div className={`mx-auto px-4 py-6 sm:px-6 sm:py-10 ${maxWidth}`}>
+      <div className={`mx-auto py-6 sm:py-10 ${padX} ${maxWidth}`}>
         {children}
       </div>
       <p className="pb-8 text-center text-xs text-[var(--brand-gray-light)]">
