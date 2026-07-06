@@ -160,10 +160,10 @@ export default function ReviseForm({
   }
 
   return (
-    <div className="lg:grid lg:grid-cols-[minmax(300px,auto)_1fr] lg:items-start lg:gap-8">
+    <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-8">
       {/* Left column: video preview, pinned in place and sized to the
           viewport on desktop (height drives width via the 9:16 ratio) */}
-      <div className="lg:sticky lg:top-20 lg:h-[calc(100vh-8rem)]">
+      <div className="lg:sticky lg:top-20 lg:h-[calc(100vh-8rem)] lg:flex lg:justify-center">
         <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5 sm:p-6 lg:flex lg:h-full lg:flex-col">
           <div className="brand-accent-bar mb-4 h-1 w-16 rounded-full" />
           <h1 className="text-lg font-black text-[var(--brand-ink)] sm:text-xl">
@@ -195,7 +195,7 @@ export default function ReviseForm({
 
       {/* Right column: telop + caption editing, scrolls independently */}
       <div className="mt-5 space-y-5 lg:mt-0">
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 xl:gap-4">
+        <div className="grid grid-cols-1 gap-3">
           {telops.map((t) => {
             const val = values[t.role] ?? "";
             const isChanged = sanitizeTelop(val) !== t.text.trim();
