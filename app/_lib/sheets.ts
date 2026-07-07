@@ -3,6 +3,7 @@ import type { Client } from "./types";
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID!;
 const TAB = process.env.GOOGLE_SHEET_TAB || "契約社リスト";
+const qt = (tab: string) => `'${tab.replace(/'/g, "''")}'`; // 日本語タブ名はA1記法でクォート必須
 const APPROVAL_TAB = process.env.GOOGLE_SHEET_APPROVAL_TAB || "承認待ち";
 
 function getAuth() {
@@ -50,7 +51,7 @@ function rowToClient(headers: string[], row: string[]): Client {
 export async function getAllClients(): Promise<Client[]> {
   const res = await sheets().spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${TAB}`,
+    range: qt(TAB),
   });
   const rows = res.data.values;
   if (!rows || rows.length < 2) return [];
@@ -71,7 +72,7 @@ export async function updateClient(
 ): Promise<void> {
   const res = await sheets().spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${TAB}`,
+    range: qt(TAB),
   });
   const rows = res.data.values;
   if (!rows || rows.length < 2) throw new Error("Sheet is empty");
@@ -96,7 +97,7 @@ export async function updateClient(
   const rowNum = rowIdx + 1;
   await sheets().spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: `${TAB}!A${rowNum}`,
+    range: `${qt(TAB)}!A${rowNum}`,
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [existing] },
   });
@@ -105,7 +106,7 @@ export async function updateClient(
 export async function addClient(data: Client): Promise<void> {
   const res = await sheets().spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${TAB}!A1:1`,
+    range: `${qt(TAB)}!A1:1`,
   });
   const headers = (res.data.values?.[0] as string[]) ?? [];
   if (!headers.length) throw new Error("No headers in sheet");
@@ -117,7 +118,7 @@ export async function addClient(data: Client): Promise<void> {
 
   await sheets().spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: `${TAB}!A:A`,
+    range: `${qt(TAB)}!A:A`,
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [row] },
   });
@@ -149,7 +150,7 @@ export async function getApprovalQueue(): Promise<ApprovalEntry[]> {
   try {
     const res = await sheets().spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: APPROVAL_TAB,
+      range: qt(APPROVAL_TAB),
     });
     const rows = res.data.values;
     if (!rows || rows.length < 2) return [];
