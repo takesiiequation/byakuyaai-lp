@@ -57,3 +57,9 @@ export const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-100 text-green-700",
   paused: "bg-gray-200 text-gray-500",
 };
+
+// BGM/SE media library upload limit. Shared between the client uploader
+// (early UX feedback) and the /api/media route (authoritative server-side
+// check) so the two never drift apart.
+export const MEDIA_MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20MB
+export const MEDIA_MAX_FILE_SIZE_LABEL = "20MB";

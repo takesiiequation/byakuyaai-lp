@@ -1,6 +1,10 @@
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/app/_lib/auth";
 import { listMediaFiles, uploadMediaFile } from "@/app/_lib/drive";
+import {
+  MEDIA_MAX_FILE_SIZE_BYTES,
+  MEDIA_MAX_FILE_SIZE_LABEL,
+} from "@/app/_lib/types";
 
 type MediaType = "bgm" | "se";
 
@@ -59,6 +63,15 @@ export async function POST(req: NextRequest) {
     if (!/\.(mp3|wav)$/i.test(file.name)) {
       return Response.json(
         { ok: false, error: "mp3 / wav のみアップロード可能です" },
+        { status: 400 }
+      );
+    }
+    if (file.size > MEDIA_MAX_FILE_SIZE_BYTES) {
+      return Response.json(
+        {
+          ok: false,
+          error: `ファイルサイズが大きすぎます(上限${MEDIA_MAX_FILE_SIZE_LABEL})`,
+        },
         { status: 400 }
       );
     }

@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  MEDIA_MAX_FILE_SIZE_BYTES,
+  MEDIA_MAX_FILE_SIZE_LABEL,
+} from "@/app/_lib/types";
 
 interface MediaFile {
   id: string;
@@ -73,6 +77,14 @@ export default function MediaPage() {
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > MEDIA_MAX_FILE_SIZE_BYTES) {
+      setUploadMsg({
+        text: `ファイルサイズが大きすぎます(上限${MEDIA_MAX_FILE_SIZE_LABEL})`,
+        ok: false,
+      });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
     setUploading(true);
     setUploadMsg(null);
     try {
