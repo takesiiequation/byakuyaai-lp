@@ -83,7 +83,7 @@ const PREMIUM_COSTS = {
     label: "ByakuyaAI プレミアム",
     sub: "AIに、まるごとお任せ",
     rows: [
-      { label: "動画月30本+ステージング", cost: "込み" },
+      { label: "動画月20本+ステージング", cost: "込み" },
       { label: "SNS自動投稿+最適化", cost: "込み" },
       { label: "LINE公式AI自動応答", cost: "込み" },
       { label: "SEO対策(地域KW・物件ページ)", cost: "込み" },
@@ -316,7 +316,7 @@ function BannerByPlan({ plan }: { plan: Plan }) {
         sub: "動画・SNS・LINE・HP・SEO・分析レポートまで。不動産マーケの全部、AIに丸投げ。",
         image: "/banner-premium.png",
         alt: "月30万円で、WEBマーケティングチームを雇う ByakuyaAI",
-        spec: "月30本 / WEBマーケ全部入り",
+        spec: "月20本 / WEBマーケ全部入り",
       }
     : {
         badge: "STANDARD",

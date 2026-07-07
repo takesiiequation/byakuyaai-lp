@@ -28,14 +28,6 @@ const service = {
   offers: [
     {
       "@type": "Offer",
-      name: "ライトプラン",
-      description: "月5本のAI動画生成、バーチャルステージング対応",
-      price: "50000",
-      priceCurrency: "JPY",
-      availability: "https://schema.org/InStock",
-    },
-    {
-      "@type": "Offer",
       name: "スタンダードプラン",
       description: "月10本のAI動画生成 + SNS自動投稿 + ハッシュタグ最適化",
       price: "100000",
@@ -45,7 +37,7 @@ const service = {
     {
       "@type": "Offer",
       name: "プレミアムプラン",
-      description: "月30本のAI動画生成 + SNS自動投稿 + LINE公式AI応答 + SEO対策 + 専用動画サイト + 月次レポート",
+      description: "月20本のAI動画生成 + SNS自動投稿 + LINE公式AI応答 + SEO対策 + 専用動画サイト + 月次レポート",
       price: "300000",
       priceCurrency: "JPY",
       availability: "https://schema.org/InStock",

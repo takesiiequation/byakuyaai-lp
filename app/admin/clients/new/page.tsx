@@ -4,15 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 const PLAN_DEFAULTS: Record<string, number> = {
-  light: 5,
   standard: 10,
-  premium: 30,
+  premium: 20,
 };
 
 const PLAN_OPTIONS = [
-  { value: "light", label: "ライト", quota: 5 },
   { value: "standard", label: "スタンダード", quota: 10 },
-  { value: "premium", label: "プレミアム", quota: 30 },
+  { value: "premium", label: "プレミアム", quota: 20 },
 ];
 
 export default function NewClientPage() {
@@ -156,7 +154,7 @@ export default function NewClientPage() {
             <label className="block text-xs font-medium text-gray-500 mb-2">
               プラン
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {PLAN_OPTIONS.map((p) => (
                 <button
                   key={p.value}

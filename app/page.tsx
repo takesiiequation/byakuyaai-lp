@@ -389,20 +389,19 @@ function FlowSection() {
  * ============================================================ */
 function PricingSection() {
   const features = [
-    { label: "動画本数", light: "月5本", standard: "月10本", premium: "月30本" },
-    { label: "バーチャルステージング(空室に家具合成)", light: true, standard: true, premium: true },
+    { label: "動画本数", standard: "月10本", premium: "月20本" },
+    { label: "バーチャルステージング(空室に家具合成)", standard: true, premium: true },
     {
       label: "SNS自動投稿(Instagram/TikTok/YouTube Shorts)",
-      light: false,
       standard: true,
       premium: true,
     },
-    { label: "ハッシュタグ・投稿時間の最適化", light: false, standard: true, premium: true },
-    { label: "LINE公式アカウントのAI自動応答(24時間)", light: false, standard: false, premium: true },
-    { label: "専用動画サイト無料構築(サブドメイン)", light: false, standard: false, premium: true },
-    { label: "SEO対策(地域KW・物件詳細ページ最適化)", light: false, standard: false, premium: true },
-    { label: "月次効果分析レポート(再生数・問い合わせ・成約推移)", light: false, standard: false, premium: true },
-    { label: "専属担当(LINE直通・優先対応)", light: false, standard: false, premium: true },
+    { label: "ハッシュタグ・投稿時間の最適化", standard: true, premium: true },
+    { label: "LINE公式アカウントのAI自動応答(24時間)", standard: false, premium: true },
+    { label: "専用動画サイト無料構築(サブドメイン)", standard: false, premium: true },
+    { label: "SEO対策(地域KW・物件詳細ページ最適化)", standard: false, premium: true },
+    { label: "月次効果分析レポート(再生数・問い合わせ・成約推移)", standard: false, premium: true },
+    { label: "専属担当(LINE直通・優先対応)", standard: false, premium: true },
   ];
 
   const Check = () => (
@@ -426,7 +425,7 @@ function PricingSection() {
               PRICING
             </p>
             <h2 className="text-3xl font-black text-[var(--brand-ink)] sm:text-4xl">
-              シンプルな3プラン。
+              シンプルな2プラン。
             </h2>
             <p className="mt-4 text-sm text-[var(--brand-gray)] sm:text-base">
               まずは14日間、無料でお試しください。契約期間の縛りはありません。
@@ -435,43 +434,7 @@ function PricingSection() {
         </Reveal>
 
         {/* Plan cards */}
-        <RevealStagger className="grid gap-6 lg:grid-cols-3">
-          {/* Light */}
-          <RevealItem className="grid">
-            <div className="flex flex-col rounded-3xl border border-[var(--brand-border)] bg-white p-8 shadow-sm">
-              <div className="mb-1 text-sm font-bold tracking-widest text-[var(--brand-gray-light)]">
-                LIGHT
-              </div>
-              <h3 className="text-2xl font-black text-[var(--brand-ink)]">ライト</h3>
-              <p className="mt-1 text-xs text-[var(--brand-gray)]">
-                まずは動画だけ試したい方へ
-              </p>
-              <div className="mt-6 flex items-baseline">
-                <span className="text-4xl font-black text-[var(--brand-ink)]">
-                  <CountUp value={50000} prefix="¥" />
-                </span>
-                <span className="ml-1 text-sm text-[var(--brand-gray)]">/月</span>
-              </div>
-              <ul className="mt-6 flex-1 space-y-2 text-sm text-[var(--brand-gray)]">
-                <li className="flex items-start gap-2">
-                  <Check /> 動画月5本の制作・納品
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check /> バーチャルステージング込み
-                </li>
-                <li className="flex items-start gap-2 text-gray-400">
-                  <Dash /> SNS投稿は自社運用
-                </li>
-              </ul>
-              <a
-                href="#contact"
-                className="mt-8 inline-flex items-center justify-center rounded-full border-2 border-[var(--brand-orange)] bg-white px-6 py-3 text-sm font-bold text-[var(--brand-orange-dark)] transition hover:bg-[var(--brand-cream)]"
-              >
-                ライトを試す
-              </a>
-            </div>
-          </RevealItem>
-
+        <RevealStagger className="grid gap-6 lg:grid-cols-2">
           {/* Standard (recommended) */}
           <RevealItem className="grid">
             <div className="relative flex flex-col rounded-3xl border-2 border-[var(--brand-orange)] bg-white p-8 shadow-2xl lg:-translate-y-3">
@@ -543,7 +506,7 @@ function PricingSection() {
               <ul className="mt-6 flex-1 space-y-2.5 text-sm text-white/85">
                 <li className="flex items-start gap-2">
                   <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
-                  動画月30本+バーチャルステージング
+                  動画月20本+バーチャルステージング
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
@@ -597,9 +560,6 @@ function PricingSection() {
                 <th className="whitespace-nowrap px-4 py-3 text-left font-bold text-[var(--brand-gray)]">
                   機能
                 </th>
-                <th className="whitespace-nowrap px-4 py-3 text-center font-bold text-[var(--brand-gray)]">
-                  ライト
-                </th>
                 <th className="whitespace-nowrap bg-[var(--brand-cream)] px-4 py-3 text-center font-bold text-[var(--brand-orange-dark)]">
                   スタンダード
                 </th>
@@ -616,19 +576,6 @@ function PricingSection() {
                 >
                   <td className="px-4 py-3 text-left text-[var(--brand-ink)]">
                     {f.label}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    {typeof f.light === "boolean" ? (
-                      f.light ? (
-                        <Check />
-                      ) : (
-                        <Dash />
-                      )
-                    ) : (
-                      <span className="text-xs font-bold text-[var(--brand-ink)]">
-                        {f.light}
-                      </span>
-                    )}
                   </td>
                   <td className="bg-[var(--brand-cream)]/40 px-4 py-3 text-center">
                     {typeof f.standard === "boolean" ? (
@@ -842,7 +789,7 @@ function ContactSection() {
                   希望プラン
                 </label>
                 <div className="flex flex-wrap gap-3">
-                  {["ライト", "スタンダード", "プレミアム", "未定・相談希望"].map(
+                  {["スタンダード", "プレミアム", "未定・相談希望"].map(
                     (v) => (
                       <label
                         key={v}
