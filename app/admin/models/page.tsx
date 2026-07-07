@@ -442,6 +442,9 @@ export default function ModelsPage() {
           </h2>
         </div>
         <div className="p-4 sm:p-6 space-y-3">
+          <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+            ⚠️ 割当を保存すると、そのプランの全顧客の次回生成から適用されます(n8n連携後)
+          </p>
           {PLAN_KEYS.map((plan) => (
             <div key={plan} className="flex items-center gap-3">
               <label className="w-24 shrink-0 text-sm font-medium text-gray-600">

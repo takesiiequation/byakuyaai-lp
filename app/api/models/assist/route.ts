@@ -10,6 +10,11 @@ const ASSIST_MODEL = "anthropic/claude-sonnet-4-6";
 const PAGE_FETCH_TIMEOUT_MS = 10_000;
 const OPENROUTER_TIMEOUT_MS = 30_000;
 const MAX_PAGE_TEXT_CHARS = 20_000;
+// Hard cap on raw response bytes we'll ever buffer for the docs page, independent
+// of (and in addition to) the post-strip MAX_PAGE_TEXT_CHARS truncation. Guards
+// against a huge/malicious response being fully read into memory before we get
+// a chance to slice it down.
+const MAX_PAGE_RESPONSE_BYTES = 5_000_000; // 5MB
 
 // GET lets the client know whether to show/enable the assist button at all,
 // without ever exposing the key itself (fail-soft per the task's env-unset UX).
@@ -31,6 +36,57 @@ function stripHtml(html: string): string {
     .replace(/&amp;/gi, "&")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// Reads a Response body up to maxBytes, aborting the underlying fetch (via the
+// passed AbortController) as soon as the cap is exceeded instead of buffering
+// the full body first. Falls back to a plain .text() read (still bounded by
+// the caller's Content-Length precheck) if the runtime doesn't expose a
+// streamable body.
+async function readLimitedText(
+  res: Response,
+  controller: AbortController,
+  maxBytes: number
+): Promise<string> {
+  const reader = res.body?.getReader?.();
+  if (!reader) {
+    return res.text();
+  }
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        const keep = maxBytes - (total - value.byteLength);
+        if (keep > 0) chunks.push(value.subarray(0, keep));
+        controller.abort();
+        try {
+          await reader.cancel();
+        } catch {
+          // ignore cancel errors — we're discarding the rest anyway
+        }
+        break;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      // already released via cancel()
+    }
+  }
+  const buf = new Uint8Array(total > maxBytes ? maxBytes : total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    buf.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder("utf-8", { fatal: false }).decode(buf);
 }
 
 function extractJsonObject(text: string): Record<string, unknown> {
@@ -77,23 +133,34 @@ export async function POST(req: NextRequest) {
   let pageText: string;
   try {
     const controller = new AbortController();
+    // Covers the fetch call AND the body read below — a slow-drip response
+    // (bytes trickled in under the size cap) must not be able to hold the
+    // request open indefinitely.
     const timer = setTimeout(() => controller.abort(), PAGE_FETCH_TIMEOUT_MS);
-    let pageRes: Response;
+    let raw: string;
     try {
-      pageRes = await fetch(targetUrl, {
+      const pageRes = await fetch(targetUrl, {
         signal: controller.signal,
         headers: { "User-Agent": "Mozilla/5.0 (compatible; ByakuyaAI-Admin/1.0)" },
       });
+      if (!pageRes.ok) {
+        return Response.json(
+          { ok: false, error: `docs URLの取得に失敗しました (HTTP ${pageRes.status})` },
+          { status: 400 }
+        );
+      }
+      const declaredLength = Number(pageRes.headers.get("content-length") ?? "");
+      if (Number.isFinite(declaredLength) && declaredLength > MAX_PAGE_RESPONSE_BYTES) {
+        controller.abort();
+        return Response.json(
+          { ok: false, error: "docs URLのレスポンスサイズが上限を超えています" },
+          { status: 400 }
+        );
+      }
+      raw = await readLimitedText(pageRes, controller, MAX_PAGE_RESPONSE_BYTES);
     } finally {
       clearTimeout(timer);
     }
-    if (!pageRes.ok) {
-      return Response.json(
-        { ok: false, error: `docs URLの取得に失敗しました (HTTP ${pageRes.status})` },
-        { status: 400 }
-      );
-    }
-    const raw = await pageRes.text();
     pageText = stripHtml(raw).slice(0, MAX_PAGE_TEXT_CHARS);
     if (!pageText) {
       return Response.json(
