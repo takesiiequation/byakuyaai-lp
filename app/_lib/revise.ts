@@ -10,18 +10,51 @@ export const APPROVAL_ID_RE = /^APR-[a-z0-9]+-[a-f0-9]{16,}$/i;
 export const ROLE_RE = /^[a-z][a-z0-9_]{0,49}$/i;
 export const MAX_TEXT_LEN = 35;
 export const MAX_CAPTION_LEN = 2200;
-// Reading override ("yomi"): hiragana + katakana (incl. the long vowel mark
-// U+30FC and middle dot U+30FB, both inside the ゠-ヿ block) +
-// alphanumerics + a small set of ASCII symbols. Kanji/CJK ideographs are
-// intentionally excluded — this field only ever steers TTS pronunciation,
-// never the on-screen telop text.
-export const YOMI_RE = /^[぀-ゟ゠-ヿa-zA-Z0-9\s.,!?~-]*$/;
-export const MAX_YOMI_LEN = 60;
+
+// Reading override ("yomi"): this box now holds the *full narration script*
+// for the line (prefilled from the current script, kanji included) rather
+// than a word-level phonetic hint — the customer rewrites only the part
+// that's mispronounced and sends the rest back verbatim. Kanji/CJK is
+// therefore allowed. We only block characters that could break TTS or leak
+// markup: C0/C1 control characters (incl. newlines/line separators —
+// narration is read as one continuous line), emoji/pictographs, and angle
+// brackets (blocks HTML-tag-like input outright).
+//
+// Built from codepoint ranges (rather than typed inline as literal unicode
+// escapes) so the forbidden set stays legible and auditable as plain hex.
+const YOMI_FORBIDDEN_RANGES: Array<[number, number]> = [
+  [0x0000, 0x001f], // C0 controls, incl. \t \n \r
+  [0x007f, 0x009f], // DEL + C1 controls
+  [0x2028, 0x2029], // line/paragraph separator
+  [0x200d, 0x200d], // zero-width joiner (emoji sequences)
+  [0xfe0f, 0xfe0f], // variation selector-16 (emoji presentation)
+  [0x20e3, 0x20e3], // combining enclosing keycap
+  [0x2600, 0x27bf], // misc symbols + dingbats
+  [0x2b00, 0x2bff], // misc symbols and arrows
+  [0x1f1e6, 0x1f1ff], // regional indicators (flag emoji)
+  [0x1f300, 0x1faff], // main emoji / pictograph block
+];
+const YOMI_FORBIDDEN_SRC =
+  "<>" +
+  YOMI_FORBIDDEN_RANGES.map(([a, b]) =>
+    a === b
+      ? `\\u{${a.toString(16)}}`
+      : `\\u{${a.toString(16)}}-\\u{${b.toString(16)}}`
+  ).join("");
+/** True (via `.test()`) when the whole string is free of forbidden chars —
+ * matches the historical allow-list calling convention at every call site. */
+export const YOMI_RE = new RegExp(`^[^${YOMI_FORBIDDEN_SRC}]*$`, "u");
+export const MAX_YOMI_LEN = 120;
 
 export interface ReviseTelop {
   role: string;
   label: string;
+  /** On-screen telop text (the subtitle actually burned into the video). */
   text: string;
+  /** Current narration script for this line — what TTS actually reads.
+   * Falls back to `text` server-side when the backend has no separate
+   * narration script (older manifests). */
+  yomi: string;
 }
 
 export interface ReviseInfo {
@@ -48,6 +81,9 @@ function shapeTelops(raw: unknown): ReviseTelop[] {
         role: rec.role,
         label: typeof rec.label === "string" && rec.label ? rec.label : rec.role,
         text: rec.text,
+        // Defensive fallback to `text` in case the backend is an older
+        // deploy that hasn't split display text from narration script yet.
+        yomi: typeof rec.yomi === "string" && rec.yomi ? rec.yomi : rec.text,
       });
     }
   }
@@ -102,8 +138,11 @@ export async function getReviseInfo(approvalId: string): Promise<ReviseInfo> {
 export interface ReviseEditInput {
   role: string;
   new_text?: string;
-  /** Reading-only override (e.g. 白金台 → しろかねだい). Steers TTS
-   * pronunciation without touching the on-screen telop text. */
+  /** Reading-script override: the full narration script to read for this
+   * line (e.g. the customer changed how "白金台" reads throughout, not
+   * just replaced that one word). Only sent when the customer actually
+   * opened and edited the reading box — omitting it lets the backend
+   * auto-convert pronunciation from `new_text` instead. */
   yomi?: string;
 }
 
