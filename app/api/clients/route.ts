@@ -30,9 +30,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = (await req.json()) as Partial<Client>;
-    if (!body.client_id || !body.company_name) {
+    if (!body.client_id || !body.client_name) {
       return Response.json(
-        { ok: false, error: "client_id and company_name are required" },
+        { ok: false, error: "client_id and client_name are required" },
         { status: 400 }
       );
     }
@@ -45,17 +45,17 @@ export async function POST(req: NextRequest) {
     }
     const client: Client = {
       client_id: body.client_id,
-      company_name: body.company_name,
-      plan: body.plan || "standard",
       secret_key: body.secret_key || "",
+      client_name: body.client_name,
+      plan: body.plan || "standard",
+      tone: body.tone || "casual",
       monthly_quota: body.monthly_quota || 10,
       used_this_month: 0,
       quota_reset: "",
-      bgm_url: body.bgm_url || "",
-      cover_image_url: body.cover_image_url || "",
-      font_family: body.font_family || "",
-      accent_color: body.accent_color || "",
-      video_mode: body.video_mode || "",
+      publer_ig_account_id: body.publer_ig_account_id || "",
+      publer_tt_account_id: body.publer_tt_account_id || "",
+      notify_email: body.notify_email || "",
+      status: body.status || "trial",
       next_post_slot: "",
       require_approval: body.require_approval || "",
       approval_email: body.approval_email || "",
@@ -63,8 +63,6 @@ export async function POST(req: NextRequest) {
       line_channel_secret: body.line_channel_secret || "",
       line_bot_user_id: body.line_bot_user_id || "",
       line_data_sheet_id: body.line_data_sheet_id || "",
-      client_folder_id: body.client_folder_id || "",
-      blocked: body.blocked || "",
     };
     await addClient(client);
     return Response.json({ ok: true, data: { client_id: client.client_id } });

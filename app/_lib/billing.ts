@@ -130,7 +130,7 @@ export interface BillingEntry {
 export function computeBillingStatus(
   invoices: InvoiceRow[],
   payments: PaymentRow[],
-  clients: { client_id: string; company_name: string; plan: string }[]
+  clients: { client_id: string; client_name: string; plan: string }[]
 ): BillingEntry[] {
   const clientMap = new Map(clients.map((c) => [c.client_id, c]));
   const inv = invoices.filter((r) => r.区分 === "請求書");
@@ -154,7 +154,7 @@ export function computeBillingStatus(
 
     return {
       client_id: i.client_id,
-      client_name: c?.company_name || i.client_id,
+      client_name: c?.client_name || i.client_id,
       対象月: i.対象月,
       plan: c?.plan || "",
       合計: i.合計,

@@ -2,7 +2,8 @@ import { google } from "googleapis";
 import type { Client } from "./types";
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID!;
-const TAB = process.env.GOOGLE_SHEET_TAB || "リスト";
+const TAB = process.env.GOOGLE_SHEET_TAB || "契約社リスト";
+const APPROVAL_TAB = process.env.GOOGLE_SHEET_APPROVAL_TAB || "承認待ち";
 
 function getAuth() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
@@ -25,17 +26,17 @@ function rowToClient(headers: string[], row: string[]): Client {
   }
   return {
     client_id: obj.client_id ?? "",
-    company_name: obj.company_name ?? "",
-    plan: obj.plan ?? "",
     secret_key: obj.secret_key ?? "",
+    client_name: obj.client_name ?? "",
+    plan: obj.plan ?? "",
+    tone: obj.tone ?? "",
     monthly_quota: Number(obj.monthly_quota) || 0,
     used_this_month: Number(obj.used_this_month) || 0,
     quota_reset: obj.quota_reset ?? "",
-    bgm_url: obj.bgm_url ?? "",
-    cover_image_url: obj.cover_image_url ?? "",
-    font_family: obj.font_family ?? "",
-    accent_color: obj.accent_color ?? "",
-    video_mode: obj.video_mode ?? "",
+    publer_ig_account_id: obj.publer_ig_account_id ?? "",
+    publer_tt_account_id: obj.publer_tt_account_id ?? "",
+    notify_email: obj.notify_email ?? "",
+    status: obj.status ?? "",
     next_post_slot: obj.next_post_slot ?? "",
     require_approval: obj.require_approval ?? "",
     approval_email: obj.approval_email ?? "",
@@ -43,8 +44,6 @@ function rowToClient(headers: string[], row: string[]): Client {
     line_channel_secret: obj.line_channel_secret ?? "",
     line_bot_user_id: obj.line_bot_user_id ?? "",
     line_data_sheet_id: obj.line_data_sheet_id ?? "",
-    client_folder_id: obj.client_folder_id ?? "",
-    blocked: obj.blocked ?? "",
   };
 }
 
@@ -122,4 +121,54 @@ export async function addClient(data: Client): Promise<void> {
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [row] },
   });
+}
+
+// --- Module C: 承認待ち / 直近の生成履歴 --------------------------------
+// The real headers of this tab are unconfirmed from code, so this reader is
+// intentionally defensive: generic header-driven parsing (no assumed column
+// order), a handful of accepted header-name variants per logical field, and
+// try/catch → [] on any failure (mirrors billing.ts's pattern) so a wrong or
+// missing tab name never breaks the dashboard build/render.
+export interface ApprovalEntry {
+  approval_id: string;
+  client_id: string;
+  client_name: string;
+  property_name: string;
+  status: string;
+  created_at: string;
+}
+
+function pickField(obj: Record<string, string>, keys: string[]): string {
+  for (const k of keys) {
+    if (obj[k]) return obj[k];
+  }
+  return "";
+}
+
+export async function getApprovalQueue(): Promise<ApprovalEntry[]> {
+  try {
+    const res = await sheets().spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: APPROVAL_TAB,
+    });
+    const rows = res.data.values;
+    if (!rows || rows.length < 2) return [];
+    const headers = rows[0] as string[];
+    return rows.slice(1).map((r) => {
+      const obj: Record<string, string> = {};
+      headers.forEach((h, i) => {
+        obj[h] = (r as string[])[i] ?? "";
+      });
+      return {
+        approval_id: pickField(obj, ["approval_id", "id"]),
+        client_id: pickField(obj, ["client_id"]),
+        client_name: pickField(obj, ["client_name", "company_name", "顧客名"]),
+        property_name: pickField(obj, ["物件名", "property_name", "property"]),
+        status: pickField(obj, ["status", "ステータス"]),
+        created_at: pickField(obj, ["created_at", "作成日時", "ts", "timestamp"]),
+      };
+    });
+  } catch {
+    return [];
+  }
 }

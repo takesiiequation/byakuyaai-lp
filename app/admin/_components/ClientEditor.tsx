@@ -43,7 +43,7 @@ export default function ClientEditor({
       v !== String((client as unknown as Record<string, unknown>)[k] ?? "")
   );
 
-  const isOnboarded = !!(client.client_folder_id && client.line_data_sheet_id);
+  const isOnboarded = !!client.line_data_sheet_id;
 
   function set(key: string, val: string) {
     setForm((f) => ({ ...f, [key]: val }));
@@ -90,24 +90,10 @@ export default function ClientEditor({
       });
       const data = await res.json();
       if (res.ok && data.ok) {
-        const parts = [];
-        if (data.data.folder_skipped) {
-          parts.push("フォルダ: 既存");
-        } else {
-          parts.push("フォルダ: 作成完了");
-        }
-        if (data.data.sheet_skipped) {
-          parts.push("LINEシート: 既存");
-        } else {
-          parts.push("LINEシート: 作成完了");
-        }
-        setOnboardResult({ ok: true, text: parts.join(" / ") });
-        if (data.data.client_folder_id) {
-          setForm((f) => ({
-            ...f,
-            client_folder_id: data.data.client_folder_id,
-          }));
-        }
+        const text = data.data.sheet_skipped
+          ? "LINEデータシート: 既存"
+          : "フォルダ + LINEデータシート: 作成完了";
+        setOnboardResult({ ok: true, text });
         if (data.data.line_data_sheet_id) {
           setForm((f) => ({
             ...f,
@@ -193,7 +179,7 @@ export default function ClientEditor({
                     セットアップ完了
                   </div>
                   <p className="text-xs text-gray-400 truncate">
-                    フォルダ: {client.client_folder_id}
+                    LINEデータシート: {client.line_data_sheet_id}
                   </p>
                 </div>
               ) : (

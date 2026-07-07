@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
       payments,
       clients.map((c) => ({
         client_id: c.client_id,
-        company_name: c.company_name,
+        client_name: c.client_name,
         plan: c.plan,
       }))
     );

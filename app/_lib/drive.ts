@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import { Readable } from "stream";
 
 const ROOT_FOLDER_ID = process.env.DRIVE_ROOT_FOLDER_ID;
 
@@ -90,4 +91,69 @@ export async function createLineDataSheet(
   }
 
   return sheetId;
+}
+
+// --- Module B: BGM/SE media library --------------------------------------
+// Reuses the same broad-scope (drive + spreadsheets) service-account client
+// used above. The service account must be shared as Editor on
+// BGM_FOLDER_ID / SE_FOLDER_ID, same operational requirement as
+// DRIVE_ROOT_FOLDER_ID. Uploaded files are made link-readable ("anyone with
+// the link") so the admin UI can preview them via a plain
+// `https://drive.google.com/uc?export=download&id=<id>` URL without proxying
+// playback through an authenticated route.
+export interface MediaFile {
+  id: string;
+  name: string;
+  size: number;
+  createdTime: string;
+  mimeType: string;
+}
+
+export async function listMediaFiles(folderId: string): Promise<MediaFile[]> {
+  const res = await drive().files.list({
+    q: `'${folderId}' in parents and trashed = false`,
+    fields: "files(id, name, size, createdTime, mimeType)",
+    orderBy: "createdTime desc",
+    pageSize: 200,
+  });
+  return (res.data.files ?? []).map((f) => ({
+    id: f.id ?? "",
+    name: f.name ?? "",
+    size: Number(f.size) || 0,
+    createdTime: f.createdTime ?? "",
+    mimeType: f.mimeType ?? "",
+  }));
+}
+
+export async function uploadMediaFile(
+  folderId: string,
+  filename: string,
+  mimeType: string,
+  buffer: Buffer
+): Promise<MediaFile> {
+  const res = await drive().files.create({
+    requestBody: { name: filename, parents: [folderId] },
+    media: { mimeType, body: Readable.from(buffer) },
+    fields: "id, name, size, createdTime, mimeType",
+  });
+  const fileId = res.data.id;
+  if (!fileId) throw new Error("Drive did not return a file id");
+
+  // Make it link-readable so <audio src="uc?export=download&id=..."> works.
+  await drive().permissions.create({
+    fileId,
+    requestBody: { role: "reader", type: "anyone" },
+  });
+
+  return {
+    id: fileId,
+    name: res.data.name ?? filename,
+    size: Number(res.data.size) || buffer.length,
+    createdTime: res.data.createdTime ?? "",
+    mimeType: res.data.mimeType ?? mimeType,
+  };
+}
+
+export async function deleteMediaFile(fileId: string): Promise<void> {
+  await drive().files.delete({ fileId });
 }

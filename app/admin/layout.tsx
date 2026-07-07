@@ -35,10 +35,16 @@ export default function AdminLayout({
             ダッシュボード
           </a>
           <a
-            href="/admin/clients/new"
+            href="/admin/clients"
             className="text-gray-600 hover:text-[var(--brand-orange)] transition-colors"
           >
-            + 新規顧客
+            顧客管理
+          </a>
+          <a
+            href="/admin/media"
+            className="text-gray-600 hover:text-[var(--brand-orange)] transition-colors"
+          >
+            BGM/SE
           </a>
           <a
             href="/admin/billing"
@@ -63,7 +69,7 @@ export default function AdminLayout({
         <div className="flex justify-around items-center h-14">
           <a
             href="/admin"
-            className="flex flex-col items-center gap-0.5 text-gray-500 active:text-[var(--brand-orange)] transition-colors py-1 px-4"
+            className="flex flex-col items-center gap-0.5 text-gray-500 active:text-[var(--brand-orange)] transition-colors py-1 px-2"
           >
             <svg
               className="w-5 h-5"
@@ -81,8 +87,8 @@ export default function AdminLayout({
             <span className="text-[10px] font-medium">ホーム</span>
           </a>
           <a
-            href="/admin/clients/new"
-            className="flex flex-col items-center gap-0.5 text-gray-500 active:text-[var(--brand-orange)] transition-colors py-1 px-3"
+            href="/admin/clients"
+            className="flex flex-col items-center gap-0.5 text-gray-500 active:text-[var(--brand-orange)] transition-colors py-1 px-2"
           >
             <svg
               className="w-5 h-5"
@@ -94,14 +100,33 @@ export default function AdminLayout({
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"
               />
             </svg>
-            <span className="text-[10px] font-medium">新規</span>
+            <span className="text-[10px] font-medium">顧客</span>
+          </a>
+          <a
+            href="/admin/media"
+            className="flex flex-col items-center gap-0.5 text-gray-500 active:text-[var(--brand-orange)] transition-colors py-1 px-2"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 19V6l12-2v13M9 19a3 3 0 11-6 0 3 3 0 016 0zm12-2a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+            </svg>
+            <span className="text-[10px] font-medium">BGM</span>
           </a>
           <a
             href="/admin/billing"
-            className="flex flex-col items-center gap-0.5 text-gray-500 active:text-[var(--brand-orange)] transition-colors py-1 px-3"
+            className="flex flex-col items-center gap-0.5 text-gray-500 active:text-[var(--brand-orange)] transition-colors py-1 px-2"
           >
             <svg
               className="w-5 h-5"
@@ -120,7 +145,7 @@ export default function AdminLayout({
           </a>
           <a
             href="/"
-            className="flex flex-col items-center gap-0.5 text-gray-400 active:text-gray-600 transition-colors py-1 px-3"
+            className="flex flex-col items-center gap-0.5 text-gray-400 active:text-gray-600 transition-colors py-1 px-2"
           >
             <svg
               className="w-5 h-5"

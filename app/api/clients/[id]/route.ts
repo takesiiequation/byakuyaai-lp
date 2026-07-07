@@ -37,7 +37,15 @@ export async function PATCH(
   const { id } = await params;
   try {
     const body = await req.json();
+    // client_id/secret_key are immutable via the GUI; used_this_month,
+    // quota_reset, next_post_slot are system-managed (written by the video
+    // pipeline / n8n), not by this admin form — strip all of them
+    // server-side so a UI bug can't smuggle a write through.
     delete body.client_id;
+    delete body.secret_key;
+    delete body.used_this_month;
+    delete body.quota_reset;
+    delete body.next_post_slot;
     await updateClient(id, body);
     return Response.json({ ok: true });
   } catch (e) {

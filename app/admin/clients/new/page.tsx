@@ -19,8 +19,9 @@ export default function NewClientPage() {
   const router = useRouter();
   const [form, setForm] = useState({
     client_id: "",
-    company_name: "",
+    client_name: "",
     plan: "standard",
+    tone: "casual",
     monthly_quota: 10,
     secret_key: "",
     approval_email: "",
@@ -50,20 +51,20 @@ export default function NewClientPage() {
     });
     const data = await res.json();
     if (res.ok) {
-      router.push("/admin");
+      router.push("/admin/clients");
     } else {
       setError(data.error || "登録に失敗しました");
     }
     setSaving(false);
   }
 
-  const isValid = form.client_id && form.company_name;
+  const isValid = form.client_id && form.client_name;
 
   return (
     <div className="max-w-lg mx-auto">
       <div className="flex items-center gap-3 mb-5">
         <a
-          href="/admin"
+          href="/admin/clients"
           className="flex items-center justify-center w-9 h-9 rounded-xl bg-white border border-gray-200 text-gray-400 hover:text-[var(--brand-orange)] hover:border-[var(--brand-orange)] active:scale-95 transition-all"
         >
           <svg
@@ -114,16 +115,41 @@ export default function NewClientPage() {
 
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1.5">
-              会社名
+              顧客名
             </label>
             <input
               type="text"
-              value={form.company_name}
-              onChange={(e) => set("company_name", e.target.value)}
+              value={form.client_name}
+              onChange={(e) => set("client_name", e.target.value)}
               required
               placeholder="杉田商事"
               className="w-full border border-gray-200 bg-gray-50 rounded-xl px-3 py-3 sm:py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-orange)] focus:border-transparent focus:bg-white transition-colors"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-2">
+              トーン
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: "casual", label: "カジュアル" },
+                { value: "polite", label: "丁寧" },
+              ].map((t) => (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => set("tone", t.value)}
+                  className={`rounded-xl border-2 px-3 py-2.5 text-sm font-medium transition-all active:scale-[0.97] ${
+                    form.tone === t.value
+                      ? "border-[var(--brand-orange)] bg-[var(--brand-cream)] text-[var(--brand-orange-dark)]"
+                      : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>
