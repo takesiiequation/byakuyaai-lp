@@ -76,6 +76,12 @@ export default function ReviseForm({
     Object.fromEntries(telops.map((t) => [t.role, t.yomi]))
   );
   const [yomiOpen, setYomiOpen] = useState<Record<string, boolean>>({});
+  // Still-image swap toggle, per card (role). Only meaningful for cards with
+  // a resolvable scene_index that isn't already swapped — those are the
+  // only ones that render the toggle in the first place. Swap is one-way:
+  // once the backend reports `swapped: true` there's no toggle to turn it
+  // back off (see the "差し替え済み" branch below).
+  const [swapOn, setSwapOn] = useState<Record<string, boolean>>({});
   const [captionValue, setCaptionValue] = useState(caption);
   const [showConfirm, setShowConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -115,6 +121,24 @@ export default function ReviseForm({
     [telops, values, yomiValues, yomiOpen]
   );
 
+  // Scene_index values queued for still-image swap. Deduped — two cards can
+  // resolve to the same underlying scene (e.g. the price-reveal beat reuses
+  // the hook clip), and toggling either one should only send it once.
+  const swaps = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          telops
+            .filter(
+              (t) =>
+                t.scene_index !== null && !t.swapped && (swapOn[t.role] ?? false)
+            )
+            .map((t) => t.scene_index as number)
+        )
+      ),
+    [telops, swapOn]
+  );
+
   const hasEmptyChange = changed.some(
     (c) => c.new_text !== undefined && c.new_text.length === 0
   );
@@ -132,7 +156,7 @@ export default function ReviseForm({
   const captionEmptyInvalid = captionChanged && captionTrimmed.length === 0;
 
   const canSubmit =
-    (changed.length > 0 || captionChanged) &&
+    (changed.length > 0 || captionChanged || swaps.length > 0) &&
     !hasEmptyChange &&
     !hasInvalidYomi &&
     !captionEmptyInvalid &&
@@ -150,6 +174,16 @@ export default function ReviseForm({
         text: lines.join("\n"),
       };
     });
+    for (const t of telops) {
+      if (t.scene_index === null || t.swapped || !(swapOn[t.role] ?? false)) {
+        continue;
+      }
+      items.push({
+        key: `swap-${t.role}`,
+        label: t.label,
+        text: "映像差し替え: 写真のままゆっくり動く表示に変更します",
+      });
+    }
     if (captionChanged && !captionEmptyInvalid) {
       items.push({
         key: "__caption__",
@@ -158,7 +192,14 @@ export default function ReviseForm({
       });
     }
     return items;
-  }, [changed, telops, captionChanged, captionEmptyInvalid, captionTrimmed]);
+  }, [
+    changed,
+    telops,
+    swapOn,
+    captionChanged,
+    captionEmptyInvalid,
+    captionTrimmed,
+  ]);
 
   function updateValue(role: string, next: string) {
     setValues((v) => ({ ...v, [role]: next.slice(0, MAX_TEXT_LEN) }));
@@ -189,6 +230,10 @@ export default function ReviseForm({
     setCaptionValue(next.slice(0, MAX_CAPTION_LEN));
   }
 
+  function toggleSwap(role: string) {
+    setSwapOn((v) => ({ ...v, [role]: !v[role] }));
+  }
+
   async function handleConfirmSend() {
     setSubmitting(true);
     setSubmitError("");
@@ -196,6 +241,9 @@ export default function ReviseForm({
       const body: Record<string, unknown> = { approvalId, edits: changed };
       if (captionChanged && !captionEmptyInvalid) {
         body.caption_edit = captionTrimmed;
+      }
+      if (swaps.length > 0) {
+        body.swaps = swaps;
       }
       const res = await fetch("/api/revise/submit", {
         method: "POST",
@@ -205,8 +253,9 @@ export default function ReviseForm({
       const data = await res.json();
       if (data.ok) {
         const captionAlsoChanged = captionChanged && !captionEmptyInvalid;
+        const hasVideoChange = changed.length > 0 || swaps.length > 0;
         setDoneKind(
-          changed.length > 0
+          hasVideoChange
             ? captionAlsoChanged
               ? "both"
               : "video"
@@ -295,7 +344,9 @@ export default function ReviseForm({
             const yomiChangedFromPrefill =
               isOpen && yomiTrimmed !== sanitizeYomi(t.yomi);
             const yomiValid = yomiChangedFromPrefill && !yomiErr;
-            const isChanged = textChanged || yomiValid;
+            const canSwap = t.scene_index !== null && !t.swapped;
+            const swapQueued = canSwap && (swapOn[t.role] ?? false);
+            const isChanged = textChanged || yomiValid || swapQueued;
             return (
               <div
                 key={t.role}
@@ -316,6 +367,11 @@ export default function ReviseForm({
                     {yomiValid && (
                       <span className="max-w-[10rem] truncate rounded-full bg-[var(--brand-cream-2)] px-2 py-0.5 text-[10px] font-bold text-[var(--brand-orange-dark)]">
                         読み変更あり
+                      </span>
+                    )}
+                    {swapQueued && (
+                      <span className="rounded-full bg-[var(--brand-cream-2)] px-2 py-0.5 text-[10px] font-bold text-[var(--brand-orange-dark)]">
+                        映像差し替え
                       </span>
                     )}
                   </div>
@@ -383,6 +439,43 @@ export default function ReviseForm({
                     </div>
                   </div>
                 )}
+
+                {t.scene_index !== null &&
+                  (t.swapped ? (
+                    <div className="mt-3 flex items-start gap-2 border-t border-[var(--brand-border)] pt-3 text-[11px] text-[var(--brand-gray-light)]">
+                      <span className="shrink-0 rounded-full bg-[var(--brand-cream-2)] px-2 py-0.5 font-bold text-[var(--brand-orange-dark)]">
+                        差し替え済み
+                      </span>
+                      <span>元に戻したい場合はご担当までご連絡ください</span>
+                    </div>
+                  ) : (
+                    <div className="mt-3 flex items-start gap-3 border-t border-[var(--brand-border)] pt-3">
+                      {t.thumbnail && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={t.thumbnail}
+                          alt=""
+                          className="h-12 w-12 shrink-0 rounded-lg object-cover ring-1 ring-black/10"
+                        />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-bold text-[var(--brand-ink)]">
+                          ⚠️ この場面の映像に乱れがある場合
+                        </p>
+                        <label className="mt-1.5 flex cursor-pointer items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={swapOn[t.role] ?? false}
+                            onChange={() => toggleSwap(t.role)}
+                            className="h-4 w-4 shrink-0 rounded border-[var(--brand-border)] text-[var(--brand-orange)] focus:ring-[var(--brand-orange)]/30"
+                          />
+                          <span className="text-[11px] text-[var(--brand-gray)]">
+                            写真のままゆっくり動く表示に差し替える
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+                  ))}
               </div>
             );
           })}
@@ -454,7 +547,7 @@ export default function ReviseForm({
         >
           この内容で修正を依頼する
         </button>
-        {changed.length === 0 && !captionChanged && (
+        {changed.length === 0 && !captionChanged && swaps.length === 0 && (
           <p className="text-center text-xs text-[var(--brand-gray-light)]">
             テキストを変更すると送信できます
           </p>

@@ -46,6 +46,12 @@ const YOMI_FORBIDDEN_SRC =
 export const YOMI_RE = new RegExp(`^[^${YOMI_FORBIDDEN_SRC}]*$`, "u");
 export const MAX_YOMI_LEN = 120;
 
+// Still-image swap ("swaps"): scene_index values the customer wants
+// re-rendered as a static "photo + slow zoom" instead of the AI video clip
+// (used when a clip has a visible glitch, e.g. a warped doorway). Range
+// mirrors the n8n-side guard (Revise: Auth+Load) — keep both in sync.
+export const MAX_SWAP_SCENE_INDEX = 30;
+
 export interface ReviseTelop {
   role: string;
   label: string;
@@ -55,6 +61,20 @@ export interface ReviseTelop {
    * Falls back to `text` server-side when the backend has no separate
    * narration script (older manifests). */
   yomi: string;
+  /** Manifest scene_index this line's on-screen visual resolves to, or null
+   * when it can't be resolved (older manifests without sd.scenes, or a role
+   * — like `exclaim` — that shares another line's clip rather than owning
+   * one itself). Cards with `scene_index === null` get no swap toggle. */
+  scene_index: number | null;
+  /** Thumbnail (the scene's source photo) to show next to the swap toggle.
+   * Null when scene_index resolved but no matching klingVideos entry was
+   * found (fail-soft — no image malformed, toggle stays hidden). */
+  thumbnail: string | null;
+  /** True when this scene has already been swapped to the still-image
+   * render server-side (Revise: Apply Edits set use_still on the matching
+   * klingVideos entry in a prior revision). Swap is one-way — once true,
+   * the form shows "差し替え済み" instead of a toggle. */
+  swapped: boolean;
 }
 
 export interface ReviseInfo {
@@ -84,6 +104,18 @@ function shapeTelops(raw: unknown): ReviseTelop[] {
         // Defensive fallback to `text` in case the backend is an older
         // deploy that hasn't split display text from narration script yet.
         yomi: typeof rec.yomi === "string" && rec.yomi ? rec.yomi : rec.text,
+        // Fail-soft: any shape mismatch here just hides the swap toggle
+        // for this card rather than breaking the page.
+        scene_index:
+          typeof rec.scene_index === "number" &&
+          Number.isInteger(rec.scene_index)
+            ? rec.scene_index
+            : null,
+        thumbnail:
+          typeof rec.thumbnail === "string" && rec.thumbnail
+            ? rec.thumbnail
+            : null,
+        swapped: rec.swapped === true,
       });
     }
   }
@@ -154,17 +186,18 @@ export interface ReviseSubmitResult {
 
 /**
  * Validate + relay an edit request to the backend. Only `role`, `new_text`,
- * `yomi` and (optionally) `caption_edit` are ever forwarded — nothing else
- * from the incoming payload reaches it. Each edit needs `new_text`, `yomi`,
- * or both (a yomi-only edit re-does the narration without changing the
- * on-screen telop). `edits` may be empty when `captionEdit` is present
- * (caption-only changes don't touch telops), but both being empty is
- * rejected.
+ * `yomi`, (optionally) `caption_edit`, and (optionally) `swaps` are ever
+ * forwarded — nothing else from the incoming payload reaches it. Each edit
+ * needs `new_text`, `yomi`, or both (a yomi-only edit re-does the narration
+ * without changing the on-screen telop). `edits` may be empty when
+ * `captionEdit` or `swaps` is present (a swaps-only or caption-only request
+ * doesn't need telop edits), but all three being empty is rejected.
  */
 export async function submitRevise(
   approvalId: string,
   edits: ReviseEditInput[],
-  captionEdit?: string
+  captionEdit?: string,
+  swaps?: number[]
 ): Promise<ReviseSubmitResult> {
   if (typeof approvalId !== "string" || !APPROVAL_ID_RE.test(approvalId)) {
     return { ok: false, error: "invalid_approval_id" };
@@ -184,7 +217,28 @@ export async function submitRevise(
     cleanCaption = trimmedCaption;
   }
 
-  if (editsProvided.length === 0 && cleanCaption === undefined) {
+  // Swap requests: scene_index values to re-render as a static photo
+  // instead of the AI video clip. Second line of defense (route.ts already
+  // filtered these) — re-validate as true integers 0-MAX_SWAP_SCENE_INDEX
+  // and dedupe, mirroring the n8n-side guard (Revise: Auth+Load).
+  const swapsProvided = Array.isArray(swaps) ? swaps : [];
+  const cleanSwaps = Array.from(
+    new Set(
+      swapsProvided.filter(
+        (n): n is number =>
+          typeof n === "number" &&
+          Number.isInteger(n) &&
+          n >= 0 &&
+          n <= MAX_SWAP_SCENE_INDEX
+      )
+    )
+  );
+
+  if (
+    editsProvided.length === 0 &&
+    cleanCaption === undefined &&
+    cleanSwaps.length === 0
+  ) {
     return { ok: false, error: "nothing_to_submit" };
   }
 
@@ -253,6 +307,7 @@ export async function submitRevise(
         approval_id: approvalId,
         edits: cleanEdits,
         ...(cleanCaption !== undefined ? { caption_edit: cleanCaption } : {}),
+        ...(cleanSwaps.length > 0 ? { swaps: cleanSwaps } : {}),
       }),
       cache: "no-store",
     });

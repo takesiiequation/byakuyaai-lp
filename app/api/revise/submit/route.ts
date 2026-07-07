@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   APPROVAL_ID_RE,
   MAX_CAPTION_LEN,
+  MAX_SWAP_SCENE_INDEX,
   MAX_TEXT_LEN,
   MAX_YOMI_LEN,
   ROLE_RE,
@@ -11,7 +12,12 @@ import {
 } from "@/app/_lib/revise";
 
 export async function POST(req: NextRequest) {
-  let body: { approvalId?: unknown; edits?: unknown; caption_edit?: unknown };
+  let body: {
+    approvalId?: unknown;
+    edits?: unknown;
+    caption_edit?: unknown;
+    swaps?: unknown;
+  };
   try {
     body = await req.json();
   } catch {
@@ -140,13 +146,41 @@ export async function POST(req: NextRequest) {
     captionEdit = trimmedCaption;
   }
 
-  if (edits.length === 0 && captionEdit === undefined) {
+  // `swaps` is optional: scene_index values (int, 0-MAX_SWAP_SCENE_INDEX)
+  // the customer wants re-rendered as a static photo instead of the AI
+  // video clip. Same allow-list discipline as edits/caption_edit above —
+  // anything malformed rejects the whole request rather than being dropped
+  // silently (submitRevise() re-validates as a second line of defense).
+  const swapsRaw = body?.swaps ?? [];
+  if (!Array.isArray(swapsRaw)) {
+    return NextResponse.json(
+      { ok: false, error: "invalid_swaps" },
+      { status: 400 }
+    );
+  }
+  const swaps: number[] = [];
+  for (const s of swapsRaw) {
+    if (
+      typeof s !== "number" ||
+      !Number.isInteger(s) ||
+      s < 0 ||
+      s > MAX_SWAP_SCENE_INDEX
+    ) {
+      return NextResponse.json(
+        { ok: false, error: "invalid_swaps" },
+        { status: 400 }
+      );
+    }
+    swaps.push(s);
+  }
+
+  if (edits.length === 0 && captionEdit === undefined && swaps.length === 0) {
     return NextResponse.json(
       { ok: false, error: "nothing_to_submit" },
       { status: 400 }
     );
   }
 
-  const result = await submitRevise(approvalId, edits, captionEdit);
+  const result = await submitRevise(approvalId, edits, captionEdit, swaps);
   return NextResponse.json(result, { status: result.ok ? 200 : 400 });
 }
