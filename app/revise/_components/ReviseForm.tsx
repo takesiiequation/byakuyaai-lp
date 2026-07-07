@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import {
   MAX_CAPTION_LEN,
   MAX_TEXT_LEN,
+  MAX_YOMI_LEN,
+  YOMI_RE,
   type ReviseTelop,
 } from "@/app/_lib/revise";
 
@@ -12,6 +14,24 @@ import {
  * whitespace is trimmed before comparing/sending. */
 function sanitizeTelop(s: string): string {
   return s.trim();
+}
+
+function sanitizeYomi(s: string): string {
+  return s.trim();
+}
+
+/** Returns an error message if the (already-trimmed) reading is invalid,
+ * null if it's empty (no override requested) or valid. Kanji/CJK text is
+ * rejected — this field only ever steers narration pronunciation. */
+function yomiError(trimmed: string): string | null {
+  if (trimmed.length === 0) return null;
+  if (trimmed.length > MAX_YOMI_LEN) {
+    return `${MAX_YOMI_LEN}字以内で入力してください`;
+  }
+  if (!YOMI_RE.test(trimmed)) {
+    return "ひらがな・カタカナ・英数字のみ使用できます(漢字は使用できません)";
+  }
+  return null;
 }
 
 /** Grows a textarea to fit its content instead of scrolling internally. */
@@ -45,6 +65,8 @@ export default function ReviseForm({
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(telops.map((t) => [t.role, t.text]))
   );
+  const [yomiValues, setYomiValues] = useState<Record<string, string>>({});
+  const [yomiOpen, setYomiOpen] = useState<Record<string, boolean>>({});
   const [captionValue, setCaptionValue] = useState(caption);
   const [showConfirm, setShowConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -57,15 +79,34 @@ export default function ReviseForm({
   const changed = useMemo(
     () =>
       telops
-        .filter((t) => sanitizeTelop(values[t.role] ?? "") !== t.text.trim())
-        .map((t) => ({
-          role: t.role,
-          new_text: sanitizeTelop(values[t.role] ?? ""),
-        })),
-    [telops, values]
+        .map((t) => {
+          const textChanged =
+            sanitizeTelop(values[t.role] ?? "") !== t.text.trim();
+          const yomiTrimmed = sanitizeYomi(yomiValues[t.role] ?? "");
+          const yomiValid = yomiTrimmed.length > 0 && !yomiError(yomiTrimmed);
+          if (!textChanged && !yomiValid) return null;
+          return {
+            role: t.role,
+            ...(textChanged
+              ? { new_text: sanitizeTelop(values[t.role] ?? "") }
+              : {}),
+            ...(yomiValid ? { yomi: yomiTrimmed } : {}),
+          };
+        })
+        .filter((c): c is { role: string; new_text?: string; yomi?: string } =>
+          c !== null
+        ),
+    [telops, values, yomiValues]
   );
 
-  const hasEmptyChange = changed.some((c) => c.new_text.length === 0);
+  const hasEmptyChange = changed.some(
+    (c) => c.new_text !== undefined && c.new_text.length === 0
+  );
+
+  const hasInvalidYomi = telops.some((t) => {
+    const trimmed = sanitizeYomi(yomiValues[t.role] ?? "");
+    return trimmed.length > 0 && yomiError(trimmed) !== null;
+  });
 
   const captionTrimmed = captionValue.trim();
   const captionChanged = captionTrimmed !== caption.trim();
@@ -74,13 +115,21 @@ export default function ReviseForm({
   const canSubmit =
     (changed.length > 0 || captionChanged) &&
     !hasEmptyChange &&
+    !hasInvalidYomi &&
     !captionEmptyInvalid &&
     !submitting;
 
   const previewItems = useMemo(() => {
     const items = changed.map((c) => {
       const t = telops.find((x) => x.role === c.role);
-      return { key: c.role, label: t?.label ?? c.role, text: c.new_text };
+      const lines: string[] = [];
+      if (c.new_text !== undefined) lines.push(c.new_text);
+      if (c.yomi !== undefined) lines.push(`読み: ${c.yomi}`);
+      return {
+        key: c.role,
+        label: t?.label ?? c.role,
+        text: lines.join("\n"),
+      };
     });
     if (captionChanged && !captionEmptyInvalid) {
       items.push({
@@ -94,6 +143,14 @@ export default function ReviseForm({
 
   function updateValue(role: string, next: string) {
     setValues((v) => ({ ...v, [role]: next.slice(0, MAX_TEXT_LEN) }));
+  }
+
+  function updateYomi(role: string, next: string) {
+    setYomiValues((v) => ({ ...v, [role]: next.slice(0, MAX_YOMI_LEN) }));
+  }
+
+  function toggleYomi(role: string) {
+    setYomiOpen((v) => ({ ...v, [role]: !v[role] }));
   }
 
   function updateCaption(next: string) {
@@ -198,7 +255,13 @@ export default function ReviseForm({
         <div className="grid grid-cols-1 gap-3">
           {telops.map((t) => {
             const val = values[t.role] ?? "";
-            const isChanged = sanitizeTelop(val) !== t.text.trim();
+            const textChanged = sanitizeTelop(val) !== t.text.trim();
+            const yomiVal = yomiValues[t.role] ?? "";
+            const yomiTrimmed = sanitizeYomi(yomiVal);
+            const yomiErr = yomiError(yomiTrimmed);
+            const yomiValid = yomiTrimmed.length > 0 && !yomiErr;
+            const isChanged = textChanged || yomiValid;
+            const isOpen = yomiOpen[t.role] ?? false;
             return (
               <div
                 key={t.role}
@@ -206,15 +269,22 @@ export default function ReviseForm({
                   isChanged ? "ring-[var(--brand-orange)]" : "ring-black/5"
                 }`}
               >
-                <div className="mb-2 flex items-center justify-between">
+                <div className="mb-2 flex items-center justify-between gap-2">
                   <span className="text-xs font-bold uppercase tracking-wide text-[var(--brand-gray-light)]">
                     {t.label}
                   </span>
-                  {isChanged && (
-                    <span className="rounded-full bg-[var(--brand-cream-2)] px-2 py-0.5 text-[10px] font-bold text-[var(--brand-orange-dark)]">
-                      変更あり
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {textChanged && (
+                      <span className="rounded-full bg-[var(--brand-cream-2)] px-2 py-0.5 text-[10px] font-bold text-[var(--brand-orange-dark)]">
+                        変更あり
+                      </span>
+                    )}
+                    {yomiValid && (
+                      <span className="max-w-[10rem] truncate rounded-full bg-[var(--brand-cream-2)] px-2 py-0.5 text-[10px] font-bold text-[var(--brand-orange-dark)]">
+                        読み: {yomiTrimmed}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <textarea
                   ref={autoGrow}
@@ -234,6 +304,40 @@ export default function ReviseForm({
                     {val.length} / {MAX_TEXT_LEN}
                   </span>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => toggleYomi(t.role)}
+                  className="mt-2 text-[11px] font-bold text-[var(--brand-orange-dark)] underline underline-offset-2"
+                >
+                  {isOpen ? "読みの指定を閉じる" : "読みを指定(任意)"}
+                </button>
+                {isOpen && (
+                  <div className="mt-2">
+                    <input
+                      type="text"
+                      value={yomiVal}
+                      onChange={(e) => updateYomi(t.role, e.target.value)}
+                      maxLength={MAX_YOMI_LEN}
+                      placeholder="例: しろかねだい"
+                      className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-cream)]/40 px-3 py-2.5 text-sm text-[var(--brand-ink)] focus:border-[var(--brand-orange)] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-orange)]/30"
+                    />
+                    <div className="mt-1 flex items-center justify-between text-[11px]">
+                      <span
+                        className={
+                          yomiErr
+                            ? "text-red-500"
+                            : "text-[var(--brand-gray-light)]"
+                        }
+                      >
+                        {yomiErr ?? "ひらがな・カタカナ・英数字のみ"}
+                      </span>
+                      <span className="text-[var(--brand-gray-light)]">
+                        {yomiVal.length} / {MAX_YOMI_LEN}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -284,6 +388,9 @@ export default function ReviseForm({
             ※改行するとその位置で字幕が折り返されます(改行入りのテロップは固定表示になります)
           </p>
           <p className="mt-1.5">※動画内の読み上げは自動で調整されます</p>
+          <p className="mt-1.5">
+            ※読みを指定すると、その読み方でナレーションを作り直します
+          </p>
           <p className="mt-1.5">
             ※家賃・間取りなどの数値は資料(マイソク)にもとづいています。数値そのものに誤りがある場合は、テロップ修正ではなく資料の再送をお願いします
           </p>

@@ -10,6 +10,13 @@ export const APPROVAL_ID_RE = /^APR-[a-z0-9]+-[a-f0-9]{16,}$/i;
 export const ROLE_RE = /^[a-z][a-z0-9_]{0,49}$/i;
 export const MAX_TEXT_LEN = 35;
 export const MAX_CAPTION_LEN = 2200;
+// Reading override ("yomi"): hiragana + katakana (incl. the long vowel mark
+// U+30FC and middle dot U+30FB, both inside the ゠-ヿ block) +
+// alphanumerics + a small set of ASCII symbols. Kanji/CJK ideographs are
+// intentionally excluded — this field only ever steers TTS pronunciation,
+// never the on-screen telop text.
+export const YOMI_RE = /^[぀-ゟ゠-ヿa-zA-Z0-9\s.,!?~-]*$/;
+export const MAX_YOMI_LEN = 60;
 
 export interface ReviseTelop {
   role: string;
@@ -94,7 +101,10 @@ export async function getReviseInfo(approvalId: string): Promise<ReviseInfo> {
 
 export interface ReviseEditInput {
   role: string;
-  new_text: string;
+  new_text?: string;
+  /** Reading-only override (e.g. 白金台 → しろかねだい). Steers TTS
+   * pronunciation without touching the on-screen telop text. */
+  yomi?: string;
 }
 
 export interface ReviseSubmitResult {
@@ -104,11 +114,13 @@ export interface ReviseSubmitResult {
 }
 
 /**
- * Validate + relay an edit request to the backend. Only `role`, `new_text`
- * and (optionally) `caption_edit` are ever forwarded — nothing else from the
- * incoming payload reaches it. `edits` may be empty when `captionEdit` is
- * present (caption-only changes don't touch telops), but both being empty
- * is rejected.
+ * Validate + relay an edit request to the backend. Only `role`, `new_text`,
+ * `yomi` and (optionally) `caption_edit` are ever forwarded — nothing else
+ * from the incoming payload reaches it. Each edit needs `new_text`, `yomi`,
+ * or both (a yomi-only edit re-does the narration without changing the
+ * on-screen telop). `edits` may be empty when `captionEdit` is present
+ * (caption-only changes don't touch telops), but both being empty is
+ * rejected.
  */
 export async function submitRevise(
   approvalId: string,
@@ -140,20 +152,53 @@ export async function submitRevise(
   const cleanEdits: ReviseEditInput[] = [];
   for (const e of editsProvided) {
     const role = e?.role;
-    const text = e?.new_text;
     if (typeof role !== "string" || !ROLE_RE.test(role)) {
       return { ok: false, error: "invalid_role" };
     }
-    if (typeof text !== "string") {
-      return { ok: false, error: "invalid_text" };
+
+    const hasNewText = e?.new_text !== undefined;
+    const hasYomi = e?.yomi !== undefined;
+    // Each edit must carry the telop text, a reading override, or both —
+    // never neither (a yomi-only edit is valid: it changes pronunciation
+    // without touching the on-screen text).
+    if (!hasNewText && !hasYomi) {
+      return { ok: false, error: "invalid_edit" };
     }
-    // Telops may include newlines — a newline renders as a fixed line break
-    // at that position in the video. Only the outer edges are trimmed.
-    const trimmed = text.trim();
-    if (trimmed.length === 0 || trimmed.length > MAX_TEXT_LEN) {
-      return { ok: false, error: "invalid_text" };
+
+    const cleanEdit: ReviseEditInput = { role };
+
+    if (hasNewText) {
+      const text = e.new_text;
+      if (typeof text !== "string") {
+        return { ok: false, error: "invalid_text" };
+      }
+      // Telops may include newlines — a newline renders as a fixed line
+      // break at that position in the video. Only the outer edges are
+      // trimmed.
+      const trimmed = text.trim();
+      if (trimmed.length === 0 || trimmed.length > MAX_TEXT_LEN) {
+        return { ok: false, error: "invalid_text" };
+      }
+      cleanEdit.new_text = trimmed;
     }
-    cleanEdits.push({ role, new_text: trimmed });
+
+    if (hasYomi) {
+      const yomi = e.yomi;
+      if (typeof yomi !== "string") {
+        return { ok: false, error: "invalid_yomi" };
+      }
+      const trimmedYomi = yomi.trim();
+      if (
+        trimmedYomi.length === 0 ||
+        trimmedYomi.length > MAX_YOMI_LEN ||
+        !YOMI_RE.test(trimmedYomi)
+      ) {
+        return { ok: false, error: "invalid_yomi" };
+      }
+      cleanEdit.yomi = trimmedYomi;
+    }
+
+    cleanEdits.push(cleanEdit);
   }
 
   if (!SUBMIT_URL || !REVISE_KEY) {
