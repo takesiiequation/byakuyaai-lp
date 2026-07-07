@@ -150,7 +150,17 @@ export default function ReviseForm({
   }
 
   function toggleYomi(role: string) {
-    setYomiOpen((v) => ({ ...v, [role]: !v[role] }));
+    setYomiOpen((v) => {
+      const closing = v[role] === true;
+      if (closing) {
+        // 閉じる時、無効な読みが残っていたらクリア(閉じたまま送信不能になる事故防止)
+        const val = (yomiValues[role] ?? "").trim();
+        if (val && !YOMI_RE.test(val)) {
+          setYomiValues((yv) => ({ ...yv, [role]: "" }));
+        }
+      }
+      return { ...v, [role]: !v[role] };
+    });
   }
 
   function updateCaption(next: string) {
