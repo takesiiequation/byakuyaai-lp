@@ -65,6 +65,12 @@ export default function AdminLayout({
             LINE設定
           </a>
           <a
+            href="/admin/models"
+            className="text-gray-600 hover:text-[var(--brand-orange)] transition-colors"
+          >
+            モデル管理
+          </a>
+          <a
             href="/"
             className="text-gray-400 hover:text-gray-600 transition-colors"
           >
@@ -192,6 +198,25 @@ export default function AdminLayout({
               />
             </svg>
             <span className="text-[10px] font-medium">LINE</span>
+          </a>
+          <a
+            href="/admin/models"
+            className="flex flex-col items-center gap-0.5 text-gray-500 active:text-[var(--brand-orange)] transition-colors py-1 px-2"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M8.25 3v1.5M15.75 3v1.5M8.25 19.5V21M15.75 19.5V21M3 8.25H1.5M3 12H1.5M3 15.75H1.5M21 8.25h-1.5M21 12h-1.5M21 15.75h-1.5M4.5 5.25h15a1.5 1.5 0 011.5 1.5v10.5a1.5 1.5 0 01-1.5 1.5h-15a1.5 1.5 0 01-1.5-1.5V6.75a1.5 1.5 0 011.5-1.5z"
+              />
+            </svg>
+            <span className="text-[10px] font-medium">モデル</span>
           </a>
           <a
             href="/"

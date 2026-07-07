@@ -63,3 +63,74 @@ export const STATUS_COLORS: Record<string, string> = {
 // check) so the two never drift apart.
 export const MEDIA_MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024; // 20MB
 export const MEDIA_MAX_FILE_SIZE_LABEL = "20MB";
+
+// --- AI model registry (/admin/models) ------------------------------------
+// Types/constants/pure-validation live here (not in _lib/models.ts) so the
+// "use client" admin page can import them without pulling in models.ts's
+// `googleapis` import — that pulls in Node-only modules (net/tls) that break
+// the client bundle. models.ts (server-only, does the actual Sheets I/O)
+// imports these back from here.
+export interface ModelDef {
+  model_id: string;
+  label: string;
+  endpoint_url: string;
+  body_template: string;
+  duration: string;
+  resolution: string;
+  notes: string;
+  active: boolean;
+}
+
+export interface PlanAssignment {
+  plan: string;
+  model_id: string;
+}
+
+// The three plan "slots" the admin UI assigns a model to. Distinct from
+// PLAN_LABELS above (light/standard/premium, the customer-facing contract
+// plan) — "test" here is an internal-only routing slot, not a sold plan, so
+// it deliberately isn't merged with that map.
+export const PLAN_KEYS = ["standard", "premium", "test"] as const;
+export type PlanKey = (typeof PLAN_KEYS)[number];
+export const PLAN_SLOT_LABELS: Record<PlanKey, string> = {
+  standard: "スタンダード",
+  premium: "プレミアム",
+  test: "テスト",
+};
+
+export const REQUIRED_PLACEHOLDERS = ["{{image_url}}", "{{prompt}}"] as const;
+export const OPTIONAL_PLACEHOLDERS = [
+  "{{duration}}",
+  "{{aspect_ratio}}",
+  "{{resolution}}",
+] as const;
+
+// Shared by /api/models and /api/models/assist (assist's AI output is
+// validated the same way a manual save is — never trusted directly).
+export function validateBodyTemplate(
+  raw: string
+): { ok: true } | { ok: false; error: string } {
+  if (!raw || !raw.trim()) {
+    return { ok: false, error: "body_templateは必須です" };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { ok: false, error: "body_templateが正しいJSON形式ではありません" };
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return {
+      ok: false,
+      error: "body_templateはJSONオブジェクトである必要があります",
+    };
+  }
+  const missing = REQUIRED_PLACEHOLDERS.filter((p) => !raw.includes(p));
+  if (missing.length) {
+    return {
+      ok: false,
+      error: `必須プレースホルダが不足しています: ${missing.join(", ")}`,
+    };
+  }
+  return { ok: true };
+}
