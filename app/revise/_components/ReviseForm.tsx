@@ -351,7 +351,7 @@ export default function ReviseForm({
                     <div className="mb-1 text-[11px] font-bold text-[var(--brand-ink)]">
                       読み上げ台本
                       <span className="font-normal text-[var(--brand-gray-light)]">
-                        (間違っている読みの部分だけ書き換えてください)
+                        (間違っている読みの部分だけ、ひらがなに書き換えてください)
                       </span>
                     </div>
                     <textarea
@@ -365,7 +365,7 @@ export default function ReviseForm({
                       className="min-h-[3.25rem] w-full resize-none overflow-hidden rounded-xl border border-[var(--brand-border)] bg-[var(--brand-cream)]/40 px-3 py-2.5 text-sm text-[var(--brand-ink)] focus:border-[var(--brand-orange)] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--brand-orange)]/30"
                     />
                     <p className="mt-1 text-[10px] text-[var(--brand-gray-light)]">
-                      例: 格子窓→こうしまど のように該当部分を仮名に
+                      例:「格子窓」→「こうしまど」のように、直したい部分をひらがなで
                     </p>
                     <div className="mt-1 flex items-center justify-between text-[11px]">
                       <span
