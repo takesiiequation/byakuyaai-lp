@@ -5,7 +5,7 @@ export interface Client {
   client_id: string;
   secret_key: string;
   client_name: string;
-  plan: "light" | "standard" | "premium" | string;
+  plan: "test" | "standard" | "premium" | string;
   tone: "casual" | "polite" | string;
   monthly_quota: number;
   used_this_month: number;
@@ -24,19 +24,19 @@ export interface Client {
 }
 
 export const PLAN_FEATURES: Record<string, { label: string; plans: string[] }> = {
-  video: { label: "動画生成", plans: ["light", "standard", "premium"] },
-  sns: { label: "SNS自動投稿", plans: ["standard", "premium"] },
-  line_ai: { label: "LINE AI", plans: ["premium"] },
+  video: { label: "動画生成", plans: ["test", "standard", "premium"] },
+  sns: { label: "SNS自動投稿", plans: ["test", "standard", "premium"] },
+  line_ai: { label: "LINE AI", plans: ["test", "premium"] },
 };
 
 export const PLAN_LABELS: Record<string, string> = {
-  light: "ライト",
+  test: "テスト",
   standard: "スタンダード",
   premium: "プレミアム",
 };
 
 export const PLAN_COLORS: Record<string, string> = {
-  light: "bg-gray-100 text-gray-700",
+  test: "bg-purple-100 text-purple-700",
   standard: "bg-blue-100 text-blue-700",
   premium: "bg-amber-100 text-amber-700",
 };
@@ -86,10 +86,10 @@ export interface PlanAssignment {
   model_id: string;
 }
 
-// The three plan "slots" the admin UI assigns a model to. Distinct from
-// PLAN_LABELS above (light/standard/premium, the customer-facing contract
-// plan) — "test" here is an internal-only routing slot, not a sold plan, so
-// it deliberately isn't merged with that map.
+// The three plan "slots" the admin UI assigns a model to. Same value set as
+// PLAN_LABELS above since 2026-07-08 (light retired; "test" is the internal
+// plan used by byakuyaai_test — never sold, but it IS a real plan value in
+// the 契約社リスト sheet).
 export const PLAN_KEYS = ["standard", "premium", "test"] as const;
 export type PlanKey = (typeof PLAN_KEYS)[number];
 export const PLAN_SLOT_LABELS: Record<PlanKey, string> = {
