@@ -75,7 +75,9 @@ export default async function RevisePage({
     );
   }
 
-  if (!info.editable) {
+  // Fully locked: neither video-affecting edits nor caption edits are
+  // allowed (posted/processing/rejected, or past the 3-day deadline).
+  if (!info.editable && !info.caption_editable) {
     return (
       <Shell>
         <MessageCard
@@ -95,6 +97,11 @@ export default async function RevisePage({
         videoUrl={info.video_url ?? ""}
         telops={info.telops ?? []}
         caption={info.caption ?? ""}
+        // editable=false here always means caption_editable=true (the fully
+        // locked case already returned above) — the 1-revision limit was
+        // used, so telop/yomi/swap editing is locked but caption edits
+        // still flow through.
+        locked={!info.editable}
       />
     </Shell>
   );

@@ -82,6 +82,15 @@ export interface ReviseInfo {
   approval_id?: string;
   status?: string;
   editable?: boolean;
+  /** True when the caption alone can still be edited even though `editable`
+   * (telop/yomi/swap editing) is false — e.g. the 1-revision-per-video limit
+   * was already used but the posting deadline hasn't passed. When both are
+   * false the page shows the full "cannot edit" message; when only this one
+   * is true the page shows the caption-only locked form. */
+  caption_editable?: boolean;
+  /** Number of video-affecting revisions (edits/swaps) already applied.
+   * Surfaced for display/debugging; the actual gate is `editable`. */
+  revision_count?: number;
   property_name?: string;
   client_name?: string;
   video_url?: string;
@@ -155,6 +164,9 @@ export async function getReviseInfo(approvalId: string): Promise<ReviseInfo> {
         typeof rec.approval_id === "string" ? rec.approval_id : approvalId,
       status: typeof rec.status === "string" ? rec.status : undefined,
       editable: rec.editable === true,
+      caption_editable: rec.caption_editable === true,
+      revision_count:
+        typeof rec.revision_count === "number" ? rec.revision_count : 0,
       property_name:
         typeof rec.property_name === "string" ? rec.property_name : "",
       client_name: typeof rec.client_name === "string" ? rec.client_name : "",
