@@ -122,7 +122,7 @@ export interface BillingEntry {
   plan: string;
   合計: number;
   入金額: number;
-  status: "未請求" | "未入金" | "入金済" | "領収書済" | "過少" | "過大";
+  status: "未入金" | "入金済" | "領収書済" | "過少" | "過大";
   invoice_num: string;
   発行日: string;
 }

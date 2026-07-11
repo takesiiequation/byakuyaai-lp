@@ -141,7 +141,7 @@ export default async function ClientsListPage() {
                     LINE AI
                   </span>
                 )}
-                {c.require_approval === "true" && (
+                {String(c.require_approval) === "true" && (
                   <span className="text-[10px] font-medium bg-amber-50 text-amber-600 border border-amber-100 px-2 py-0.5 rounded-full">
                     承認制
                   </span>

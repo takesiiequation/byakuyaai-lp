@@ -247,9 +247,9 @@ ${pageText}
 
   const endpointUrl =
     typeof extracted.endpoint_url === "string" ? extracted.endpoint_url.trim() : "";
-  if (endpointUrl && !/^https?:\/\//i.test(endpointUrl)) {
+  if (endpointUrl && !/^https:\/\//i.test(endpointUrl)) {
     return Response.json(
-      { ok: false, error: "AIが返したendpoint_urlの形式が不正です" },
+      { ok: false, error: "AIが返したendpoint_urlの形式が不正です(https://で始まる必要があります)" },
       { status: 502 }
     );
   }

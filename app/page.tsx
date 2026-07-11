@@ -731,6 +731,8 @@ function ContactSection() {
               className="absolute -left-[9999px] h-0 w-0 opacity-0"
               aria-hidden="true"
             />
+            {/* Redirect back to our own thank-you page instead of formspree.io */}
+            <input type="hidden" name="_next" value="https://byakuyaai.com/thanks" />
 
             <div className="grid gap-5 sm:grid-cols-2">
               <FormField label="会社名" name="company" required />

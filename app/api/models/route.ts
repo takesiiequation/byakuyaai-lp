@@ -63,9 +63,9 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (!/^https?:\/\//i.test(endpointUrl)) {
+    if (!/^https:\/\//i.test(endpointUrl)) {
       return Response.json(
-        { ok: false, error: "endpoint_urlはhttp(s)で始まるURLである必要があります" },
+        { ok: false, error: "endpoint_urlはhttps://で始まるURLである必要があります" },
         { status: 400 }
       );
     }
@@ -120,9 +120,9 @@ export async function PUT(req: NextRequest) {
 
     if (updates.endpoint_url !== undefined) {
       const url = String(updates.endpoint_url).trim();
-      if (!/^https?:\/\//i.test(url)) {
+      if (!/^https:\/\//i.test(url)) {
         return Response.json(
-          { ok: false, error: "endpoint_urlはhttp(s)で始まるURLである必要があります" },
+          { ok: false, error: "endpoint_urlはhttps://で始まるURLである必要があります" },
           { status: 400 }
         );
       }

@@ -62,8 +62,8 @@ export async function createLineDataSheet(
       valueInputOption: "RAW",
       data: [
         {
-          range: "LINEナレッジ!A1:B1",
-          values: [["content", "enabled"]],
+          range: "LINEナレッジ!A1:E1",
+          values: [["client_id", "category", "title", "content", "enabled"]],
         },
         {
           range: "LINE会話ログ!A1:D1",

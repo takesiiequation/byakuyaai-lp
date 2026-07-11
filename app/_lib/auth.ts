@@ -1,7 +1,19 @@
 import { cookies } from "next/headers";
 import { createHmac, randomUUID } from "crypto";
 
-const SECRET = () => process.env.ADMIN_SESSION_SECRET || "dev-secret";
+// Fail-closed: no hardcoded fallback. Reads both env var names since the
+// deployed env has historically used either spelling (SESSION_SECRET vs.
+// ADMIN_SESSION_SECRET) — if neither is set, throw so every session check
+// fails shut instead of silently signing with a guessable dev value.
+const SECRET = () => {
+  const s = process.env.ADMIN_SESSION_SECRET || process.env.SESSION_SECRET;
+  if (!s) {
+    throw new Error(
+      "ADMIN_SESSION_SECRET (or SESSION_SECRET) is not set — refusing to sign/verify admin sessions"
+    );
+  }
+  return s;
+};
 const API_KEY = () => process.env.ADMIN_API_KEY || "";
 
 function sign(token: string): string {

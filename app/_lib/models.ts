@@ -83,7 +83,7 @@ const SEED_MODELS: ModelDef[] = [
       aspect_ratio: "{{aspect_ratio}}",
       negative_prompt: "blur, distort, low quality",
     }),
-    duration: "4",
+    duration: "5",
     resolution: "",
     notes: "",
     active: true,
