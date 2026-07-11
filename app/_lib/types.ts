@@ -1,6 +1,11 @@
-// Client shape mirrors the real "契約社リスト" sheet tab exactly (19 columns).
-// Do NOT add fields that aren't real columns in that sheet — sheets.ts reads/writes
-// by header name, so a phantom field here silently no-ops on write and reads as "".
+// Client shape mirrors the real "契約社リスト" sheet tab. sheets.ts reads/writes
+// by header name, so a phantom field here silently no-ops on write and reads
+// as "" — do NOT add fields that aren't real columns in that sheet.
+//
+// link_hp_url / link_line_url / drive_folder_id (2026-07-11, admin
+// operability v1) are 3 NEW columns — they must be added to the actual
+// 契約社リスト sheet (headers row) before this UI can read/write them; until
+// then they'll just read as "" (fail-soft, not a crash).
 export interface Client {
   client_id: string;
   secret_key: string;
@@ -21,6 +26,25 @@ export interface Client {
   line_channel_secret: string;
   line_bot_user_id: string;
   line_data_sheet_id: string;
+  link_hp_url: string;
+  link_line_url: string;
+  drive_folder_id: string;
+}
+
+// Lets the "顧客フォルダ" field accept a pasted Google Drive folder URL
+// (https://drive.google.com/drive/folders/<id>[...] or
+// https://drive.google.com/open?id=<id>) and store just the bare ID, which
+// is what the Drive API (createLineDataSheet's addParents, health checks,
+// "顧客フォルダを開く" links) actually needs. Anything that isn't a
+// recognized Drive URL is returned trimmed as-is — this also covers the
+// common case where the operator already pastes a bare ID.
+export function extractDriveFolderId(input: string): string {
+  const trimmed = input.trim();
+  const foldersMatch = trimmed.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  if (foldersMatch) return foldersMatch[1];
+  const openIdMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (openIdMatch) return openIdMatch[1];
+  return trimmed;
 }
 
 export const PLAN_FEATURES: Record<string, { label: string; plans: string[] }> = {

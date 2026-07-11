@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import type { Client } from "@/app/_lib/types";
-import { PLAN_FEATURES } from "@/app/_lib/types";
+import { PLAN_FEATURES, extractDriveFolderId } from "@/app/_lib/types";
+// Type-only import: health.ts pulls in `googleapis` (Node-only), which must
+// never reach this "use client" bundle — `import type` is erased entirely
+// at compile time, so only the shape is used here, not the module.
+import type { HealthCheckResult } from "@/app/_lib/health";
 
 interface FieldDef {
   key: string;
@@ -37,6 +41,11 @@ export default function ClientEditor({
     ok: boolean;
     text: string;
   } | null>(null);
+  const [healthChecking, setHealthChecking] = useState(false);
+  const [healthResult, setHealthResult] = useState<HealthCheckResult | null>(
+    null
+  );
+  const [healthError, setHealthError] = useState("");
 
   const hasChanges = Object.entries(form).some(
     ([k, v]) =>
@@ -90,16 +99,25 @@ export default function ClientEditor({
       });
       const data = await res.json();
       if (res.ok && data.ok) {
-        const text = data.data.sheet_skipped
+        let text = data.data.sheet_skipped
           ? "LINEデータシート: 既存"
           : "フォルダ + LINEデータシート: 作成完了";
-        setOnboardResult({ ok: true, text });
-        if (data.data.line_data_sheet_id) {
-          setForm((f) => ({
-            ...f,
-            line_data_sheet_id: data.data.line_data_sheet_id,
-          }));
+        if (data.data.warning === "no_folder") {
+          text += "(⚠️顧客フォルダが未指定だったため新規作成しました)";
+        } else if (data.data.warning === "folder_permission") {
+          text +=
+            "(⚠️指定フォルダへの権限がなく、既定の場所に作成されました。サービスアカウントを編集者として共有してください)";
         }
+        setOnboardResult({ ok: true, text });
+        setForm((f) => ({
+          ...f,
+          ...(data.data.line_data_sheet_id
+            ? { line_data_sheet_id: data.data.line_data_sheet_id }
+            : {}),
+          ...(data.data.client_folder_id
+            ? { drive_folder_id: data.data.client_folder_id }
+            : {}),
+        }));
       } else {
         setOnboardResult({
           ok: false,
@@ -110,6 +128,24 @@ export default function ClientEditor({
       setOnboardResult({ ok: false, text: String(e) });
     }
     setOnboarding(false);
+  }
+
+  async function runHealthCheck() {
+    setHealthChecking(true);
+    setHealthError("");
+    setHealthResult(null);
+    try {
+      const res = await fetch(`/api/clients/${client.client_id}/health`);
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setHealthResult(data.data as HealthCheckResult);
+      } else {
+        setHealthError(data.error || "健全性チェックに失敗しました");
+      }
+    } catch (e) {
+      setHealthError(String(e));
+    }
+    setHealthChecking(false);
   }
 
   const currentPlan = form.plan || client.plan;
@@ -147,6 +183,122 @@ export default function ClientEditor({
               );
             })}
           </div>
+        </div>
+      </div>
+
+      {/* セットアップ状態(充足バッジ + 外部リンク) */}
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <div className="px-4 sm:px-6 py-3 bg-gray-50 border-b border-gray-100">
+          <h2 className="font-bold text-xs text-gray-500 uppercase tracking-wider">
+            セットアップ状態
+          </h2>
+        </div>
+        <div className="p-4 sm:p-6 space-y-4">
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["line_channel_token", "チャネルアクセストークン"],
+                ["line_channel_secret", "チャネルシークレット"],
+                ["line_bot_user_id", "ボットユーザーID"],
+                ["line_data_sheet_id", "LINEデータシート"],
+                ["drive_folder_id", "顧客フォルダ"],
+              ] as const
+            ).map(([key, label]) => {
+              const filled = !!client[key];
+              return (
+                <div
+                  key={key}
+                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border bg-gray-50 border-gray-200 text-gray-600"
+                >
+                  {label}
+                  <span
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${
+                      filled
+                        ? "bg-green-50 text-green-700 border border-green-200"
+                        : "bg-gray-100 text-gray-400 border border-gray-200"
+                    }`}
+                  >
+                    {filled ? "設定済み" : "未設定"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {client.line_data_sheet_id && (
+              <a
+                href={`https://docs.google.com/spreadsheets/d/${client.line_data_sheet_id}/edit`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-medium px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-[var(--brand-orange)] hover:text-[var(--brand-orange)] active:scale-95 transition-all"
+              >
+                データシートを開く ↗
+              </a>
+            )}
+            {client.drive_folder_id && (
+              <a
+                href={`https://drive.google.com/drive/folders/${client.drive_folder_id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-medium px-3 py-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-[var(--brand-orange)] hover:text-[var(--brand-orange)] active:scale-95 transition-all"
+              >
+                顧客フォルダを開く ↗
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 健全性チェック */}
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <div className="px-4 sm:px-6 py-3 bg-gray-50 border-b border-gray-100">
+          <h2 className="font-bold text-xs text-gray-500 uppercase tracking-wider">
+            健全性チェック
+          </h2>
+        </div>
+        <div className="p-4 sm:p-6">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-gray-600">
+              LINEデータシートのタブ構成・ヘッダー・保存場所を検証します
+            </p>
+            <button
+              onClick={runHealthCheck}
+              disabled={healthChecking}
+              className="shrink-0 font-semibold rounded-xl px-4 py-2.5 text-sm bg-gray-100 text-gray-600 hover:bg-gray-200 active:scale-[0.98] transition-all disabled:opacity-40"
+            >
+              {healthChecking ? "確認中..." : "健全性チェック"}
+            </button>
+          </div>
+          {healthError && (
+            <div className="mt-3 text-sm px-3 py-2 rounded-lg bg-red-50 text-red-600">
+              {healthError}
+            </div>
+          )}
+          {healthResult && (
+            <ul className="mt-3 space-y-1.5">
+              {healthResult.checks.map((c) => (
+                <li key={c.key} className="text-sm">
+                  <div className="flex items-start gap-2">
+                    <span className={c.ok ? "text-green-600" : "text-red-500"}>
+                      {c.ok ? "✅" : "❌"}
+                    </span>
+                    <div>
+                      <span
+                        className={c.ok ? "text-gray-700" : "text-red-600"}
+                      >
+                        {c.label}
+                      </span>
+                      {c.detail && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {c.detail}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 
@@ -269,7 +421,19 @@ export default function ClientEditor({
                                 : "text"
                           }
                           value={val}
-                          onChange={(e) => set(f.key, e.target.value)}
+                          onChange={(e) =>
+                            set(
+                              f.key,
+                              f.type === "drive_folder"
+                                ? extractDriveFolderId(e.target.value)
+                                : e.target.value
+                            )
+                          }
+                          placeholder={
+                            f.type === "drive_folder"
+                              ? "フォルダURLを貼り付け可"
+                              : undefined
+                          }
                           className="w-full border border-gray-200 bg-gray-50 rounded-xl px-3 py-3 sm:py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-orange)] focus:border-transparent focus:bg-white transition-colors pr-14"
                         />
                         {f.sensitive && val && (

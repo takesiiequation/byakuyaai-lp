@@ -3,12 +3,17 @@ import { requireAuth } from "@/app/_lib/auth";
 import { getClientById, updateClient } from "@/app/_lib/sheets";
 import { createClientFolder, createLineDataSheet } from "@/app/_lib/drive";
 
-// NOTE: the real "契約社リスト" sheet has no client_folder_id column (that was
-// a leftover from the old schema), so the Drive folder id can't be persisted
-// there for idempotency. line_data_sheet_id IS a real column, so it's used as
-// the sole "already onboarded" signal: if present, skip re-running (a fresh
-// Drive folder is created every time onboarding actually runs, then the LINE
-// data sheet is created inside it).
+// line_data_sheet_id is the sole "already onboarded" signal: if present,
+// skip re-running (idempotent — see the early-return below).
+//
+// Folder handling (2026-07-11, admin operability v1): drive_folder_id is now
+// a real 契約社リスト column (see _lib/types.ts). If the operator already set
+// it via the client editor (per the LINE setup manual, step 3), the LINE
+// data sheet is created inside *that* folder instead of a fresh
+// auto-created one — matches what the manual tells the operator to do.
+// Falls back to the legacy "always create a new folder" behavior (with a
+// `warning: "no_folder"` in the response) when it's unset, so this never
+// hard-fails just because someone skipped that manual step.
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -34,13 +39,35 @@ export async function POST(
       });
     }
 
-    const folderId = await createClientFolder(client.client_id);
-    const sheetId = await createLineDataSheet(client.client_name, folderId);
-    await updateClient(id, { line_data_sheet_id: sheetId });
+    let folderId = client.drive_folder_id || "";
+    const usedFallbackFolder = !folderId;
+    if (usedFallbackFolder) {
+      folderId = await createClientFolder(client.client_id);
+    }
+
+    const { sheetId, placedInFolder, folderError } = await createLineDataSheet(
+      client.client_name,
+      folderId
+    );
+
+    const updates: Record<string, string> = { line_data_sheet_id: sheetId };
+    // Persist the freshly-created fallback folder so future health checks /
+    // "顧客フォルダを開く" links have something to point at.
+    if (usedFallbackFolder) updates.drive_folder_id = folderId;
+    await updateClient(id, updates);
+
+    let warning: string | undefined;
+    if (usedFallbackFolder) warning = "no_folder";
+    else if (!placedInFolder) warning = "folder_permission";
 
     return Response.json({
       ok: true,
-      data: { client_folder_id: folderId, line_data_sheet_id: sheetId },
+      data: {
+        client_folder_id: folderId,
+        line_data_sheet_id: sheetId,
+        ...(warning ? { warning } : {}),
+        ...(folderError ? { folder_error: folderError } : {}),
+      },
     });
   } catch (e) {
     return Response.json(

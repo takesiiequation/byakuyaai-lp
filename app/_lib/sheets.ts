@@ -45,6 +45,9 @@ function rowToClient(headers: string[], row: string[]): Client {
     line_channel_secret: obj.line_channel_secret ?? "",
     line_bot_user_id: obj.line_bot_user_id ?? "",
     line_data_sheet_id: obj.line_data_sheet_id ?? "",
+    link_hp_url: obj.link_hp_url ?? "",
+    link_line_url: obj.link_line_url ?? "",
+    drive_folder_id: obj.drive_folder_id ?? "",
   };
 }
 

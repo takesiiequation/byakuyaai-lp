@@ -71,6 +71,12 @@ export default function AdminLayout({
             モデル管理
           </a>
           <a
+            href="/admin/manual"
+            className="text-gray-600 hover:text-[var(--brand-orange)] transition-colors"
+          >
+            マニュアル
+          </a>
+          <a
             href="/"
             className="text-gray-400 hover:text-gray-600 transition-colors"
           >
@@ -217,6 +223,25 @@ export default function AdminLayout({
               />
             </svg>
             <span className="text-[10px] font-medium">モデル</span>
+          </a>
+          <a
+            href="/admin/manual"
+            className="flex flex-col items-center gap-0.5 text-gray-500 active:text-[var(--brand-orange)] transition-colors py-1 px-2"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"
+              />
+            </svg>
+            <span className="text-[10px] font-medium">マニュアル</span>
           </a>
           <a
             href="/"

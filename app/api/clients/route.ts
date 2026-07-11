@@ -63,6 +63,9 @@ export async function POST(req: NextRequest) {
       line_channel_secret: body.line_channel_secret || "",
       line_bot_user_id: body.line_bot_user_id || "",
       line_data_sheet_id: body.line_data_sheet_id || "",
+      link_hp_url: body.link_hp_url || "",
+      link_line_url: body.link_line_url || "",
+      drive_folder_id: body.drive_folder_id || "",
     };
     await addClient(client);
     return Response.json({ ok: true, data: { client_id: client.client_id } });

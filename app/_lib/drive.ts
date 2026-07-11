@@ -39,10 +39,21 @@ export async function createClientFolder(clientId: string): Promise<string> {
   return res.data.id!;
 }
 
+export interface CreateLineDataSheetResult {
+  sheetId: string;
+  /** True iff folderId was given AND the sheet was successfully moved into
+   * it. False (with folderError set) when folderId was given but the move
+   * failed — e.g. the service account isn't shared as Editor on that folder
+   * (see the LINE setup manual, step 3). The sheet still gets created either
+   * way (fail-soft): it just stays wherever spreadsheets.create() put it. */
+  placedInFolder: boolean;
+  folderError?: string;
+}
+
 export async function createLineDataSheet(
   companyName: string,
   folderId?: string
-): Promise<string> {
+): Promise<CreateLineDataSheetResult> {
   const res = await sheets().spreadsheets.create({
     requestBody: {
       properties: { title: `${companyName} LINEデータ` },
@@ -81,16 +92,25 @@ export async function createLineDataSheet(
     },
   });
 
+  let placedInFolder = false;
+  let folderError: string | undefined;
   if (folderId) {
-    await drive().files.update({
-      fileId: sheetId,
-      addParents: folderId,
-      removeParents: "root",
-      fields: "id",
-    });
+    try {
+      await drive().files.update({
+        fileId: sheetId,
+        addParents: folderId,
+        removeParents: "root",
+        fields: "id",
+      });
+      placedInFolder = true;
+    } catch (e) {
+      folderError = String(e);
+      // Fail-soft: leave the sheet where spreadsheets.create() put it
+      // (the service account's own Drive) rather than failing onboarding.
+    }
   }
 
-  return sheetId;
+  return { sheetId, placedInFolder, folderError };
 }
 
 // --- Module B: BGM/SE media library --------------------------------------

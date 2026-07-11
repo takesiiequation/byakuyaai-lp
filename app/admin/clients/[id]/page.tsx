@@ -117,6 +117,18 @@ export default async function ClientDetailPage({
         { key: "line_bot_user_id", label: "ボットユーザーID" },
       ],
     },
+    {
+      title: "計測リンク・Drive連携",
+      fields: [
+        {
+          key: "drive_folder_id",
+          label: "顧客フォルダ",
+          type: "drive_folder",
+        },
+        { key: "link_hp_url", label: "HP計測リンク先URL" },
+        { key: "link_line_url", label: "LINE計測リンク先URL(lin.ee等)" },
+      ],
+    },
   ];
 
   return (
