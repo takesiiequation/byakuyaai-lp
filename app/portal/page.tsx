@@ -6,12 +6,19 @@ import { getClientById } from "@/app/_lib/sheets";
 import {
   getProductionRows,
   resolveStatus,
+  isTerminalStatus,
   PORTAL_STATUS_LABELS,
   PORTAL_STATUS_COLORS,
   type ProductionRow,
 } from "@/app/_lib/portal";
 import { Shell, MessageCard } from "./_components/Shell";
 import LogoutButton from "./_components/LogoutButton";
+import CollapsedHistory from "./_components/CollapsedHistory";
+
+// Terminal rows (投稿済み/却下) beyond this count collapse behind the
+// "過去の動画をすべて表示" toggle — active rows (制作中/承認待ち) are never
+// subject to this cap, see the split below.
+const VISIBLE_TERMINAL_COUNT = 5;
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +114,28 @@ export default async function PortalPage() {
 
   const rows = await getProductionRows(clientId);
 
+  // Active rows (制作中/承認待ち — anything the client might still need to
+  // act on, "unknown" included defensively) always render. Terminal rows
+  // (投稿済み/却下) beyond the 5 most recent collapse behind a toggle so a
+  // long-running client's page doesn't keep growing — see CollapsedHistory.
+  // `rows` is already newest-first (getProductionRows), and this single
+  // pass preserves that order in both the visible and hidden lists.
+  const visibleRows: ProductionRow[] = [];
+  const hiddenRows: ProductionRow[] = [];
+  let terminalSeen = 0;
+  for (const row of rows) {
+    if (isTerminalStatus(resolveStatus(row))) {
+      if (terminalSeen < VISIBLE_TERMINAL_COUNT) {
+        visibleRows.push(row);
+        terminalSeen += 1;
+      } else {
+        hiddenRows.push(row);
+      }
+    } else {
+      visibleRows.push(row);
+    }
+  }
+
   return (
     <Shell wide>
       <div className="flex items-center justify-between gap-3 mb-6">
@@ -128,9 +157,14 @@ export default async function PortalPage() {
           </div>
         ) : (
           <div className="divide-y divide-gray-50">
-            {rows.map((row) => (
+            {visibleRows.map((row) => (
               <StatusRow key={row.exec_id || `${row.created_at}-${row.property_name}`} row={row} />
             ))}
+            <CollapsedHistory count={hiddenRows.length}>
+              {hiddenRows.map((row) => (
+                <StatusRow key={row.exec_id || `${row.created_at}-${row.property_name}`} row={row} />
+              ))}
+            </CollapsedHistory>
           </div>
         )}
       </div>

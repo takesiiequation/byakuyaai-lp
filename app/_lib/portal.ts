@@ -127,3 +127,15 @@ export const PORTAL_STATUS_COLORS: Record<PortalStatus, string> = {
   rejected: "bg-red-50 text-red-600 border-red-200",
   unknown: "bg-gray-100 text-gray-400 border-gray-200",
 };
+
+/**
+ * Terminal (done, nothing left for the client to act on) vs. active
+ * statuses. Used by the portal dashboard to keep every row that might need
+ * a client action always on-screen while collapsing old finished rows —
+ * see PortalPage's visible/hidden split. "unknown" deliberately counts as
+ * active (not terminal): never hide a row we can't positively confirm is
+ * done.
+ */
+export function isTerminalStatus(status: PortalStatus): boolean {
+  return status === "posted" || status === "rejected";
+}
