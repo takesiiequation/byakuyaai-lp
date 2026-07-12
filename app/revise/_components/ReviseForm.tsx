@@ -407,7 +407,7 @@ export default function ReviseForm({
                 />
                 <div className="mt-1 flex items-center justify-between text-[11px]">
                   <span className="text-[var(--brand-gray-light)]">
-                    動画に表示される文章・推奨25字以内
+                    動画に表示される文章・推奨25字以内(読み方は自動で調整されます)
                   </span>
                   <span className={telopCounterClass(val.length)}>
                     {val.length} / {MAX_TEXT_LEN}
@@ -427,7 +427,7 @@ export default function ReviseForm({
                     <div className="mb-1 text-[11px] font-bold text-[var(--brand-ink)]">
                       読み上げ台本
                       <span className="font-normal text-[var(--brand-gray-light)]">
-                        (間違っている読みの部分だけ、ひらがなに書き換えてください)
+                        (読み方だけ直したい場合はこちら。上のテロップはそのままで大丈夫です。間違っている読みの部分だけ、ひらがなに書き換えてください)
                       </span>
                     </div>
                     <textarea
@@ -481,7 +481,7 @@ export default function ReviseForm({
                       )}
                       <div className="min-w-0 flex-1">
                         <p className="text-[11px] font-bold text-[var(--brand-ink)]">
-                          ⚠️ この場面の映像に乱れがある場合
+                          この場面の映像に乱れがある場合
                         </p>
                         <label className="mt-1.5 flex cursor-pointer items-center gap-2">
                           <input
