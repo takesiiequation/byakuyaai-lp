@@ -77,6 +77,14 @@ export async function POST(req: NextRequest) {
       // default to disabled, mirroring portfolio_enabled's fail-safe default.
       portal_password: body.portal_password || "",
       portal_enabled: body.portal_enabled || "",
+      // license_number/transaction_type_default/portfolio_slug/
+      // portfolio_enabled/line_staff_user_ids: same story as portal_* above
+      // — set later during /f onboarding, not part of initial creation.
+      license_number: body.license_number || "",
+      transaction_type_default: body.transaction_type_default || "",
+      portfolio_slug: body.portfolio_slug || "",
+      portfolio_enabled: body.portfolio_enabled || "",
+      line_staff_user_ids: body.line_staff_user_ids || "",
     };
     await addClient(client);
     return Response.json({ ok: true, data: { client_id: client.client_id } });

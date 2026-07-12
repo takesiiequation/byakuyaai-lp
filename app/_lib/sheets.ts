@@ -50,6 +50,11 @@ function rowToClient(headers: string[], row: string[]): Client {
     drive_folder_id: obj.drive_folder_id ?? "",
     portal_password: obj.portal_password ?? "",
     portal_enabled: obj.portal_enabled ?? "",
+    license_number: obj.license_number ?? "",
+    transaction_type_default: obj.transaction_type_default ?? "",
+    portfolio_slug: obj.portfolio_slug ?? "",
+    portfolio_enabled: obj.portfolio_enabled ?? "",
+    line_staff_user_ids: obj.line_staff_user_ids ?? "",
   };
 }
 

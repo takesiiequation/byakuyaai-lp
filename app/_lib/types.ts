@@ -40,6 +40,19 @@ export interface Client {
   // non-public.
   portal_password: string;
   portal_enabled: string;
+  // license_number / transaction_type_default / portfolio_slug /
+  // portfolio_enabled / line_staff_user_ids (2026-07-12, 物件DB+/f — see
+  // docs/property_db_f_design.md §1.3) are 5 MORE new columns, same caveat:
+  // must be added to the actual 契約社リスト sheet header row before
+  // they're readable; until then they read as "" (fail-soft).
+  // portfolio_slug/portfolio_enabled follow the same 'true'/空 fail-safe
+  // pattern as portal_enabled: empty slug or anything other than the
+  // literal string 'true' means the client's /f/[slug] page 404s.
+  license_number: string;
+  transaction_type_default: string;
+  portfolio_slug: string;
+  portfolio_enabled: string;
+  line_staff_user_ids: string;
 }
 
 // Lets the "顧客フォルダ" field accept a pasted Google Drive folder URL
