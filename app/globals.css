@@ -143,7 +143,9 @@ html.theme-switching * {
 /* ============================================================
  * Liquid Glass — Apple風の液体ガラスカード。
  * ダーク背景前提の白系レシピ(rescue-doc §4-1)そのまま移植。
- * 現状の使用箇所は /portal/login のログインカードのみ。
+ * 2026-07-13: /portal/login のカードは下の .liquid-glass-white に
+ * 差し替え済み(黒下地→白すりガラス、岡本指示)。.liquid-glass 自体は
+ * 別のダーク背景用途向けに残置。
  * ============================================================ */
 .liquid-glass {
   background: rgba(255, 255, 255, 0.01);
@@ -169,6 +171,45 @@ html.theme-switching * {
     rgba(255, 255, 255, 0) 60%,
     rgba(255, 255, 255, 0.15) 80%,
     rgba(255, 255, 255, 0.45) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Liquid Glass (white) — 同じ縁グラデ流儀を、暗背景×白文字ではなく
+ * 明地×濃色文字向けに反転した版。/portal/login のカードを2026-07-13に
+ * 「黒下地の液体ガラス」から差し替え(岡本指示)。背景を白めの不透明度
+ * (rgba white .62)に上げ、ぼかしも強めることで動画の上でも板として
+ * 独立して見えるようにしている。
+ */
+.liquid-glass-white {
+  background: rgba(255, 255, 255, 0.62);
+  background-blend-mode: normal;
+  backdrop-filter: blur(36px);
+  -webkit-backdrop-filter: blur(36px);
+  border: none;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.6);
+  position: relative;
+  overflow: hidden;
+}
+.liquid-glass-white::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.4px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(255, 255, 255, 0.35) 20%,
+    rgba(255, 255, 255, 0) 40%,
+    rgba(255, 255, 255, 0) 60%,
+    rgba(255, 255, 255, 0.35) 80%,
+    rgba(255, 255, 255, 0.9) 100%
   );
   -webkit-mask:
     linear-gradient(#fff 0 0) content-box,

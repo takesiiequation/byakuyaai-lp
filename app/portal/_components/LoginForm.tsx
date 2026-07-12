@@ -39,25 +39,26 @@ export default function LoginForm({
 
   return (
     <div className="flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
+      {/* 2026-07-13: 白すりガラス化(岡本指示)に伴い、見出し/フッター注記も
+          動画上に浮かせる旧構成からカード内へ統合。すべての文字がガラス板
+          の上に乗るため text-shadow は不要になり、brand-ink 系の濃色文字に
+          統一している。 */}
+      <div className="w-full max-w-sm liquid-glass-white rounded-2xl shadow-2xl shadow-black/20 p-6 sm:p-8">
         <div className="text-center mb-8">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--brand-orange)] to-[var(--brand-orange-light)] flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[var(--brand-orange)]/20">
             <span className="text-white text-2xl font-bold">B</span>
           </div>
-          <h1 className="text-xl font-bold text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.5)]">
+          <h1 className="text-xl font-bold text-[var(--brand-ink)]">
             マイページログイン
           </h1>
-          <p className="text-sm text-white/70 mt-1 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]">
+          <p className="text-sm text-[var(--brand-ink)]/60 mt-1">
             ByakuyaAI Portal
           </p>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="liquid-glass rounded-2xl shadow-2xl shadow-black/40 p-6 sm:p-8 space-y-4"
-        >
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-white/70 mb-2">
+            <label className="block text-xs font-medium text-[var(--brand-ink)]/70 mb-2">
               顧客ID
             </label>
             <input
@@ -65,12 +66,12 @@ export default function LoginForm({
               value={clientId}
               onChange={(e) => setClientId(e.target.value)}
               placeholder="ご案内のIDを入力"
-              className="w-full border border-white/20 bg-white/10 text-white placeholder:text-white/40 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-[var(--brand-orange)] focus:border-transparent focus:bg-white/15 transition-colors"
+              className="w-full border border-black/10 bg-white/80 text-[var(--brand-ink)] placeholder:text-black/35 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-[var(--brand-orange)] focus:border-transparent focus:bg-white/95 transition-colors"
               autoFocus={!initialClientId}
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-white/70 mb-2">
+            <label className="block text-xs font-medium text-[var(--brand-ink)]/70 mb-2">
               パスワード
             </label>
             <input
@@ -78,12 +79,12 @@ export default function LoginForm({
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="パスワードを入力"
-              className="w-full border border-white/20 bg-white/10 text-white placeholder:text-white/40 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-[var(--brand-orange)] focus:border-transparent focus:bg-white/15 transition-colors"
+              className="w-full border border-black/10 bg-white/80 text-[var(--brand-ink)] placeholder:text-black/35 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-[var(--brand-orange)] focus:border-transparent focus:bg-white/95 transition-colors"
               autoFocus={!!initialClientId}
             />
           </div>
           {error && (
-            <div className="bg-red-500/15 text-red-200 border border-red-400/30 text-sm px-3 py-2 rounded-lg">
+            <div className="bg-red-50 text-red-700 border border-red-200 text-sm px-3 py-2 rounded-lg">
               {error}
             </div>
           )}
@@ -95,7 +96,7 @@ export default function LoginForm({
             {loading ? "ログイン中..." : "ログイン"}
           </button>
         </form>
-        <p className="text-center text-xs text-white/60 mt-4 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]">
+        <p className="text-center text-xs text-[var(--brand-ink)]/50 mt-4">
           IDとパスワードがご不明な場合は担当者までご連絡ください。
         </p>
       </div>

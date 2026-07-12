@@ -4,11 +4,11 @@ import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from "r
 import { useReducedMotion } from "../_lib/useReducedMotion";
 
 /**
- * Full-bleed background for /portal/login: a 3-clip rotation
- * (dusk → noon → night → dusk…) crossfaded with a hand-rolled
- * requestAnimationFrame loop — the "FadingVideo" recipe (rescue-doc §3
- * upper form), extended from a single self-looping clip to a rotation
- * across three clips.
+ * Full-bleed background for /portal/login: a 6-clip rotation, ordered as
+ * one day's arc (dawn → noon → dusk → rain → blue hour → night → dawn…),
+ * crossfaded with a hand-rolled requestAnimationFrame loop — the
+ * "FadingVideo" recipe (rescue-doc §3 upper form), extended from a single
+ * self-looping clip to a rotation across six clips.
  *
  * Rules ported from the recipe, applied per-clip:
  *  - no `loop` attribute — playback end is handled manually.
@@ -31,8 +31,11 @@ import { useReducedMotion } from "../_lib/useReducedMotion";
 type MediaItem = { src: string; poster: string };
 
 const MEDIA: readonly MediaItem[] = [
-  { src: "/portal-media/login-dusk.mp4", poster: "/portal-media/login-dusk-poster.webp" },
+  { src: "/portal-media/login-dawn.mp4", poster: "/portal-media/login-dawn-poster.webp" },
   { src: "/portal-media/login-noon.mp4", poster: "/portal-media/login-noon-poster.webp" },
+  { src: "/portal-media/login-dusk.mp4", poster: "/portal-media/login-dusk-poster.webp" },
+  { src: "/portal-media/login-rain.mp4", poster: "/portal-media/login-rain-poster.webp" },
+  { src: "/portal-media/login-bluehour.mp4", poster: "/portal-media/login-bluehour-poster.webp" },
   { src: "/portal-media/login-night.mp4", poster: "/portal-media/login-night-poster.webp" },
 ];
 
