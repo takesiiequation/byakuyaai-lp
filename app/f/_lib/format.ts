@@ -1,41 +1,33 @@
-import type { PropertyRow } from "@/app/_lib/properties";
-
-/** Yen formatting shared by PropertyCard/ComplianceFooter — Intl handles the
- * ja-JP thousands separators; callers append the unit character themselves
- * since "円" placement differs (headline price vs. "管理費○円" note). */
-export function formatYen(n: number): string {
-  if (!Number.isFinite(n) || n <= 0) return "";
-  return n.toLocaleString("ja-JP");
+export function formatRent(rentMan: number): string {
+  return `${rentMan}万円`;
 }
 
-/**
- * Headline price string for a card. Prefers the pre-formatted price_label
- * (design §1.2 row18 — "再フォーマットしない=二重整形バグを避ける": the
- * extractor's own price_full_ja is the source of truth when present). Falls
- * back to a plain yen-figure derivation from monthly_rent_yen/sale_price_yen
- * only for legacy/incomplete rows that predate that column being populated.
- */
-export function priceHeadline(row: PropertyRow): string {
-  if (row.price_label) return row.price_label;
-  if (row.deal_type === "売買" && row.sale_price_yen > 0) {
-    return `${formatYen(row.sale_price_yen)}円`;
+export function formatSize(sizeSqm: number): string {
+  return `${sizeSqm}m²`;
+}
+
+// v4 original always rendered `徒歩${walkMin}分`. The current 物件 DB schema
+// has no dedicated walk-minutes column — viewModel.ts best-effort parses it
+// out of the free-text nearest_station field and falls back to NaN when it
+// can't (see viewModel.ts parseStationAndWalk). Rendering "徒歩0分"/"徒歩NaN分"
+// for that fallback would assert a specific, unverified walking time — an
+// affirmative false claim the rest of this codebase deliberately avoids
+// (compare sanitizeForPortfolio.ts, PropertyJsonLd's video-omission rule).
+// Returning "" instead just omits the badge/segment at those call sites.
+export function formatWalk(walkMin: number): string {
+  if (!Number.isFinite(walkMin) || walkMin <= 0) return "";
+  return `徒歩${walkMin}分`;
+}
+
+export function formatManagementFee(managementFeeYen: number): string {
+  if (managementFeeYen <= 0) {
+    return "管理費・共益費なし";
   }
-  if (row.monthly_rent_yen > 0) {
-    return `${formatYen(row.monthly_rent_yen)}円/月`;
-  }
-  return "価格応相談";
+  return `管理費${managementFeeYen.toLocaleString("ja-JP")}円`;
 }
 
-/** Compliance-required management-fee note (design §1.2 row16 — 杉田コンプラ
- * 要件: 賃料と管理費の併記必須). Empty when the field hasn't been populated
- * (legacy rows from before this extraction field existed). */
-export function managementFeeNote(row: PropertyRow): string {
-  if (!(row.management_fee_yen > 0)) return "";
-  return `管理費${formatYen(row.management_fee_yen)}円`;
-}
-
-export function floorSummary(row: PropertyRow): string {
-  return [row.floor_plan, row.floor_area_m2 > 0 ? `${row.floor_area_m2}㎡` : ""]
-    .filter(Boolean)
-    .join(" / ");
+export function formatDepositKey(depositMan: number, keyMoneyMan: number): string {
+  const depositLabel = depositMan > 0 ? `敷金${depositMan}万円` : "敷金なし";
+  const keyMoneyLabel = keyMoneyMan > 0 ? `礼金${keyMoneyMan}万円` : "礼金なし";
+  return `${depositLabel} / ${keyMoneyLabel}`;
 }

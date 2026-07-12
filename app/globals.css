@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
   --background: #ffffff;
   --foreground: #1a1a1a;
@@ -14,6 +16,81 @@
   --brand-gray: #555;
   --brand-gray-light: #888;
   --brand-border: #e0e0e0;
+
+  /* ===== Semantic tokens: light (default) ===== */
+  color-scheme: light;
+
+  /* surfaces */
+  --surface: var(--brand-cream);        /* #fef9f0 ページ地 */
+  --surface-2: #ffffff;                 /* カード・ヘッダー地 */
+  --surface-3: var(--brand-cream-2);    /* #fff3e0 賃料ボックス等の沈み地 */
+  --surface-raised: #ffffff;            /* シート/ポップオーバー */
+  --surface-header: rgba(255, 255, 255, .95);
+
+  /* text */
+  --text-1: var(--brand-ink);           /* #1a1a1a 見出し・本文 */
+  --text-2: var(--brand-gray);          /* #555 補足 */
+  --text-3: #6b6b6b;                    /* cream地でWCAG AA確保(#888は3.4:1で未達) */
+  --text-inverse: #ffffff;
+
+  /* border / ring */
+  --border-1: var(--brand-border);      /* #e0e0e0 */
+  --border-2: #efe7db;                  /* cream上の弱い区切り */
+  --ring: var(--brand-orange);          /* フォーカスリング */
+
+  /* accent */
+  --accent: var(--brand-orange);        /* #f7931e */
+  --accent-hover: var(--brand-orange-dark);  /* #c75f00 */
+  --accent-soft: rgba(247, 147, 30, .12);    /* チップactive地・ハイライト */
+  --accent-contrast: #1a1a1a;           /* accent上の文字色(白文字は約2.4:1でWCAG未達) */
+
+  /* misc */
+  --overlay: rgba(0, 0, 0, .60);         /* 動画上バッジ(モード不変) */
+  --shadow-card: 0 1px 3px rgba(26, 26, 26, .08);
+  --shadow-float: 0 8px 30px rgba(26, 26, 26, .12);
+
+  /* フィルタUI統一トークン */
+  --control-h: 2.75rem;       /* 44px = iOSタッチターゲット下限 */
+  --control-h-sm: 2rem;       /* 32px チップ/ピル */
+  --control-radius: 0.75rem;  /* rounded-xl 相当。select/inputで統一 */
+  --control-pill: 9999px;     /* チップ */
+  --control-px: 0.75rem;
+  --control-min-w: 8.5rem;    /* select統一最小幅(モバイルはflex-1で伸長) */
+  --control-font: 0.875rem;   /* 16px未満だがiOSズーム対策は下記 */
+  --ring-w: 2px;
+  --ring-offset: 2px;
+}
+
+/* ===== Semantic tokens: dark ===== */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --background: #141210;                /* --surfaceと同値: body背景の未上書きを解消 */
+  --foreground: #f5f0e8;                /* --text-1と同値: body文字色の未上書きを解消 */
+
+  --surface: #141210;                   /* 純黒でなく暖色系ダーク(クリームの補対) */
+  --surface-2: #1e1b17;
+  --surface-3: #26221c;
+  --surface-raised: #26221c;
+  --surface-header: rgba(20, 18, 16, .90);
+
+  --text-1: #f5f0e8;
+  --text-2: #b8b0a4;
+  --text-3: #857d72;
+  --text-inverse: #1a1a1a;
+
+  --border-1: rgba(245, 240, 232, .14);
+  --border-2: rgba(245, 240, 232, .08);
+  --ring: var(--brand-orange-light);    /* #f9a825 ダーク地では明るい方 */
+
+  --accent: var(--brand-orange-light);  /* #f9a825 コントラスト比確保 */
+  --accent-hover: var(--brand-orange);  /* #f7931e */
+  --accent-soft: rgba(249, 168, 37, .16);
+  --accent-contrast: #1a1a1a;           /* 黄橙×白文字は3:1未満→ink文字に反転 */
+
+  --overlay: rgba(0, 0, 0, .60);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, .5);
+  --shadow-float: 0 8px 30px rgba(0, 0, 0, .6);
 }
 
 @theme inline {
@@ -25,6 +102,16 @@
   --color-cream: var(--brand-cream);
   --color-ink: var(--brand-ink);
   --font-sans: var(--font-noto-sans-jp);
+
+  /* セマンティックトークン */
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-text-1: var(--text-1);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-border-1: var(--border-1);
+  --color-accent: var(--accent);
 }
 
 html {
@@ -38,6 +125,12 @@ body {
   font-feature-settings: "palt";
 }
 
+/* テーマ切替時のみ300ms付与するトランジション(常時transitionは不可) */
+html.theme-switching,
+html.theme-switching * {
+  transition: background-color .25s ease, color .25s ease, border-color .25s ease !important;
+}
+
 /* Left orange accent bar for brand consistency with A4 proposal */
 .brand-accent-bar {
   background: linear-gradient(
@@ -45,6 +138,78 @@ body {
     var(--brand-orange) 0%,
     var(--brand-orange-light) 100%
   );
+}
+
+/* ============================================================
+ * フィルタUI統一デザイントークン — select/チップ共通クラス
+ * ============================================================ */
+@layer components {
+  .f-control {
+    height: var(--control-h);
+    min-width: var(--control-min-w);
+    padding-inline: var(--control-px) 2.25rem; /* 右は矢印分 */
+    border-radius: var(--control-radius);
+    border: 1px solid var(--border-1);
+    background-color: var(--surface-2);
+    color: var(--text-1);
+    font-size: 1rem;
+    appearance: none;
+    background-image: none;
+  }
+  .f-control-wrap {
+    position: relative;
+  }
+  .f-control-wrap::after {          /* chevron */
+    content: '';
+    position: absolute;
+    right: .75rem;
+    top: 50%;
+    width: .7rem;
+    height: .7rem;
+    translate: 0 -60%;
+    rotate: 45deg;
+    border-right: 2px solid var(--text-3);
+    border-bottom: 2px solid var(--text-3);
+    pointer-events: none;
+  }
+  .f-control:focus-visible,
+  .f-chip:focus-visible {
+    outline: var(--ring-w) solid var(--ring);
+    outline-offset: var(--ring-offset);
+  }
+  .f-control:hover {
+    border-color: var(--text-3);
+  }
+
+  .f-chip {
+    height: var(--control-h-sm);
+    display: inline-flex;
+    align-items: center;
+    padding-inline: .75rem;
+    border-radius: var(--control-pill);
+    border: 1px solid var(--border-1);
+    background: var(--surface-2);
+    color: var(--text-2);
+    font-size: .75rem;
+    transition: background-color .15s, border-color .15s, transform .1s;
+  }
+  .f-chip[aria-pressed="true"],
+  .f-chip[data-active="true"] {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-contrast);
+    font-weight: 700;
+  }
+  .f-chip:active {
+    transform: scale(.96);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.theme-switching,
+  html.theme-switching * {
+    transition: none !important;
+  }
 }
 
 /* ============================================================

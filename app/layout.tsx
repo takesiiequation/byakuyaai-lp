@@ -80,6 +80,11 @@ export default function RootLayout({
     <html
       lang="ja"
       className={`${notoSansJp.variable} h-full antialiased`}
+      // /f pages' ThemeScript writes data-theme on <html> before hydration
+      // (see app/f/_components/ThemeScript.tsx) — without this, React would
+      // flag a client/server markup mismatch on every /f/[slug] and
+      // /f/demo load.
+      suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

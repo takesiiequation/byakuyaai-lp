@@ -1,17 +1,17 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getAllClients } from "@/app/_lib/sheets";
-import {
-  getProperties,
-  isPropertyVisible,
-  isRecentlyClosed,
-  type PropertyRow,
-} from "@/app/_lib/properties";
-import { PortfolioView, type DisplayProperty } from "../_components/PortfolioView";
+import { getProperties, isPropertyVisible, type PropertyRow } from "@/app/_lib/properties";
+import { PortfolioView } from "../_components/PortfolioView";
+import { toCustomerData, toViewProperty, type ViewProperty } from "../_lib/viewModel";
 
 // force-dynamic per design §0/§7.1: "掲載中" と読める場所は書き込み側の状態に
 // 一切依存せず、読み取りのたびに可視性を独立再計算する。SSG+deploy-hook方式
 // (フックの発火という新たな非同期依存)は不採用 — 毎リクエストSheetsを読む。
+// The v4 UI package's own page.tsx used `generateStaticParams`/`dynamicParams
+// = false` (a static customer registry) — that data-source layer
+// (app/f/_data/_registry.ts etc.) is intentionally not wired in here; see
+// app/f/_lib/viewModel.ts's header comment.
 export const dynamic = "force-dynamic";
 
 const SITE_URL = "https://byakuyaai.com";
@@ -63,7 +63,7 @@ export default async function PortfolioPage({
   // 別途厳格に判定されるため、この一致チェックの緩さがコンプラ抜け穴には
   // ならない。
   const own = allProps.filter(
-    (p) => !p.client_id || p.client_id === client.client_id
+    (p: PropertyRow) => !p.client_id || p.client_id === client.client_id
   );
 
   // force-dynamic RSC, executed fresh per request — this IS the design §0
@@ -76,23 +76,28 @@ export default async function PortfolioPage({
   // (LINE回答には出す — isPropertyVisible単体はここではANDされない)。
   const gated = (p: PropertyRow) => p.portfolio_enabled === true;
 
-  const visibleActive: DisplayProperty[] = own
-    .filter((p) => isPropertyVisible(p, now) && gated(p))
-    .sort((a, b) => (b.published_at || "").localeCompare(a.published_at || ""))
-    .map((row) => ({ row, closed: false }));
+  // isPropertyVisible の3重ガードを通った行だけを表示対象にする(§2.1)。
+  // v4パッケージ自体には無かった「成約から7日間はバッジ表示」機能
+  // (isRecentlyClosed)はここでは採用していない — 非表示は常に安全側の
+  // 判断であり、コンプラ要件(isPropertyVisible経由の可視物件のみ表示)を
+  // 満たす上では省いても後退にならない。
+  const visible = own
+    .filter((p: PropertyRow) => isPropertyVisible(p, now) && gated(p))
+    .sort((a: PropertyRow, b: PropertyRow) =>
+      (b.published_at || "").localeCompare(a.published_at || "")
+    );
 
-  const recentlyClosed: DisplayProperty[] = own
-    .filter((p) => isRecentlyClosed(p, now) && gated(p))
-    .sort((a, b) => (b.closed_at || "").localeCompare(a.closed_at || ""))
-    .map((row) => ({ row, closed: true }));
+  const properties: ViewProperty[] = visible.map((row, index) =>
+    toViewProperty(row, index)
+  );
+
+  const customer = toCustomerData(client, properties);
 
   return (
     <PortfolioView
-      clientName={client.client_name || slug}
-      pageBaseUrl={`${SITE_URL}/f/${slug}`}
-      licenseNumber={client.license_number}
-      transactionType={client.transaction_type_default}
-      properties={[...visibleActive, ...recentlyClosed]}
+      customer={customer}
+      properties={properties}
+      pageUrl={`${SITE_URL}/f/${slug}`}
     />
   );
 }
