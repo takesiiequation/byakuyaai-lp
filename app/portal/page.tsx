@@ -94,9 +94,19 @@ function StatusRow({ row }: { row: ProductionRow }) {
   );
 }
 
-export default async function PortalPage() {
+export default async function PortalPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const clientId = await getSessionClientId();
   if (!clientId) redirect("/portal/login");
+
+  // /portal/submit からの実送信成功リダイレクト(?submitted=1)でバナー表示。
+  // n8n webhook は onReceived 応答のため「受付」までしか保証できない —
+  // 文言もそこまでに留める(仕様書・罠(4)-3)。
+  const sp = searchParams ? await searchParams : {};
+  const justSubmitted = sp.submitted === "1";
 
   const client = await getClientById(clientId);
   // Re-verify portal_enabled straight from the sheet on every request
@@ -138,7 +148,12 @@ export default async function PortalPage() {
 
   return (
     <Shell wide>
-      <div className="flex items-center justify-between gap-3 mb-6">
+      {justSubmitted && (
+        <div className="mb-4 rounded-xl bg-green-50 border border-green-200 text-green-800 text-sm px-4 py-3">
+          動画の作成依頼を受け付けました。一覧への反映まで数分かかることがあります。
+        </div>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-lg sm:text-xl font-bold text-[var(--brand-ink)]">
             {client.client_name || clientId} 様
@@ -147,7 +162,15 @@ export default async function PortalPage() {
             制作状況一覧
           </p>
         </div>
-        <LogoutButton />
+        <div className="flex items-center gap-2">
+          <a
+            href="/portal/submit"
+            className="inline-block bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] text-white font-semibold rounded-xl px-4 py-2 text-xs sm:text-sm hover:shadow-lg transition-all active:scale-[0.98]"
+          >
+            + 新しい動画を作る
+          </a>
+          <LogoutButton />
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 overflow-hidden">
