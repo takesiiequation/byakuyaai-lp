@@ -340,7 +340,7 @@ export default function ModelsClient() {
         </h1>
         <button
           onClick={openNewForm}
-          className="shrink-0 bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-dark)] text-white font-semibold rounded-xl px-4 py-2 text-xs sm:text-sm hover:shadow-lg transition-all active:scale-[0.98]"
+          className="shrink-0 bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] text-white font-semibold rounded-xl px-4 py-2 text-xs sm:text-sm hover:shadow-lg transition-all active:scale-[0.98]"
         >
           + モデルを追加
         </button>
@@ -472,7 +472,7 @@ export default function ModelsClient() {
             <button
               onClick={savePlans}
               disabled={planSaving || !planHasChanges}
-              className="bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-dark)] text-white font-semibold rounded-xl px-6 py-2.5 text-sm hover:shadow-lg transition-all active:scale-[0.98] disabled:opacity-40 disabled:shadow-none"
+              className="bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] text-white font-semibold rounded-xl px-6 py-2.5 text-sm hover:shadow-lg transition-all active:scale-[0.98] disabled:opacity-40 disabled:shadow-none"
             >
               {planSaving ? "保存中..." : "プラン割当を保存"}
             </button>

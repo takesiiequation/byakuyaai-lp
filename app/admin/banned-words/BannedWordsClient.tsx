@@ -212,7 +212,7 @@ export default function BannedWordsClient() {
         </h1>
         <button
           onClick={openNewForm}
-          className="shrink-0 bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-dark)] text-white font-semibold rounded-xl px-4 py-2 text-xs sm:text-sm hover:shadow-lg transition-all active:scale-[0.98]"
+          className="shrink-0 bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] text-white font-semibold rounded-xl px-4 py-2 text-xs sm:text-sm hover:shadow-lg transition-all active:scale-[0.98]"
         >
           + 禁止語を追加
         </button>

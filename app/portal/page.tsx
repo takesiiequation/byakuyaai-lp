@@ -69,7 +69,7 @@ function StatusRow({ row }: { row: ProductionRow }) {
         {status === "pending_approval" && row.approval_id ? (
           <a
             href={`/revise/${row.approval_id}`}
-            className="inline-block bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-dark)] text-white font-semibold rounded-xl px-4 py-2 text-xs sm:text-sm hover:shadow-lg transition-all active:scale-[0.98]"
+            className="inline-block bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] text-white font-semibold rounded-xl px-4 py-2 text-xs sm:text-sm hover:shadow-lg transition-all active:scale-[0.98]"
           >
             確認・修正する
           </a>

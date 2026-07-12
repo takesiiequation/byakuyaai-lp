@@ -168,7 +168,7 @@ export default function MediaClient() {
           <h2 className="font-bold text-xs text-gray-500 uppercase tracking-wider">
             {tab === "bgm" ? "BGM一覧" : "SE一覧"}
           </h2>
-          <label className="cursor-pointer bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-dark)] text-white font-semibold rounded-xl px-4 py-2 text-xs hover:shadow-lg transition-all active:scale-[0.98]">
+          <label className="cursor-pointer bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] text-white font-semibold rounded-xl px-4 py-2 text-xs hover:shadow-lg transition-all active:scale-[0.98]">
             {uploading ? "アップロード中..." : "+ アップロード"}
             <input
               ref={fileInputRef}

@@ -16,7 +16,7 @@ export function Shell({
   return (
     <main className="min-h-screen bg-[var(--brand-cream)]">
       <header className="sticky top-0 z-30 w-full border-b border-[var(--brand-border)] bg-white/90 backdrop-blur-md">
-        <div className={`mx-auto flex h-14 items-center ${padX} ${maxWidth}`}>
+        <div className="flex h-14 items-center px-4 sm:px-6">
           <Image
             src="/logo.png"
             alt="ByakuyaAI"

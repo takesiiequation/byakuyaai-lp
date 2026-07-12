@@ -467,7 +467,7 @@ export default function ClientEditor({
         <button
           onClick={save}
           disabled={saving || !hasChanges}
-          className="bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-dark)] text-white font-semibold rounded-xl px-8 py-2.5 text-sm hover:shadow-lg hover:shadow-[var(--brand-orange)]/25 disabled:opacity-40 disabled:shadow-none transition-all active:scale-[0.98]"
+          className="bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] text-white font-semibold rounded-xl px-8 py-2.5 text-sm hover:shadow-lg hover:shadow-[var(--brand-orange)]/25 disabled:opacity-40 disabled:shadow-none transition-all active:scale-[0.98]"
         >
           {saving ? "保存中..." : "保存する"}
         </button>
@@ -491,7 +491,7 @@ export default function ClientEditor({
         <button
           onClick={save}
           disabled={saving || !hasChanges}
-          className="w-full bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-dark)] text-white font-semibold rounded-xl px-4 py-3.5 text-base shadow-lg shadow-[var(--brand-orange)]/20 disabled:opacity-40 disabled:shadow-none transition-all active:scale-[0.98]"
+          className="w-full bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] text-white font-semibold rounded-xl px-4 py-3.5 text-base shadow-lg shadow-[var(--brand-orange)]/20 disabled:opacity-40 disabled:shadow-none transition-all active:scale-[0.98]"
         >
           {saving ? "保存中..." : hasChanges ? "変更を保存" : "変更なし"}
         </button>
