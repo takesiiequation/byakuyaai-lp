@@ -71,6 +71,12 @@ export default function AdminLayout({
             モデル管理
           </a>
           <a
+            href="/admin/banned-words"
+            className="text-gray-600 hover:text-[var(--brand-orange)] transition-colors"
+          >
+            禁止語
+          </a>
+          <a
             href="/admin/manual"
             className="text-gray-600 hover:text-[var(--brand-orange)] transition-colors"
           >
@@ -223,6 +229,25 @@ export default function AdminLayout({
               />
             </svg>
             <span className="text-[10px] font-medium">モデル</span>
+          </a>
+          <a
+            href="/admin/banned-words"
+            className="flex flex-col items-center gap-0.5 text-gray-500 active:text-[var(--brand-orange)] transition-colors py-1 px-2"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M18.364 18.364A9 9 0 105.636 5.636a9 9 0 0012.728 12.728zM5.636 5.636l12.728 12.728"
+              />
+            </svg>
+            <span className="text-[10px] font-medium">禁止語</span>
           </a>
           <a
             href="/admin/manual"

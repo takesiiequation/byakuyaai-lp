@@ -48,6 +48,8 @@ function rowToClient(headers: string[], row: string[]): Client {
     link_hp_url: obj.link_hp_url ?? "",
     link_line_url: obj.link_line_url ?? "",
     drive_folder_id: obj.drive_folder_id ?? "",
+    portal_password: obj.portal_password ?? "",
+    portal_enabled: obj.portal_enabled ?? "",
   };
 }
 

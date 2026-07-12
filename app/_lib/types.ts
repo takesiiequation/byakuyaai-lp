@@ -29,6 +29,17 @@ export interface Client {
   link_hp_url: string;
   link_line_url: string;
   drive_folder_id: string;
+  // portal_password / portal_enabled (2026-07-12, 顧客ポータルP1 — see
+  // docs/property_db_f_design.md §P1.1) are 2 NEW columns — same caveat as
+  // link_hp_url above: must be added to the actual 契約社リスト sheet header
+  // row before they're readable; until then they read as "" (fail-soft).
+  // portal_password is plain text (same operational trust level as
+  // ADMIN_PASSWORD — Okamoto sets it by hand per client during onboarding).
+  // portal_enabled follows the same 'true'/空 fail-safe pattern as
+  // portfolio_enabled: anything other than the literal string 'true' is
+  // non-public.
+  portal_password: string;
+  portal_enabled: string;
 }
 
 // Lets the "顧客フォルダ" field accept a pasted Google Drive folder URL
@@ -158,3 +169,27 @@ export function validateBodyTemplate(
   }
   return { ok: true };
 }
+
+// --- Banned-word list (/admin/banned-words) --------------------------------
+// Types/constants live here (not in _lib/bannedWords.ts) for the same reason
+// as the model registry above: the "use client" admin page must not pull in
+// bannedWords.ts's `googleapis` import.
+//
+// Seed content mirrors the current n8n-hardcoded 11-word list (OKAMOTO_TODO
+// 2026-07-12, "禁止語のadmin管理化"): 4 "shape" words that survive if the
+// マイソク text actually mentions them, 7 "valueless" words removed
+// unconditionally. n8n reads this sheet at execution start and falls back to
+// that same hardcoded list (fail-open) if the read fails — the admin UI is
+// additive, it doesn't replace the fallback.
+export interface BannedWord {
+  word: string;
+  type: "shape" | "valueless" | string;
+  enabled: boolean;
+}
+
+export const BANNED_WORD_TYPES = ["shape", "valueless"] as const;
+export type BannedWordType = (typeof BANNED_WORD_TYPES)[number];
+export const BANNED_WORD_TYPE_LABELS: Record<BannedWordType, string> = {
+  shape: "形状語(マイソク記載なら通す)",
+  valueless: "無価値語(無条件除去)",
+};

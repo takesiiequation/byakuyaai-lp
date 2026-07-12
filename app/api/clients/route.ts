@@ -9,12 +9,18 @@ export async function GET(req: NextRequest) {
 
   try {
     const clients = await getAllClients();
-    const safe = clients.map(({ secret_key, line_channel_token, line_channel_secret, ...rest }) => ({
-      ...rest,
-      secret_key: secret_key ? "***" : "",
-      line_channel_token: line_channel_token ? "***" : "",
-      line_channel_secret: line_channel_secret ? "***" : "",
-    }));
+    const safe = clients.map(
+      ({ secret_key, line_channel_token, line_channel_secret, portal_password, ...rest }) => ({
+        ...rest,
+        secret_key: secret_key ? "***" : "",
+        line_channel_token: line_channel_token ? "***" : "",
+        line_channel_secret: line_channel_secret ? "***" : "",
+        // Same masking treatment as the other 3 secrets above — portal_password
+        // is a plaintext credential distributed to a client, not something
+        // this list view should echo back in the clear.
+        portal_password: portal_password ? "***" : "",
+      })
+    );
     return Response.json({ ok: true, data: safe });
   } catch (e) {
     return Response.json(
@@ -66,6 +72,11 @@ export async function POST(req: NextRequest) {
       link_hp_url: body.link_hp_url || "",
       link_line_url: body.link_line_url || "",
       drive_folder_id: body.drive_folder_id || "",
+      // portal_password/portal_enabled are set later by Okamoto during
+      // portal onboarding (not part of the initial client-creation form) —
+      // default to disabled, mirroring portfolio_enabled's fail-safe default.
+      portal_password: body.portal_password || "",
+      portal_enabled: body.portal_enabled || "",
     };
     await addClient(client);
     return Response.json({ ok: true, data: { client_id: client.client_id } });
