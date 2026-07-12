@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 export default function LoginForm({
   initialClientId = "",
@@ -45,15 +46,17 @@ export default function LoginForm({
           統一している。 */}
       <div className="w-full max-w-sm liquid-glass-white rounded-2xl shadow-2xl shadow-black/20 p-6 sm:p-8">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--brand-orange)] to-[var(--brand-orange-light)] flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[var(--brand-orange)]/20">
-            <span className="text-white text-2xl font-bold">B</span>
-          </div>
+          <Image
+            src="/logo.png"
+            alt="ByakuyaAI"
+            width={140}
+            height={42}
+            className="h-8 w-auto mx-auto mb-4"
+            priority
+          />
           <h1 className="text-xl font-bold text-[var(--brand-ink)]">
             マイページログイン
           </h1>
-          <p className="text-sm text-[var(--brand-ink)]/60 mt-1">
-            ByakuyaAI Portal
-          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
