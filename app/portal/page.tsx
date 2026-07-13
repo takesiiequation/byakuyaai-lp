@@ -261,9 +261,10 @@ export default async function PortalPage({
     );
   }
 
-  // 月次レポートのWeb表示はプレミアム限定 — 対象外プランでは Sheets 読み取り
-  // 自体を発生させない(無駄なAPI呼び出し・セクションも非表示)。
-  const isPremium = client.plan === "premium";
+  // 月次レポートのWeb表示はプレミアム特典（+ test=検証枠）限定 — 対象外プランでは
+  // Sheets 読み取り自体を発生させない(無駄なAPI呼び出し・セクションも非表示)。
+  // ※メール配信側(n8n月次レポートWF Filter Clients)も premium/test に絞り済みで一致。
+  const isPremium = client.plan === "premium" || client.plan === "test";
   const [rows, monthlySlots, reportRow] = await Promise.all([
     getProductionRows(clientId),
     getMonthlyApprovedSlots(clientId),
