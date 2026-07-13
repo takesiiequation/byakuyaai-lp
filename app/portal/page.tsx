@@ -181,55 +181,62 @@ function PostCalendar({
           {year}年{month}月の投稿予定・実績
         </h2>
       </div>
-      {slots.length === 0 ? (
-        <div className="p-8 text-center text-[var(--brand-gray-light)] text-sm">
-          今月の投稿はまだありません
+      {/* デスクトップ/タブレット: 月グリッド — データが0件でも枠だけの寂しい表示に
+          しない。日〜土7列×その月の1〜末日セルは常に描画し(既存の cells/byDay
+          プロットロジックをそのまま流用)、0件の時だけ薄い案内文を重ねる。 */}
+      <div className="hidden sm:block p-4 relative">
+        <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-[var(--brand-gray-light)] mb-1">
+          {WEEKDAY_LABELS.map((w) => (
+            <div key={w}>{w}</div>
+          ))}
         </div>
-      ) : (
-        <>
-          {/* デスクトップ/タブレット: 月グリッド */}
-          <div className="hidden sm:block p-4">
-            <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-[var(--brand-gray-light)] mb-1">
-              {WEEKDAY_LABELS.map((w) => (
-                <div key={w}>{w}</div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-1">
-              {cells.map((day, i) => (
-                <div
-                  key={i}
-                  className={`min-h-[64px] rounded-lg p-1.5 text-left ${
-                    day ? "bg-[var(--brand-cream)]" : ""
-                  }`}
-                >
-                  {day && (
-                    <>
-                      <div className="text-[11px] font-semibold text-[var(--brand-gray-light)]">
-                        {day}
+        <div className="grid grid-cols-7 gap-1">
+          {cells.map((day, i) => (
+            <div
+              key={i}
+              className={`min-h-[64px] rounded-lg p-1.5 text-left ${
+                day ? "bg-[var(--brand-cream)]" : ""
+              }`}
+            >
+              {day && (
+                <>
+                  <div className="text-[11px] font-semibold text-[var(--brand-gray-light)]">
+                    {day}
+                  </div>
+                  <div className="mt-0.5 space-y-0.5">
+                    {(byDay.get(day) ?? []).map((s, si) => (
+                      <div
+                        key={si}
+                        title={`${timeLabel(s.hour, s.minute)} ${
+                          s.property_name || "(物件名未確定)"
+                        }`}
+                        className="truncate rounded bg-amber-50 border border-amber-200 text-amber-800 text-[10px] px-1 py-0.5"
+                      >
+                        {timeLabel(s.hour, s.minute)}{" "}
+                        {s.property_name || "(物件名未確定)"}
                       </div>
-                      <div className="mt-0.5 space-y-0.5">
-                        {(byDay.get(day) ?? []).map((s, si) => (
-                          <div
-                            key={si}
-                            title={`${timeLabel(s.hour, s.minute)} ${
-                              s.property_name || "(物件名未確定)"
-                            }`}
-                            className="truncate rounded bg-amber-50 border border-amber-200 text-amber-800 text-[10px] px-1 py-0.5"
-                          >
-                            {timeLabel(s.hour, s.minute)}{" "}
-                            {s.property_name || "(物件名未確定)"}
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
-          </div>
+          ))}
+        </div>
+        {slots.length === 0 && (
+          <p className="mt-3 text-center text-xs text-[var(--brand-gray-light)]">
+            ここに投稿予定が入ります
+          </p>
+        )}
+      </div>
 
-          {/* スマホ: リスト表示 */}
-          <div className="sm:hidden divide-y divide-gray-50">
+      {/* スマホ: リスト表示(データ0件時は従来通りテキストのみ) */}
+      <div className="sm:hidden">
+        {slots.length === 0 ? (
+          <div className="p-8 text-center text-[var(--brand-gray-light)] text-sm">
+            今月の投稿はまだありません
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-50">
             {slots.map((s, i) => (
               <div key={i} className="p-4 flex items-center gap-3">
                 <div className="shrink-0 text-xs font-semibold text-[var(--brand-gray-light)] w-20">
@@ -241,8 +248,8 @@ function PostCalendar({
               </div>
             ))}
           </div>
-        </>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -328,15 +335,18 @@ export default async function PortalPage({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <a
-            href="/portal/submit"
-            className="inline-block bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] text-white font-semibold rounded-xl px-4 py-2 text-xs sm:text-sm hover:shadow-lg transition-all active:scale-[0.98]"
-          >
-            + 新しい動画を作る
-          </a>
           <LogoutButton />
         </div>
       </div>
+
+      {/* 主役CTA — 顧客の最頻使用アクション。制作状況一覧より上に単独配置し、
+          幅広・大きめパディングで押しやすさを最優先(2026-07-13 B案)。 */}
+      <a
+        href="/portal/submit"
+        className="mb-6 flex w-full items-center justify-center rounded-2xl bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] px-6 py-4 text-base font-bold text-white shadow-sm transition-all hover:shadow-lg active:scale-[0.99] sm:text-lg"
+      >
+        ＋ 新しい動画を作る
+      </a>
 
       <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 overflow-hidden mb-6">
         {rows.length === 0 ? (
