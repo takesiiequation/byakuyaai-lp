@@ -17,6 +17,8 @@ import {
 import { Shell, MessageCard } from "./_components/Shell";
 import LogoutButton from "./_components/LogoutButton";
 import CollapsedHistory from "./_components/CollapsedHistory";
+import { MonthlyReportSection } from "./_components/MonthlyReport";
+import { getLatestReport } from "@/app/_lib/report";
 
 // Terminal rows (投稿済み/却下) beyond this count collapse behind the
 // "過去の動画をすべて表示" toggle — active rows (制作中/承認待ち) are never
@@ -259,9 +261,13 @@ export default async function PortalPage({
     );
   }
 
-  const [rows, monthlySlots] = await Promise.all([
+  // 月次レポートのWeb表示はプレミアム限定 — 対象外プランでは Sheets 読み取り
+  // 自体を発生させない(無駄なAPI呼び出し・セクションも非表示)。
+  const isPremium = client.plan === "premium";
+  const [rows, monthlySlots, reportRow] = await Promise.all([
     getProductionRows(clientId),
     getMonthlyApprovedSlots(clientId),
+    isPremium ? getLatestReport(clientId) : Promise.resolve(null),
   ]);
   const { year: currentYear, month: currentMonth } = jstNow();
 
@@ -337,6 +343,12 @@ export default async function PortalPage({
       </div>
 
       <PostCalendar slots={monthlySlots} year={currentYear} month={currentMonth} />
+
+      {isPremium && (
+        <div className="mt-6">
+          <MonthlyReportSection reportRow={reportRow} />
+        </div>
+      )}
     </Shell>
   );
 }
