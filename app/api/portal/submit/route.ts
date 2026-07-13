@@ -4,9 +4,8 @@ import {
   buildSubmitPayload,
   decodeBundle,
   dispatchSubmit,
+  getFileMeta,
   isSubmitEnabled,
-  listFolderFiles,
-  listFolderImages,
   maskPayload,
   payloadViolations,
   quotaState,
@@ -23,10 +22,13 @@ import {
 //
 // - secret_key は契約社シートから取得(顧客は鍵を入力しない・鍵は
 //   ブラウザに一切渡らない)。trim のみ・正規化なし(罠(4)-4)。
-// - 送信前に Drive の実在検証: n8n と同一クエリでの写真列挙が1枚以上
-//   返ること(0枚だと n8n 側で「写真が見つかりません」throw=無言死に
-//   近い事故になるため、ここで止める)+ maisoku_file_id がバンドルの
-//   maisoku フォルダ内に実在すること(任意fileId注入の防止)。
+// - 送信前に Drive の実在検証(FIX-1): claim された各 file_id を
+//   files.get で個別に強整合確認する(files.list の列挙による突合は
+//   書き込み直後のインデックスラグを受け、正当な送信を409で誤拒否する
+//   事故があったため廃止 — files.get はID参照でラグを受けない)。
+//   写真は元フォルダ配下・非trash・image/*であること、maisoku_file_id は
+//   バンドルの maisoku フォルダ内に実在すること(任意fileId注入の防止)
+//   をそれぞれ assert する。
 // - PORTAL_SUBMIT_ENABLED !== "true" の間は webhook へ一切 fetch せず、
 //   組み立て済みペイロード(secret_keyはマスク)を返す=ドライラン
 //   (仕様書(5)-①送信ゲート方式)。
@@ -155,21 +157,27 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // --- Drive 実在検証(仕様書(5)-①の自動assert) ---
+  // --- Drive 実在検証(仕様書(5)-①の自動assert・FIX-1) ---
   let photoCount = 0;
   try {
-    const [photos, maisokuFiles] = await Promise.all([
-      listFolderImages(bundle.original_folder_id),
-      listFolderFiles(bundle.maisoku_folder_id),
+    const [photoMetas, maisokuMeta] = await Promise.all([
+      Promise.all(photoFileIds.map((id) => getFileMeta(id))),
+      getFileMeta(maisokuFileId),
     ]);
-    photoCount = photos.length;
+    photoCount = photoFileIds.length;
 
-    const listedIds = new Set(photos.map((f) => f.id));
-    const claimedOk =
-      photos.length >= 1 &&
-      photoFileIds.every((id) => listedIds.has(id)) &&
-      photos.every((f) => photoFileIds.includes(f.id));
-    if (!claimedOk) {
+    // TODO(実弾後ハードニング): ここでのmimeType判定はDrive側メタなので
+    // ブラウザ申告のContent-Typeより信頼できるが、実size・実バイナリの
+    // 中身(SVG/HEIC偽装等)までは見ていない。下流(imgbb/Gemini)互換の
+    // 最終防御としては、Driveメタから実size等を再判定する枝を追加する。
+    const photosOk = photoMetas.every(
+      (m) =>
+        m !== null &&
+        m.trashed === false &&
+        m.parents.includes(bundle.original_folder_id) &&
+        m.mimeType.startsWith("image/")
+    );
+    if (!photosOk) {
       return NextResponse.json(
         {
           ok: false,
@@ -180,7 +188,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!maisokuFiles.some((f) => f.id === maisokuFileId)) {
+    const maisokuOk =
+      maisokuMeta !== null &&
+      maisokuMeta.trashed === false &&
+      maisokuMeta.parents.includes(bundle.maisoku_folder_id);
+    if (!maisokuOk) {
       return NextResponse.json(
         {
           ok: false,
@@ -243,6 +255,15 @@ export async function POST(req: NextRequest) {
   try {
     const result = await dispatchSubmit(payload);
     if (!result.sent) {
+      if (result.reason === "already_dispatched") {
+        // FIX-2: 同一execバンドルでの再送(多重クリック・ネットワーク
+        // 再送・トークンのリプレイ)。二重生成・クォータ二重消費を防ぐ
+        // ため送らない。
+        return NextResponse.json(
+          { ok: false, error: "この依頼は既に送信済みです" },
+          { status: 409 }
+        );
+      }
       // isSubmitEnabled() と dispatchSubmit 内の二重ゲートの整合上ここには
       // 来ないはずだが、防御的に dry-run と同じ扱いにする
       return NextResponse.json({
@@ -258,6 +279,10 @@ export async function POST(req: NextRequest) {
     );
     if (result.status >= 300) {
       // HTTPレベルの失敗のみエラー扱い(200=受理ではない・罠(4)-3)
+      // TODO(実弾後ハードニング): 顧客向けエラーに生HTTPステータスを
+      // 出している(SubmitForm.tsx:89の同種の生ステータス露出とセットで
+      // 直す) — 内部実装詳細の露出を避け、汎用メッセージ+サーバーログ
+      // (上のconsole.log/エラーログ)側でステータスを追えるようにする。
       return NextResponse.json(
         {
           ok: false,

@@ -34,7 +34,7 @@ interface UploadItem {
   state: UploadState;
 }
 
-type Phase = "idle" | "working" | "done_dry";
+type Phase = "idle" | "working" | "done_dry" | "ambiguous";
 
 interface DryRunResult {
   message: string;
@@ -86,6 +86,9 @@ function putFileToDrive(
           reject(new Error("アップロード応答の解析に失敗しました"));
         }
       } else {
+        // TODO(実弾後ハードニング): 顧客向けエラーに生HTTPステータスを
+        // 出している(app/api/portal/submit/route.ts の同種の生ステータス
+        // 露出とセットで直す)。
         reject(new Error(`アップロードに失敗しました (HTTP ${xhr.status})`));
       }
     };
@@ -252,14 +255,27 @@ export default function SubmitForm({
 
       // 3) 送信(サーバーがペイロード組み立て+送信ゲート判定)
       setStepNote("リクエストを送信しています…");
-      const submit = await postJson("/api/portal/submit", {
-        token,
-        maisoku_file_id: maisokuFileId,
-        photo_file_ids: photoFileIds,
-        aspect_ratio: aspect,
-        deal_type: deal,
-        email: email.trim(),
-      });
+      // FIX-2: このfetch自体が失敗した(ネットワーク断等)場合、サーバー
+      // 側では送信(dispatch)が実際に成立している可能性がある。無条件で
+      // ボタンを復帰させて再送信させると二重送信の危険があるため、
+      // ここだけ専用にcatchして「送信済みかもしれません」へ誘導する
+      // (通常のバリデーションエラー等=submit.res自体は返ってきている
+      // ケースは、下の !submit.res.ok 分岐で従来どおり扱う)。
+      let submit: { res: Response; data: Record<string, unknown> };
+      try {
+        submit = await postJson("/api/portal/submit", {
+          token,
+          maisoku_file_id: maisokuFileId,
+          photo_file_ids: photoFileIds,
+          aspect_ratio: aspect,
+          deal_type: deal,
+          email: email.trim(),
+        });
+      } catch {
+        setPhase("ambiguous");
+        setStepNote("");
+        return;
+      }
       if (!submit.res.ok || !submit.data.ok) {
         throw new Error(
           (submit.data.error as string) || "送信に失敗しました"
@@ -297,6 +313,26 @@ export default function SubmitForm({
     "w-full border border-black/10 bg-white/80 text-[var(--brand-ink)] placeholder:text-black/35 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-[var(--brand-orange)] focus:border-transparent focus:bg-white/95 transition-colors";
   const pickerButtonClass =
     "inline-block cursor-pointer rounded-xl border border-dashed border-black/20 bg-white/60 px-4 py-3 text-sm font-medium text-[var(--brand-ink)]/80 hover:bg-white/90 hover:border-[var(--brand-orange)]/60 transition-colors";
+
+  if (phase === "ambiguous") {
+    return (
+      <div className="liquid-glass-white rounded-2xl shadow-2xl shadow-black/10 p-6 sm:p-8">
+        <div className="brand-accent-bar mx-auto mb-4 h-1 w-16 rounded-full" />
+        <h2 className="text-lg font-bold text-[var(--brand-ink)] text-center">
+          送信結果を確認できませんでした
+        </h2>
+        <p className="mt-3 text-sm leading-relaxed text-[var(--brand-gray)] text-center">
+          通信エラーにより、送信が完了したかどうかをこの画面では確認できません。送信は完了している可能性があるため、二重送信を避けるためこのまま再送信はせず、マイページで状況をご確認ください。反映されていない場合は担当者までご連絡ください。
+        </p>
+        <a
+          href="/portal"
+          className="mt-6 block w-full text-center bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] text-white font-semibold rounded-xl px-4 py-3 text-sm hover:shadow-lg transition-all active:scale-[0.98]"
+        >
+          マイページで確認する
+        </a>
+      </div>
+    );
+  }
 
   if (phase === "done_dry" && dryRun) {
     return (

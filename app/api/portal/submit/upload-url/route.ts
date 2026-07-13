@@ -3,12 +3,20 @@ import { requirePortalClient } from "@/app/_lib/portalSubmitGuard";
 import {
   createResumableUploadUrl,
   decodeBundle,
+  listFolderFiles,
+  type DriveFileLite,
 } from "@/app/_lib/portalSubmit";
 import {
   MAX_PHOTOS,
   checkMaisokuFile,
   checkPhotoFile,
 } from "@/app/_lib/portalSubmitShared";
+
+// FIX-3b/c(最小濫用キャップ・KV不要): 1バンドルから発行できる
+// アップロードセッションの総数を Drive 列挙による簡易カウントで縛る
+// (写真10+マイソク1=11)。本格的なレート制限(Vercel KV/Upstash等)は
+// 実弾後ハードニング課題。
+const MAX_BUNDLE_UPLOADS = MAX_PHOTOS + 1;
 
 // /portal/submit ステップ2: ファイル1件ごとに Drive resumable upload
 // session を発行して返す。ファイル本体はブラウザが session URL へ直接
@@ -93,6 +101,52 @@ export async function POST(req: NextRequest) {
       : checkMaisokuFile(name, mimeType, size);
   if (!check.ok) {
     return NextResponse.json({ ok: false, error: check.error }, { status: 400 });
+  }
+
+  // FIX-3b: target==='maisoku' は本来 index を使わない(常に0固定)にも
+  // 関わらず、これまで index を無視して無制限に発行できる穴だった。
+  if (target === "maisoku" && index !== 0) {
+    return NextResponse.json(
+      { ok: false, error: "invalid_request" },
+      { status: 400 }
+    );
+  }
+
+  // FIX-3b/c(最小濫用キャップ): 既存ファイル数をDrive列挙で確認し、
+  // (b)マイソクは1バンドル1件のみ (c)バンドル全体でMAX_BUNDLE_UPLOADS
+  // 件まで、を強制する。
+  let existingPhotos: DriveFileLite[];
+  let existingMaisoku: DriveFileLite[];
+  try {
+    [existingPhotos, existingMaisoku] = await Promise.all([
+      listFolderFiles(bundle.original_folder_id),
+      listFolderFiles(bundle.maisoku_folder_id),
+    ]);
+  } catch (e) {
+    console.error("[portal/submit/upload-url] abuse-cap check failed:", e);
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "アップロード準備に失敗しました。時間をおいて再度お試しください",
+      },
+      { status: 500 }
+    );
+  }
+  if (target === "maisoku" && existingMaisoku.length > 0) {
+    return NextResponse.json(
+      { ok: false, error: "マイソクは1件のみアップロードできます" },
+      { status: 409 }
+    );
+  }
+  if (existingPhotos.length + existingMaisoku.length >= MAX_BUNDLE_UPLOADS) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "このリクエストのアップロード上限に達しました。最初からやり直してください",
+      },
+      { status: 429 }
+    );
   }
 
   // 写真は連番プレフィックスで順序を固定(Driveのfiles.listはorderBy未指定
