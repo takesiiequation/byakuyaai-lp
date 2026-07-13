@@ -35,10 +35,16 @@ import {
 //    専用のGC枝を掃除cronに追加する。あわせて createExecFolders が
 //    3フォルダ作成の途中で失敗した場合のbest-effortロールバックも
 //    未実装 — 半端なexec_フォルダが残り得る)。
-//  - アップロードは SA(GOOGLE_SERVICE_ACCOUNT_KEY)による resumable
-//    upload session 発行 → ブラウザ直PUT(Vercel 4.5MB制限回避)。
-//    SA方式の既知の注意(SAクォータ消費・AUTH FAIL cleanupのtrash 403
-//    可能性)は仕様書(3)に記載 — ドライラン②(無効鍵実弾)で実測する。
+//    🚨(2026-07-14) OAuth化で以下の403が解消した後、正常送信のたびに
+//    実写真バイトが exec_ フォルダに恒久的に溜まり始める — このGC欠落は
+//    「あったら良い」から「岡本の個人Drive容量が実際に減っていく」実害に
+//    格上げされた。exec_専用GC枝の追加は依然TODO(実弾後ハードニング)。
+//  - アップロードは岡本本人のOAuth(リフレッシュトークン。案C・2026-07-14)
+//    による resumable upload session 発行 → ブラウザ直PUT(Vercel 4.5MB
+//    制限回避)。旧SA(GOOGLE_SERVICE_ACCOUNT_KEY)方式は0クォータの
+//    マイドライブに非ネイティブバイナリを書こうとして storageQuotaExceeded
+//    (403)で恒久的に失敗していた(ドライラン②で実測・根治のため切替)。
+//    Sheets読み書きはこの変更と無関係・SAのまま不変。
 // ============================================================
 
 const UPLOAD_SESSION_ENDPOINT =
@@ -54,14 +60,41 @@ function rootFolderId(): string {
   return id;
 }
 
+// 2026-07-14 案C: SA(GOOGLE_SERVICE_ACCOUNT_KEY)は0クォータのマイドライブしか
+// 持たず、非ネイティブバイナリ(写真/マイソクPDF)の書込みが storageQuotaExceeded
+// (403)で恒久的に落ちる — Googleフォーム経由(GAS=実行者本人のOAuth権限で書く)
+// との差分の正体。ここを岡本本人のOAuth(リフレッシュトークン)に切替え、SAクォータの
+// 制約から外す。Sheets読み書き(sheets.ts等)は無関係・SAのまま不変。
+//
+// fail-closed(移行期の安全策): 新env(GOOGLE_OAUTH_CLIENT_ID/SECRET/
+// REFRESH_TOKEN)が1つでも欠けていたら明確な理由付きthrow — 黙って
+// GOOGLE_SERVICE_ACCOUNT_KEYにフォールバックして同じ403を再び踏む、という
+// 事故を構造的に禁止する。
 function getAuth() {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  if (!raw) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY is not set");
-  const key = JSON.parse(Buffer.from(raw, "base64").toString("utf-8"));
-  return new google.auth.GoogleAuth({
-    credentials: key,
-    scopes: ["https://www.googleapis.com/auth/drive"],
-  });
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const refreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error(
+      "GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET / GOOGLE_OAUTH_REFRESH_TOKEN is not set " +
+        "— Drive保存はSAではなく岡本本人のOAuthに切替済み(案C・2026-07-14)。" +
+        "SAへの暗黙フォールバックはしない(fail-closed)。取得手順は .env.example 参照。"
+    );
+  }
+  const client = new google.auth.OAuth2({ clientId, clientSecret });
+  client.setCredentials({ refresh_token: refreshToken });
+  return client;
+}
+
+/** invalid_grant はリフレッシュトークン失効の標準エラーコード(テスト中の
+ * OAuth同意画面で7日失効・パスワード変更での一括失効等)。Discordアラート等の
+ * 能動通知は未実装(将来の足場) — 今はこの判定でエラーメッセージを明確化し
+ * console.error に残すところまでをこのタスクのスコープとする。 */
+function isInvalidGrantError(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e);
+  const data = (e as { response?: { data?: unknown } } | undefined)?.response?.data;
+  const dataStr = typeof data === "string" ? data : JSON.stringify(data ?? "");
+  return msg.includes("invalid_grant") || dataStr.includes("invalid_grant");
 }
 
 function drive() {
@@ -221,7 +254,22 @@ export async function createResumableUploadUrl(opts: {
   size: number;
   origin: string | null;
 }): Promise<string> {
-  const token = await getAuth().getAccessToken();
+  let token: string | null | undefined;
+  try {
+    ({ token } = await getAuth().getAccessToken());
+  } catch (e) {
+    if (isInvalidGrantError(e)) {
+      console.error(
+        "[portalSubmit] Drive OAuth refresh token が失効しています(invalid_grant) — " +
+          "岡本本人の再認可が必要(OAuth Playgroundで再発行 → GOOGLE_OAUTH_REFRESH_TOKEN 更新)。",
+        e
+      );
+      throw new Error(
+        "Drive認証が失効しています(invalid_grant) — 管理者に連絡してください"
+      );
+    }
+    throw e;
+  }
   if (!token) throw new Error("Failed to obtain Drive access token");
 
   const headers: Record<string, string> = {
