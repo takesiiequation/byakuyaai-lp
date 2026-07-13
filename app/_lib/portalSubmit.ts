@@ -414,24 +414,11 @@ export function payloadViolations(p: SubmitPayload): string[] {
 /** FIX-4: レスポンス/ブラウザ向け。secret_key を "(set)"/"(EMPTY)" に
  * 完全縮退する — 「鍵はブラウザに一切来ない」不変条件をここで担保する。
  * API応答・ドライラン表示など、サーバー外に出る可能性がある出力は
- * 必ずこちらを使うこと(先頭4字+桁長のデバッグ表示が欲しい場合は
- * debugMaskPayload を console.error 限定で使う)。 */
+ * 必ずこちらを使うこと。 */
 export function maskPayload(p: SubmitPayload): Record<string, unknown> {
   return {
     ...p,
     secret_key: p.secret_key ? "(set)" : "(EMPTY)",
-  };
-}
-
-/** サーバーログ専用(console.error 限定・レスポンスやブラウザには絶対に
- * 渡さないこと): secret_key の先頭4字+長さのみ残した調査用マスク。
- * trim 済みか・空でないかの切り分けに使う。 */
-export function debugMaskPayload(p: SubmitPayload): Record<string, unknown> {
-  return {
-    ...p,
-    secret_key: p.secret_key
-      ? `${p.secret_key.slice(0, 4)}***(len=${p.secret_key.length})`
-      : "(EMPTY)",
   };
 }
 
@@ -446,31 +433,61 @@ export function isSubmitEnabled(): boolean {
 export type DispatchResult =
   | { sent: false; reason: "disabled" }
   | { sent: false; reason: "already_dispatched" }
+  | { sent: false; reason: "marker_failed" }
   | { sent: true; status: number };
 
-const DISPATCH_MARKER_NAME = ".dispatched";
-
-/** FIX-2: exec フォルダ直下に冪等性マーカーがあるか確認する。
- * decodeBundle は署名+TTLのみでnonceが無いため、同一トークンでの
- * submit再送(ブラウザの多重クリック・ネットワーク再送・悪意ある
- * リプレイ)を防げない — この「送信済み」状態がサーバー側で唯一の
- * 防波堤になる。根治(n8n側でexec_idをキーにした冪等化)は将来課題。 */
+/** FIX2-A: exec フォルダ自身の appProperties.dispatched を files.get で
+ * 強整合読みする(既知のフォルダIDへのID参照は files.list の列挙結果
+ * のようなインデックス反映ラグを受けない — FIX-1と同じ理屈)。
+ *
+ * 旧実装(このコメントの直前の版)は exec フォルダ直下に `.dispatched`
+ * という子ファイルを作り、files.list でその子ファイルを探索していた。
+ * files.list はインデックス反映にラグがあり得るため、マーカーを打った
+ * 直後の再送(ブラウザの多重クリック・ネットワーク再送)をlistが拾えず
+ * 二度dispatchする窓があった — 「FIX-1が files.list を危険と断じたのに
+ * FIX-2がfiles.listに依存する」という自己矛盾がここにあり、appProperties
+ * 化して解消した。
+ *
+ * 残す根治TODO(マルチテナント開放前に必須): この isDispatched の読みと
+ * createDispatchMarker の書きは非アトミック(check→update)。並行2POSTが
+ * 両方とも「未dispatch」を読んでしまう真の race は理論上残る — nonce付き
+ * トークン+KVロック(Vercel KV/Upstash)、または n8n 側で exec_id をキーに
+ * した冪等化が本命。 */
 export async function isDispatched(execFolderId: string): Promise<boolean> {
-  const markers = await listFolder(
-    execFolderId,
-    `'${execFolderId}' in parents and trashed=false and name='${DISPATCH_MARKER_NAME}'`
-  );
-  return markers.length > 0;
+  const res = await drive().files.get({
+    fileId: execFolderId,
+    fields: "appProperties",
+    supportsAllDrives: true,
+  });
+  return res.data.appProperties?.dispatched === "1";
 }
 
-/** best-effort: マーカー作成に失敗しても dispatch 自体は止めない
- * (冪等性が完璧でなくても、無いよりは大幅にマシ)。 */
+/** FIX2-A: exec フォルダの appProperties に dispatched フラグを刻む
+ * (旧: 子ファイル `.dispatched` の作成 → 上の isDispatched コメント参照)。
+ * createExecFolders が刻んだ client_id 等の既存キーを消さないよう、
+ * 事前に現在の appProperties を読み出してからマージして書く — Drive API
+ * の files.update はキー単位マージ挙動を持つとされるが、それに暗黙で
+ * 依存せず明示的に既存キーを保持する(念のため)。
+ *
+ * fail-closed: このモジュールの他の best-effort(cleanup等)とは異なり、
+ * ここは throw をそのまま呼び出し元(dispatchSubmit)へ伝播させる —
+ * マーカーを書けない=冪等性を保証できない状態であり、書けない時は
+ * 握り潰して送るより「送らない」方が安全という判断(FIX2-A)。 */
 async function createDispatchMarker(execFolderId: string): Promise<void> {
-  await drive().files.create({
+  const current = await drive().files.get({
+    fileId: execFolderId,
+    fields: "appProperties",
+    supportsAllDrives: true,
+  });
+  const existing = current.data.appProperties ?? {};
+  await drive().files.update({
+    fileId: execFolderId,
     requestBody: {
-      name: DISPATCH_MARKER_NAME,
-      mimeType: "text/plain",
-      parents: [execFolderId],
+      appProperties: {
+        ...existing,
+        dispatched: "1",
+        dispatched_at: new Date().toISOString(),
+      },
     },
     fields: "id",
     supportsAllDrives: true,
@@ -483,11 +500,17 @@ async function createDispatchMarker(execFolderId: string): Promise<void> {
  * n8n は responseMode: onReceived のため 200 = 受理ではない(罠(4)-3)
  * — 呼び出し側はHTTPレベルの失敗だけをエラー扱いにする。
  *
- * FIX-2: dispatch直前に exec フォルダの .dispatched マーカーを確認し、
- * 既にあれば送らない(二重生成・クォータ二重消費の防止)。マーカー
- * 作成→dispatch の順で、マーカー作成はbest-effort。確認と作成の間に
- * 同時リクエストが割り込むわずかなTOCTOUの窓は残るが、nonce無し
- * トークンに対する現実的な防波堤としてこれを採用する。
+ * FIX2-A: dispatch直前に exec フォルダの appProperties.dispatched を
+ * 確認し、既にあれば送らない(二重生成・クォータ二重消費の防止)。
+ * マーカー書込→dispatch の順で、マーカー書込は fail-closed(失敗したら
+ * 送らない・{sent:false, reason:'marker_failed'} を返す — 旧実装の
+ * best-effort握り潰しをやめた。理由: マーカー無しでdispatchすると
+ * 冪等性がゼロになる)。
+ *
+ * 残す根治TODO(マルチテナント開放前に必須): isDispatched の確認と
+ * createDispatchMarker の書込の間に同時リクエストが割り込む TOCTOU の
+ * 窓は残る(check→updateが非アトミック)。nonce付きトークン+KVロック
+ * (Vercel KV/Upstash)、または n8n 側 exec_id 冪等化が本命。
  */
 export async function dispatchSubmit(payload: SubmitPayload): Promise<DispatchResult> {
   if (!isSubmitEnabled()) {
@@ -510,10 +533,13 @@ export async function dispatchSubmit(payload: SubmitPayload): Promise<DispatchRe
   try {
     await createDispatchMarker(payload.exec_folder_id);
   } catch (e) {
+    // FIX2-A fail-closed: マーカーを書けない=冪等性を保証できない状態。
+    // best-effortで握り潰して送信を続けていた旧実装をやめ、送らない。
     console.error(
-      "[portalSubmit] dispatch marker creation failed (best-effort, continuing):",
+      "[portalSubmit] dispatch marker write failed (fail-closed, not dispatching):",
       e
     );
+    return { sent: false, reason: "marker_failed" };
   }
 
   const res = await fetch(url, {
@@ -531,16 +557,46 @@ export async function dispatchSubmit(payload: SubmitPayload): Promise<DispatchRe
 /** ある client が同時に持てる「未送信(未dispatch)のexec_フォルダ」の
  * 上限。init はこれを超えると新規発行を拒否する。本格的なレート制限
  * (Vercel KV/Upstash等)は実弾後ハードニング課題 — これはDrive列挙
- * ベースの最小防御。 */
-export const MAX_ACTIVE_EXEC_PER_CLIENT = 5;
+ * ベースの最小防御。
+ * FIX2-B: 5→10に緩和(TTL除外を入れたうえでの余裕 — 単発テストの
+ * 反復で恒久429ロックに詰まらないように)。 */
+export const MAX_ACTIVE_EXEC_PER_CLIENT = 10;
 
+/** FIX2-B: 未dispatchなexec_フォルダを数える際、createdTimeが
+ * BUNDLE_TTL_MS(2h)より古いものはカウントから除外する。
+ *
+ * 背景(テスト阻害の罠): exec_フォルダにはGCが無く(cronはvo_/clip_/
+ * revision_manifestのみが対象・exec_には触れない)、ドライランは毎回
+ * initでexec_フォルダを作るがマーカーは付かない。TTL除外が無いと
+ * 「古い放置exec_」がいつまでもカウントに残り続け、MAX_ACTIVE_EXEC_
+ * PER_CLIENT個溜まった時点でinitが恒久429ロックする(実弾テスト自体を
+ * 妨げる)。ここでの files.list 列挙はインデックス反映にラグがあり
+ * 得るが、用途が「数分〜数時間前のフォルダを大まかに数える」ことで
+ * あり境界が緩くてよく、FIX-1/FIX2-Aで排除したような直後再送検知の
+ * 即時性要求は無い — 許容する。
+ *
+ * 残す根治TODO(マルチテナント開放前に必須): exec_ 専用のGC枝を夜間
+ * 掃除cron(NM1RFQy45acrWQEP)に追加する(issued_at+TTL経過 かつ
+ * dispatched無し のexec_フォルダをtrash)。今回はTTL除外による運用
+ * 回避に留める。 */
 export async function countUndispatchedExecFolders(clientId: string): Promise<number> {
   const root = rootFolderId();
-  const folders = await listFolder(
-    root,
-    `'${root}' in parents and trashed=false and mimeType='application/vnd.google-apps.folder' and appProperties has { key='client_id' and value='${escapeQueryValue(clientId)}' }`
+  const res = await drive().files.list({
+    q: `'${root}' in parents and trashed=false and mimeType='application/vnd.google-apps.folder' and appProperties has { key='client_id' and value='${escapeQueryValue(clientId)}' }`,
+    fields: "files(id, createdTime)",
+    pageSize: 100,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  });
+  const now = Date.now();
+  const activeFolders = (res.data.files ?? []).filter((f) => {
+    const created = f.createdTime ? Date.parse(f.createdTime) : NaN;
+    const isStale = Number.isFinite(created) && now - created > BUNDLE_TTL_MS;
+    return !isStale; // TTL超過が確認できたものだけ除外・不明時は安全側でカウントに残す
+  });
+  const dispatchedFlags = await Promise.all(
+    activeFolders.map((f) => (f.id ? isDispatched(f.id) : Promise.resolve(true)))
   );
-  const dispatchedFlags = await Promise.all(folders.map((f) => isDispatched(f.id)));
   return dispatchedFlags.filter((dispatched) => !dispatched).length;
 }
 

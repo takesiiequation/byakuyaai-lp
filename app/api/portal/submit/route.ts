@@ -256,7 +256,7 @@ export async function POST(req: NextRequest) {
     const result = await dispatchSubmit(payload);
     if (!result.sent) {
       if (result.reason === "already_dispatched") {
-        // FIX-2: 同一execバンドルでの再送(多重クリック・ネットワーク
+        // FIX2-A: 同一execバンドルでの再送(多重クリック・ネットワーク
         // 再送・トークンのリプレイ)。二重生成・クォータ二重消費を防ぐ
         // ため送らない。
         return NextResponse.json(
@@ -264,8 +264,21 @@ export async function POST(req: NextRequest) {
           { status: 409 }
         );
       }
+      if (result.reason === "marker_failed") {
+        // FIX2-A fail-closed: 冪等性マーカーが書けなかった=送信を保証
+        // できない状態。旧実装はここをbest-effortで握り潰してdispatch
+        // していたが、それをやめて明示的にエラー扱いにする。
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "送信処理に失敗しました。時間をおいて再度お試しください",
+          },
+          { status: 500 }
+        );
+      }
       // isSubmitEnabled() と dispatchSubmit 内の二重ゲートの整合上ここには
-      // 来ないはずだが、防御的に dry-run と同じ扱いにする
+      // 来ないはずだが(reason === "disabled")、防御的に dry-run と同じ
+      // 扱いにする
       return NextResponse.json({
         ok: true,
         sent: false,
