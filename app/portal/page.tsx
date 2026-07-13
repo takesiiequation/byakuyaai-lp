@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { verifyPortalSession } from "@/app/_lib/portalAuth";
-import { getClientById } from "@/app/_lib/sheets";
+import { getClientById, getMonthlyApprovedSlots, type PostSlot } from "@/app/_lib/sheets";
+import type { Client } from "@/app/_lib/types";
+import { quotaSummary } from "@/app/_lib/quota";
+import { jstNow } from "@/app/_lib/jst";
 import {
   getProductionRows,
   resolveStatus,
@@ -94,6 +97,140 @@ function StatusRow({ row }: { row: ProductionRow }) {
   );
 }
 
+// 「今月の制作可能本数」バッジ — レシピは quota.ts に一本化(/portal/submit
+// のゲートと同一の effectiveUsed を使う。表示専用でここでは判定しない)。
+function QuotaBadge({ client }: { client: Client }) {
+  const { quota, remaining } = quotaSummary(client);
+
+  if (quota <= 0) {
+    return (
+      <span className="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold bg-gray-100 text-gray-400 border-gray-200">
+        今月の制作可能本数: 未設定
+      </span>
+    );
+  }
+
+  if (remaining <= 0) {
+    return (
+      <span className="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold bg-red-50 text-red-600 border-red-200">
+        今月の上限に達しました(翌月1日リセット)
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold bg-blue-50 text-blue-700 border-blue-200">
+      今月の制作可能本数: 残り{remaining}本 / {quota}本
+    </span>
+  );
+}
+
+const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+const timeLabel = (h: number, m: number) =>
+  `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+
+// 「今月の投稿予定・実績」— 承認待ちタブの status==='approved' 行(=Publer
+// への投稿が実際に成功した分)を my_post_slot で月グリッドにプロットする。
+// slots は getMonthlyApprovedSlots が渡す sanitized な {property_name, day,
+// hour, minute} のみ(post_data 等は一切含まれない・sheets.ts のコメント参照)。
+// sm未満はリスト表示に切り替え(同じ slots を使い回すだけ・データ取得は1回)。
+function PostCalendar({
+  slots,
+  year,
+  month,
+}: {
+  slots: PostSlot[];
+  year: number;
+  month: number;
+}) {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const firstWeekday = new Date(year, month - 1, 1).getDay();
+
+  const byDay = new Map<number, PostSlot[]>();
+  for (const s of slots) {
+    const list = byDay.get(s.day) ?? [];
+    list.push(s);
+    byDay.set(s.day, list);
+  }
+
+  const cells: Array<number | null> = [];
+  for (let i = 0; i < firstWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 overflow-hidden">
+      <div className="px-4 sm:px-5 py-4 border-b border-gray-50">
+        <h2 className="text-sm font-bold text-[var(--brand-ink)]">
+          {year}年{month}月の投稿予定・実績
+        </h2>
+      </div>
+      {slots.length === 0 ? (
+        <div className="p-8 text-center text-[var(--brand-gray-light)] text-sm">
+          今月の投稿はまだありません
+        </div>
+      ) : (
+        <>
+          {/* デスクトップ/タブレット: 月グリッド */}
+          <div className="hidden sm:block p-4">
+            <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-[var(--brand-gray-light)] mb-1">
+              {WEEKDAY_LABELS.map((w) => (
+                <div key={w}>{w}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {cells.map((day, i) => (
+                <div
+                  key={i}
+                  className={`min-h-[64px] rounded-lg p-1.5 text-left ${
+                    day ? "bg-[var(--brand-cream)]" : ""
+                  }`}
+                >
+                  {day && (
+                    <>
+                      <div className="text-[11px] font-semibold text-[var(--brand-gray-light)]">
+                        {day}
+                      </div>
+                      <div className="mt-0.5 space-y-0.5">
+                        {(byDay.get(day) ?? []).map((s, si) => (
+                          <div
+                            key={si}
+                            title={`${timeLabel(s.hour, s.minute)} ${
+                              s.property_name || "(物件名未確定)"
+                            }`}
+                            className="truncate rounded bg-amber-50 border border-amber-200 text-amber-800 text-[10px] px-1 py-0.5"
+                          >
+                            {timeLabel(s.hour, s.minute)}{" "}
+                            {s.property_name || "(物件名未確定)"}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* スマホ: リスト表示 */}
+          <div className="sm:hidden divide-y divide-gray-50">
+            {slots.map((s, i) => (
+              <div key={i} className="p-4 flex items-center gap-3">
+                <div className="shrink-0 text-xs font-semibold text-[var(--brand-gray-light)] w-20">
+                  {month}/{s.day} {timeLabel(s.hour, s.minute)}
+                </div>
+                <div className="flex-1 min-w-0 text-sm text-[var(--brand-ink)] truncate">
+                  {s.property_name || "(物件名未確定)"}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default async function PortalPage({
   searchParams,
 }: {
@@ -122,7 +259,11 @@ export default async function PortalPage({
     );
   }
 
-  const rows = await getProductionRows(clientId);
+  const [rows, monthlySlots] = await Promise.all([
+    getProductionRows(clientId),
+    getMonthlyApprovedSlots(clientId),
+  ]);
+  const { year: currentYear, month: currentMonth } = jstNow();
 
   // Active rows (制作中/承認待ち — anything the client might still need to
   // act on, "unknown" included defensively) always render. Terminal rows
@@ -161,6 +302,9 @@ export default async function PortalPage({
           <p className="text-xs text-[var(--brand-gray-light)] mt-0.5">
             制作状況一覧
           </p>
+          <div className="mt-2">
+            <QuotaBadge client={client} />
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <a
@@ -173,7 +317,7 @@ export default async function PortalPage({
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 overflow-hidden mb-6">
         {rows.length === 0 ? (
           <div className="p-8 text-center text-[var(--brand-gray-light)] text-sm">
             現在制作中の動画はありません
@@ -191,6 +335,8 @@ export default async function PortalPage({
           </div>
         )}
       </div>
+
+      <PostCalendar slots={monthlySlots} year={currentYear} month={currentMonth} />
     </Shell>
   );
 }

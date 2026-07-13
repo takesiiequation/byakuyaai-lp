@@ -1,5 +1,6 @@
 import { google } from "googleapis";
 import type { Client } from "./types";
+import { jstNow } from "./jst";
 
 const SHEET_ID = process.env.GOOGLE_SHEET_ID!;
 const TAB = process.env.GOOGLE_SHEET_TAB || "契約社リスト";
@@ -179,6 +180,92 @@ export async function getApprovalQueue(): Promise<ApprovalEntry[]> {
         created_at: pickField(obj, ["created_at", "作成日時", "ts", "timestamp"]),
       };
     });
+  } catch {
+    return [];
+  }
+}
+
+// --- Portal: 今月の投稿カレンダー ---------------------------------------
+// Reads the SAME 承認待ち tab as getApprovalQueue above, filtered to one
+// client_id + status==='approved' (= Publer への投稿が実際に成功した行、
+// see fudosan-video/docs/archive/approval_handler_design.md 「B. 非同期
+// publisher」— status=approved は投稿成功後だけ書かれる)。
+//
+// 🚨 Absolute rule (mirrors portal.ts's comment on this same tab): this tab's
+// post_data column carries a plaintext Publer API key. This function NEVER
+// spreads/returns the raw row — only the 4 named fields below are ever
+// picked out, so a future column added to 承認待ち can't leak through here
+// by accident.
+export interface PostSlot {
+  property_name: string;
+  /** JST calendar day-of-month (1-31). */
+  day: number;
+  hour: number;
+  minute: number;
+}
+
+// my_post_slot is written by n8n as an explicit-offset JST string, e.g.
+// "2026-07-15T19:00:00+09:00" (scripts/build_approval_handler.py's
+// jstIso(): dt.getFullYear()+'-'+...+'T'+...+'+09:00', where dt's
+// getters already read out JST wall-clock values). Read the leading digits
+// directly with a regex instead of `new Date(...)` — the digits already ARE
+// JST wall-clock time, so running them through Date/toLocaleString would
+// risk a double timezone shift (and Sheets may hand back a slightly
+// different textual format than what was written, e.g. no seconds, a space
+// instead of "T", or "/" instead of "-" if a cell got auto-formatted as a
+// date by Sheets — this regex accepts all of those).
+function parseJstSlot(
+  raw: string
+): { year: number; month: number; day: number; hour: number; minute: number } | null {
+  const m = (raw || "").trim().match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})[T ](\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  return {
+    year: Number(m[1]),
+    month: Number(m[2]),
+    day: Number(m[3]),
+    hour: Number(m[4]),
+    minute: Number(m[5]),
+  };
+}
+
+/**
+ * This month's (JST) approved+scheduled posts for one client. Fail-soft
+ * (mirrors getApprovalQueue/getProductionRows): any Sheets error or
+ * unparseable row is just skipped, never a 500.
+ */
+export async function getMonthlyApprovedSlots(
+  clientId: string
+): Promise<PostSlot[]> {
+  try {
+    const res = await sheets().spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: qt(APPROVAL_TAB),
+    });
+    const rows = res.data.values;
+    if (!rows || rows.length < 2) return [];
+    const headers = rows[0] as string[];
+    const { year: curYear, month: curMonth } = jstNow();
+
+    const out: PostSlot[] = [];
+    for (const r of rows.slice(1)) {
+      const obj: Record<string, string> = {};
+      headers.forEach((h, i) => {
+        obj[h] = (r as string[])[i] ?? "";
+      });
+      if (pickField(obj, ["client_id"]) !== clientId) continue;
+      if (pickField(obj, ["status", "ステータス"]) !== "approved") continue;
+      const slot = parseJstSlot(pickField(obj, ["my_post_slot"]));
+      if (!slot || slot.year !== curYear || slot.month !== curMonth) continue;
+      out.push({
+        property_name: pickField(obj, ["物件名", "property_name", "property"]),
+        day: slot.day,
+        hour: slot.hour,
+        minute: slot.minute,
+      });
+    }
+    return out.sort(
+      (a, b) => a.day - b.day || a.hour - b.hour || a.minute - b.minute
+    );
   } catch {
     return [];
   }

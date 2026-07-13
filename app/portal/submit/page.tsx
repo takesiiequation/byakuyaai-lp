@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getPortalClientId } from "@/app/_lib/portalAuth";
 import { getClientById } from "@/app/_lib/sheets";
 import { quotaState } from "@/app/_lib/portalSubmit";
+import { quotaSummary } from "@/app/_lib/quota";
 import { Shell, MessageCard } from "../_components/Shell";
 import SubmitForm from "../_components/SubmitForm";
 
@@ -35,6 +36,11 @@ export default async function PortalSubmitPage() {
   }
 
   const qs = quotaState(client);
+  // reset-aware な数字(quota.ts と統一)— client.used_this_month の生値を
+  // そのまま出すと、判定は「もう投稿できる」なのに表示が「上限到達」に見える
+  // ズレが起き得る(quota_reset を過ぎたがシートの used_this_month が
+  // まだ n8n の月初cronで物理リセットされていない期間)。
+  const qsummary = quotaSummary(client);
 
   return (
     <Shell>
@@ -61,12 +67,12 @@ export default async function PortalSubmitPage() {
       ) : qs === "exceeded" ? (
         <MessageCard
           title="今月の作成上限に達しています"
-          body={`今月のご利用は ${client.used_this_month} / ${client.monthly_quota} 本です。翌月になると再びご依頼いただけます。`}
+          body={`今月のご利用は ${qsummary.used} / ${qsummary.quota} 本です。翌月になると再びご依頼いただけます。`}
         />
       ) : (
         <>
           <div className="mb-4 rounded-xl bg-white/70 border border-black/5 px-4 py-3 text-xs text-[var(--brand-gray)]">
-            今月のご利用: {client.used_this_month} / {client.monthly_quota} 本
+            今月のご利用: {qsummary.used} / {qsummary.quota} 本
           </div>
           <SubmitForm
             defaultEmail={client.notify_email || client.approval_email || ""}

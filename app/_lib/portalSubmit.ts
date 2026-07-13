@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import { createHmac, randomUUID } from "crypto";
 import type { Client } from "./types";
+import { effectiveUsed } from "./quota";
 import {
   ASPECT_RATIOS,
   DEAL_TYPES,
@@ -380,34 +381,17 @@ export async function dispatchSubmit(payload: SubmitPayload): Promise<DispatchRe
 // ------------------------------------------------------------
 // クォータ事前チェック(罠(4)-5: 連打・上限超過のUI側抑止)
 // n8n が正本(受理時+1・月初自動リセット)— ここはUX用の事前判定のみ。
+// 実際の reset-aware な使用数計算は quota.ts に一本化(ダッシュボードの
+// 残数バッジと必ず同じ結論になるように — 2026-07-13統一、旧 isPastMonth
+// は (year, month) バケット比較で quota_reset の「日」を無視しており、
+// n8n の todayJst >= quotaReset という日単位比較とズレることがあった)。
 // ------------------------------------------------------------
 
 export type QuotaState = "ok" | "not_configured" | "exceeded";
 
-function isPastMonth(quotaReset: string): boolean {
-  if (!quotaReset) return false;
-  const m = quotaReset.match(/^(\d{4})[-/](\d{1,2})/);
-  let y: number, mo: number;
-  if (m) {
-    y = Number(m[1]);
-    mo = Number(m[2]);
-  } else {
-    const d = new Date(quotaReset);
-    if (Number.isNaN(d.getTime())) return false;
-    y = d.getFullYear();
-    mo = d.getMonth() + 1;
-  }
-  const now = new Date();
-  return y < now.getFullYear() || (y === now.getFullYear() && mo < now.getMonth() + 1);
-}
-
 export function quotaState(client: Client): QuotaState {
   const quota = client.monthly_quota;
   if (!quota || quota <= 0) return "not_configured"; // n8n側は quota_not_configured 拒否
-  let used = client.used_this_month;
-  // quota_reset が前月以前 = n8n到達時に自動月初リセットされる分。シートの
-  // stale な used で月初の顧客を誤って弾かないための緩和(判定に自信がある
-  // ときだけ 0 扱い・パース不能なら生値のまま=保守的)。
-  if (isPastMonth(client.quota_reset)) used = 0;
+  const used = effectiveUsed(client);
   return used >= quota ? "exceeded" : "ok";
 }
