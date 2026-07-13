@@ -32,7 +32,11 @@ function pctDelta(cur?: number, prev?: number | null): Delta | null {
 }
 
 function unitDelta(cur?: number, prev?: number | null): Delta | null {
-  if (prev == null || !Number.isFinite(prev) || prev <= 0) return null;
+  // 件数系(HP/LINE誘導)は prev===0(「前月は0件だった」という実データ)でも
+  // 増分を出したいので prev<0 のみ弾く — undefined/null(データなし)は
+  // 上の `prev == null` で既に弾かれているので、通過する 0 は必ず実測値。
+  // 率系(pctDelta)はゼロ除算になるため対象外・現状維持。
+  if (prev == null || !Number.isFinite(prev) || prev < 0) return null;
   if (cur == null || !Number.isFinite(cur)) return null;
   const d = cur - prev;
   if (d === 0) return null;

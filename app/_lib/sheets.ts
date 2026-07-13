@@ -33,7 +33,12 @@ function rowToClient(headers: string[], row: string[]): Client {
     plan: obj.plan ?? "",
     tone: obj.tone ?? "",
     monthly_quota: Number(obj.monthly_quota) || 0,
-    used_this_month: Number(obj.used_this_month) || 0,
+    // 管理者の手入力ミス(負値)でも残数バッジが過大表示にならないよう下限0
+    // クランプ。quota.ts の effectiveUsed/quotaSummary は client.used_this_month
+    // をそのまま使う比較式なので(n8n本体ミラー・式は変更しない)、ここで数値化
+    // 時点から負値を消しておく。monthly_quota は quota.ts 側で quota<=0 を
+    // 「未設定」として扱う(QuotaBadge)ため、負値でも既に安全に丸め込まれている。
+    used_this_month: Math.max(0, Number(obj.used_this_month) || 0),
     quota_reset: obj.quota_reset ?? "",
     publer_ig_account_id: obj.publer_ig_account_id ?? "",
     publer_tt_account_id: obj.publer_tt_account_id ?? "",
@@ -219,12 +224,27 @@ function parseJstSlot(
 ): { year: number; month: number; day: number; hour: number; minute: number } | null {
   const m = (raw || "").trim().match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})[T ](\d{1,2}):(\d{2})/);
   if (!m) return null;
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  const hour = Number(m[4]);
+  const minute = Number(m[5]);
+  // 手入力ミス等でレンジ外の数値(月13・時25等)が来ても、モバイル一覧/月
+  // グリッドの表示崩れを防ぐため null を返し、呼び出し側の既存 fail-soft
+  // (「!slot なら skip」)にそのまま乗せてカレンダーから除外する。
+  if (
+    month < 1 || month > 12 ||
+    day < 1 || day > 31 ||
+    hour < 0 || hour > 23 ||
+    minute < 0 || minute > 59
+  ) {
+    return null;
+  }
   return {
     year: Number(m[1]),
-    month: Number(m[2]),
-    day: Number(m[3]),
-    hour: Number(m[4]),
-    minute: Number(m[5]),
+    month,
+    day,
+    hour,
+    minute,
   };
 }
 

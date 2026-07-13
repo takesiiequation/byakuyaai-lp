@@ -99,6 +99,19 @@ function StatusRow({ row }: { row: ProductionRow }) {
   );
 }
 
+// quota_reset("YYYY-MM-DD" — quota.ts の effectiveUsed と同じ文字列形)を
+// 「M月D日」表示に整形する。ほとんどの顧客は翌月1日だが、任意日を手入力
+// された顧客でも実値を出す。空/不正なら "" を返し、呼び出し側で丸ごと
+// 省略する(fail-soft・new Date() は使わずレンジ検証のみで足りる)。
+function formatQuotaResetLabel(quotaReset: string): string {
+  const m = (quotaReset || "").trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (!m) return "";
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return "";
+  return `${month}月${day}日`;
+}
+
 // 「今月の制作可能本数」バッジ — レシピは quota.ts に一本化(/portal/submit
 // のゲートと同一の effectiveUsed を使う。表示専用でここでは判定しない)。
 function QuotaBadge({ client }: { client: Client }) {
@@ -113,9 +126,10 @@ function QuotaBadge({ client }: { client: Client }) {
   }
 
   if (remaining <= 0) {
+    const resetLabel = formatQuotaResetLabel(client.quota_reset);
     return (
       <span className="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold bg-red-50 text-red-600 border-red-200">
-        今月の上限に達しました(翌月1日リセット)
+        今月の上限に達しました{resetLabel ? `(${resetLabel}リセット)` : ""}
       </span>
     );
   }
