@@ -100,6 +100,38 @@ function StatusRow({ row }: { row: ProductionRow }) {
           <span className="text-xs text-[var(--brand-gray-light)]">
             数分で完了します
           </span>
+        ) : status === "failed" ? (
+          // 障害ステータス可視化(status_visibility_package_draft.md §3.2)。
+          // バッジは PORTAL_STATUS_LABELS 側で「⚠️ 生成に失敗しました」表示
+          // 済みなのでここでは重複させず、補足文言+再依頼導線のみ。
+          <div className="text-right">
+            <p className="mb-1.5 max-w-[220px] text-xs font-semibold text-red-600 sm:max-w-none">
+              お手数ですが、もう一度ご依頼ください
+            </p>
+            <a
+              href="/portal/submit"
+              className="inline-block rounded-xl bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] px-4 py-2 text-xs font-semibold text-white transition-all hover:shadow-lg active:scale-[0.98] sm:text-sm"
+            >
+              もう一度依頼する
+            </a>
+          </div>
+        ) : status === "revise_failed" ? (
+          // 修正ページの導線は既存の「確認・修正する」ボタンと同じ
+          // /revise/{approval_id} を再利用(revision_count は失敗時に加算
+          // されないため、再送信で1回までの権利は正当に消費できる)。
+          <div className="text-right">
+            <p className="mb-1.5 max-w-[220px] text-xs font-semibold text-red-600 sm:max-w-none">
+              もう一度修正内容をお送りください
+            </p>
+            {row.approval_id && (
+              <a
+                href={`/revise/${row.approval_id}`}
+                className="inline-block rounded-xl bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] px-4 py-2 text-xs font-semibold text-white transition-all hover:shadow-lg active:scale-[0.98] sm:text-sm"
+              >
+                修正ページを開く
+              </a>
+            )}
+          </div>
         ) : null}
       </div>
     </div>

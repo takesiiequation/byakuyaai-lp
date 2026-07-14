@@ -96,6 +96,8 @@ export type PortalStatus =
   | "revising"
   | "posted"
   | "rejected"
+  | "failed"
+  | "revise_failed"
   | "unknown";
 
 /**
@@ -108,6 +110,11 @@ export type PortalStatus =
  * 改修は別途進行中で、この時点ではシートにまだ現れない。フロントは先に
  * この値を認識できるようにしておくだけ(fail-soft: 来なければ従来通り
  * "processing" に丸め込まれるだけで壊れない)。
+ *
+ * "failed"/"revise_failed"(障害ステータス)も同様に先行追加 — 本体WF/差し
+ * 戻しWF側でこれらの値を書く改修は別便(status_visibility_package_draft.md)。
+ * n8n側が未着手の間はシートにこの値がまだ現れないだけで、フロントは
+ * fail-soft に壊れず従来通り "processing" に丸め込まれる。
  */
 export function resolveStatus(row: ProductionRow | null): PortalStatus {
   if (!row) return "unknown";
@@ -116,7 +123,9 @@ export function resolveStatus(row: ProductionRow | null): PortalStatus {
     s === "posted" ||
     s === "pending_approval" ||
     s === "rejected" ||
-    s === "revising"
+    s === "revising" ||
+    s === "failed" ||
+    s === "revise_failed"
   ) {
     return s;
   }
@@ -129,6 +138,8 @@ export const PORTAL_STATUS_LABELS: Record<PortalStatus, string> = {
   revising: "✏️ 修正中",
   posted: "投稿済み",
   rejected: "却下",
+  failed: "⚠️ 生成に失敗しました",
+  revise_failed: "⚠️ 修正に失敗しました",
   unknown: "不明",
 };
 
@@ -138,6 +149,8 @@ export const PORTAL_STATUS_COLORS: Record<PortalStatus, string> = {
   revising: "bg-purple-50 text-purple-700 border-purple-200",
   posted: "bg-green-50 text-green-700 border-green-200",
   rejected: "bg-red-50 text-red-600 border-red-200",
+  failed: "bg-red-50 text-red-700 border-red-300",
+  revise_failed: "bg-red-50 text-red-700 border-red-300",
   unknown: "bg-gray-100 text-gray-400 border-gray-200",
 };
 
@@ -147,7 +160,10 @@ export const PORTAL_STATUS_COLORS: Record<PortalStatus, string> = {
  * a client action always on-screen while collapsing old finished rows —
  * see PortalPage's visible/hidden split. "unknown" deliberately counts as
  * active (not terminal): never hide a row we can't positively confirm is
- * done.
+ * done. "failed"/"revise_failed" are deliberately non-terminal too — they
+ * are an action-needed state (再依頼/再送信待ち), not a done state; treating
+ * them as terminal would let them get buried behind the 5-row collapse and
+ * the client could miss a failure that needs a retry.
  */
 export function isTerminalStatus(status: PortalStatus): boolean {
   return status === "posted" || status === "rejected";

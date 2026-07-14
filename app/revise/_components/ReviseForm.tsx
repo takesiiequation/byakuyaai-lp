@@ -16,6 +16,32 @@ function sanitizeTelop(s: string): string {
   return s.trim();
 }
 
+// Soft nudge only (n8n側の景表法対策=ハードストップ→Discord警告への降格は
+// 別途対応中。フロントはここで注意喚起の確認ダイアログを1回挟むだけで、
+// 送信自体はブロックしない)。拡張しやすいようフラットな配列にしてある —
+// 追加したい語があればここに足すだけでよい。
+const COST_WARNING_KEYWORDS: string[] = [
+  "初期費用",
+  "敷金礼金",
+  "敷金・礼金",
+  "敷金0",
+  "礼金0",
+  "敷金なし",
+  "礼金なし",
+  "敷金無料",
+  "礼金無料",
+  "仲介手数料無料",
+  "仲介手数料0",
+  "手数料無料",
+  "フリーレント",
+  "更新料無料",
+  "0円",
+];
+
+function containsCostWarningKeyword(text: string): boolean {
+  return COST_WARNING_KEYWORDS.some((k) => text.includes(k));
+}
+
 function sanitizeYomi(s: string): string {
   return s.trim();
 }
@@ -243,6 +269,20 @@ export default function ReviseForm({
   }
 
   async function handleConfirmSend() {
+    // 費用系ワードのソフトガード(1回だけ)。修正で送られる文章(テロップ・
+    // 読み上げ台本・キャプション)をまとめてチェックし、該当があれば送信前に
+    // 一度だけ確認する。ブロックはしない — OKなら通常通り送信を続行する。
+    const submittedText = [
+      ...changed.flatMap((c) => [c.new_text ?? "", c.yomi ?? ""]),
+      captionChanged && !captionEmptyInvalid ? captionTrimmed : "",
+    ].join("\n");
+    if (containsCostWarningKeyword(submittedText)) {
+      const proceed = window.confirm(
+        "費用に関する表現が含まれています。マイソク等の事実に基づく内容であることをご確認ください。このまま送信しますか?"
+      );
+      if (!proceed) return;
+    }
+
     setSubmitting(true);
     setSubmitError("");
     try {
@@ -562,6 +602,12 @@ export default function ReviseForm({
           <p className="mt-1.5">
             ※家賃・間取りなどの数値は資料(マイソク)にもとづいています。数値そのものに誤りがある場合は、テロップ修正ではなく資料の再送をお願いします
           </p>
+          <div className="mt-2.5 border-t border-[var(--brand-border)] pt-2.5 text-[10px] leading-relaxed text-[var(--brand-gray-light)]">
+            <p>
+              修正内容はお客様の入力に基づき動画へ反映されます。物件の事実に基づく表現をお願いします(事実と異なる表示は景品表示法違反となるおそれがあります)。
+            </p>
+            <p className="mt-1">修正内容の法的責任はお客様に帰属します。</p>
+          </div>
         </div>
 
         {submitError && (
