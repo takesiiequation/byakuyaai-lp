@@ -145,6 +145,38 @@ const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
 const timeLabel = (h: number, m: number) =>
   `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 
+// プランに応じた「未開放機能」の案内カード — 既存の白カードと同じ骨格
+// (角丸+リング+shadow)だが、半透明+グレーアウトで「存在するが眠っている」
+// 見た目にする(2026-07-15、岡本要望: trialは自動投稿もレポートも不可・
+// standardはレポートのみ不可、と伝わるように)。プラン判定はしない — 呼び出し
+// 側(PortalPage)が渡す真偽値に従って描画するだけの表示専用コンポーネント。
+function FeatureLockCard({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="overflow-hidden rounded-2xl bg-white/60 shadow-sm ring-1 ring-black/5">
+      <div className="border-b border-gray-100/80 px-4 py-4 sm:px-5">
+        <h2 className="text-sm font-bold text-gray-400">{title}</h2>
+      </div>
+      <div className="flex flex-col items-center gap-2 px-6 py-8 text-center sm:px-8">
+        <span aria-hidden className="text-2xl opacity-60 grayscale">
+          🔒
+        </span>
+        <p className="text-xs font-semibold text-gray-400">
+          この機能はプレミアムプランでアンロックされます
+        </p>
+        <p className="max-w-xs text-[11px] leading-relaxed text-gray-400/80">
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // 「今月の投稿予定・実績」— 承認待ちタブの status==='approved' 行(=Publer
 // への投稿が実際に成功した分)を my_post_slot で月グリッドにプロットする。
 // slots は getMonthlyApprovedSlots が渡す sanitized な {property_name, day,
@@ -286,6 +318,17 @@ export default async function PortalPage({
   // Sheets 読み取り自体を発生させない(無駄なAPI呼び出し・セクションも非表示)。
   // ※メール配信側(n8n月次レポートWF Filter Clients)も premium/test に絞り済みで一致。
   const isPremium = client.plan === "premium" || client.plan === "test";
+
+  // 未開放機能のロック表示ルール(2026-07-15、岡本要望)。premium/test は
+  // isPremium===true の一点で常にどちらも false — 既存の見え方を1pxも変えない
+  // ことをこの1行の否定で担保する。
+  //   ・trial: 自動投稿もレポートも不可(メール納品のみ)→ 両方ロック
+  //   ・standard(active): レポートのみ不可 → レポートだけロック
+  //   ・premium / test: 現状のまま(ロック表示なし)
+  const isTrial = client.status === "trial";
+  const lockAutopost = !isPremium && isTrial;
+  const lockReport = !isPremium && (isTrial || client.plan === "standard");
+
   const [rows, monthlySlots, reportRow] = await Promise.all([
     getProductionRows(clientId),
     getMonthlyApprovedSlots(clientId),
@@ -367,11 +410,25 @@ export default async function PortalPage({
         )}
       </div>
 
-      <PostCalendar slots={monthlySlots} year={currentYear} month={currentMonth} />
+      {lockAutopost ? (
+        <FeatureLockCard
+          title="自動投稿"
+          description="承認後、Instagram / TikTok へ自動投稿されます。現在は動画をメールでお届けしています。"
+        />
+      ) : (
+        <PostCalendar slots={monthlySlots} year={currentYear} month={currentMonth} />
+      )}
 
-      {isPremium && (
+      {(isPremium || lockReport) && (
         <div className="mt-6">
-          <MonthlyReportSection reportRow={reportRow} />
+          {isPremium ? (
+            <MonthlyReportSection reportRow={reportRow} />
+          ) : (
+            <FeatureLockCard
+              title="今月のレポート"
+              description="投稿の反響を毎月レポートでお届けします。"
+            />
+          )}
         </div>
       )}
     </Shell>
