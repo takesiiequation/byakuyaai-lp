@@ -93,6 +93,7 @@ export async function getProductionRows(
 export type PortalStatus =
   | "processing"
   | "pending_approval"
+  | "revising"
   | "posted"
   | "rejected"
   | "unknown";
@@ -102,11 +103,21 @@ export type PortalStatus =
  * Unknown/empty/garbage status values all round down to "processing" rather
  * than being treated as done — never claim completion the pipeline hasn't
  * actually reported.
+ *
+ * "revising"(修正依頼中)は 2026-07-15 追加 — 差し戻しWF側がこの値を書く
+ * 改修は別途進行中で、この時点ではシートにまだ現れない。フロントは先に
+ * この値を認識できるようにしておくだけ(fail-soft: 来なければ従来通り
+ * "processing" に丸め込まれるだけで壊れない)。
  */
 export function resolveStatus(row: ProductionRow | null): PortalStatus {
   if (!row) return "unknown";
   const s = String(row.status || "").trim();
-  if (s === "posted" || s === "pending_approval" || s === "rejected") {
+  if (
+    s === "posted" ||
+    s === "pending_approval" ||
+    s === "rejected" ||
+    s === "revising"
+  ) {
     return s;
   }
   return "processing";
@@ -115,6 +126,7 @@ export function resolveStatus(row: ProductionRow | null): PortalStatus {
 export const PORTAL_STATUS_LABELS: Record<PortalStatus, string> = {
   processing: "制作中",
   pending_approval: "承認待ち",
+  revising: "✏️ 修正中",
   posted: "投稿済み",
   rejected: "却下",
   unknown: "不明",
@@ -123,6 +135,7 @@ export const PORTAL_STATUS_LABELS: Record<PortalStatus, string> = {
 export const PORTAL_STATUS_COLORS: Record<PortalStatus, string> = {
   processing: "bg-blue-50 text-blue-700 border-blue-200",
   pending_approval: "bg-amber-50 text-amber-700 border-amber-200",
+  revising: "bg-purple-50 text-purple-700 border-purple-200",
   posted: "bg-green-50 text-green-700 border-green-200",
   rejected: "bg-red-50 text-red-600 border-red-200",
   unknown: "bg-gray-100 text-gray-400 border-gray-200",

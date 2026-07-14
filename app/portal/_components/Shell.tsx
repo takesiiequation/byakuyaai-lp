@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 // Visual twin of app/revise/[approvalId]/page.tsx's (unexported, page-local)
 // Shell — duplicated rather than imported so the customer-facing revise flow
@@ -17,13 +18,16 @@ export function Shell({
     <main className="min-h-screen bg-[var(--brand-cream)]">
       <header className="sticky top-0 z-30 w-full border-b border-[var(--brand-border)] bg-white/90 backdrop-blur-md">
         <div className="flex h-14 items-center px-4 sm:px-6">
-          <Image
-            src="/logo.png"
-            alt="ByakuyaAI"
-            width={120}
-            height={36}
-            className="h-7 w-auto"
-          />
+          {/* 2026-07-15 岡本要望: ロゴクリックでマイページへ戻れるように */}
+          <Link href="/portal" aria-label="マイページへ戻る">
+            <Image
+              src="/logo.png"
+              alt="ByakuyaAI"
+              width={120}
+              height={36}
+              className="h-7 w-auto"
+            />
+          </Link>
         </div>
       </header>
       <div className={`mx-auto py-6 sm:py-10 ${padX} ${maxWidth}`}>

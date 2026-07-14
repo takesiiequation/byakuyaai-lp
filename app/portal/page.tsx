@@ -93,6 +93,13 @@ function StatusRow({ row }: { row: ProductionRow }) {
           <span className="text-xs text-[var(--brand-gray-light)]">
             投稿完了
           </span>
+        ) : status === "revising" ? (
+          // 2026-07-15 岡本要望: 修正依頼を送った案件は「確認・修正する」
+          // ボタンをもう出さない(まだ承認待ちに見えて再クリックされる事故
+          // 防止)。バッジは PORTAL_STATUS_LABELS 側で「✏️ 修正中」表示済み。
+          <span className="text-xs text-[var(--brand-gray-light)]">
+            数分で完了します
+          </span>
         ) : null}
       </div>
     </div>

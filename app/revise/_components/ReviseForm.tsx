@@ -301,6 +301,15 @@ export default function ReviseForm({
               ? "動画を作り直し、キャプションも更新します。完了後に確認メールをお送りします。"
               : "数分で動画を作り直し、確認メールをお送りします。"}
         </p>
+        {/* 2026-07-15 岡本要望: 送信完了後にマイページへ戻れる導線を追加。
+            未ログインなら /portal 側で /portal/login へリダイレクトされる
+            ので、そのままで問題ない。 */}
+        <a
+          href="/portal"
+          className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] px-6 py-3 text-sm font-bold text-white shadow-sm transition-all hover:shadow-lg active:scale-[0.98]"
+        >
+          マイページへ戻る
+        </a>
       </div>
     );
   }
