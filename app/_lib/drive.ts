@@ -3,17 +3,40 @@ import { Readable } from "stream";
 
 const ROOT_FOLDER_ID = process.env.DRIVE_ROOT_FOLDER_ID;
 
+// 2026-07-15: このモジュールは元々 GOOGLE_SERVICE_ACCOUNT_KEY(SA)で動いて
+// いたが、SA は 0 クォータのマイドライブしか持たず、
+// createLineDataSheet() 冒頭の sheets().spreadsheets.create()(親フォルダ
+// 未指定 = 呼び出し主体自身のマイドライブに新規作成)が
+// storageQuotaExceeded(403 "The caller does not have permission")で
+// 恒久的に失敗していた — admin「セットアップ実行」が100%失敗していた
+// 根本原因。portalSubmit.ts が2026-07-14に導入した岡本本人のOAuth
+// (案C)に揃える。
+//
+// スコープ裏取り: リフレッシュトークンのスコープは auth/drive のみだが、
+// Google公式「OAuth 2.0 Scopes for Google APIs」
+// (developers.google.com/identity/protocols/oauth2/scopes)の Sheets API
+// (v4) セクションに https://www.googleapis.com/auth/drive が正式スコープ
+// として明記されている — spreadsheets.create / values.batchUpdate とも
+// auth/drive のみで動く(spreadsheets 専用スコープの追加取得は不要)。
+//
+// fail-closed: 3 env のいずれかが欠けたら明確な理由付きでthrowする。
+// GOOGLE_SERVICE_ACCOUNT_KEY への暗黙フォールバックはしない(同じ403を
+// 黙って再現する事故を構造的に禁止する)。契約社シートの読み書き
+// (sheets.ts等)やポータル系(portalSubmit.ts)は無関係・SAのまま不変。
 function getAuth() {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  if (!raw) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY is not set");
-  const key = JSON.parse(Buffer.from(raw, "base64").toString("utf-8"));
-  return new google.auth.GoogleAuth({
-    credentials: key,
-    scopes: [
-      "https://www.googleapis.com/auth/drive",
-      "https://www.googleapis.com/auth/spreadsheets",
-    ],
-  });
+  const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const refreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error(
+      "GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET / GOOGLE_OAUTH_REFRESH_TOKEN is not set " +
+        "— Drive/Sheets保存はSAではなく岡本本人のOAuthに切替済み(案C・2026-07-14 portalSubmit.ts / " +
+        "2026-07-15 drive.ts)。SAへの暗黙フォールバックはしない(fail-closed)。取得手順は .env.example 参照。"
+    );
+  }
+  const client = new google.auth.OAuth2({ clientId, clientSecret });
+  client.setCredentials({ refresh_token: refreshToken });
+  return client;
 }
 
 function drive() {
@@ -43,9 +66,10 @@ export interface CreateLineDataSheetResult {
   sheetId: string;
   /** True iff folderId was given AND the sheet was successfully moved into
    * it. False (with folderError set) when folderId was given but the move
-   * failed — e.g. the service account isn't shared as Editor on that folder
-   * (see the LINE setup manual, step 3). The sheet still gets created either
-   * way (fail-soft): it just stays wherever spreadsheets.create() put it. */
+   * failed — e.g. 岡本本人のOAuthアカウントがそのフォルダにEditor共有され
+   * ていない(共有ドライブ配下など)場合(see the LINE setup manual, step 3).
+   * The sheet still gets created either way (fail-soft): it just stays
+   * wherever spreadsheets.create() put it (岡本本人のマイドライブ直下)。 */
   placedInFolder: boolean;
   folderError?: string;
 }
@@ -106,7 +130,7 @@ export async function createLineDataSheet(
     } catch (e) {
       folderError = String(e);
       // Fail-soft: leave the sheet where spreadsheets.create() put it
-      // (the service account's own Drive) rather than failing onboarding.
+      // (岡本本人のマイドライブ直下) rather than failing onboarding.
     }
   }
 
@@ -114,10 +138,10 @@ export async function createLineDataSheet(
 }
 
 // --- Module B: BGM/SE media library --------------------------------------
-// Reuses the same broad-scope (drive + spreadsheets) service-account client
-// used above. The service account must be shared as Editor on
-// BGM_FOLDER_ID / SE_FOLDER_ID, same operational requirement as
-// DRIVE_ROOT_FOLDER_ID. Uploaded files are made link-readable ("anyone with
+// Reuses the same OAuth (岡本本人・案C) client used above. BGM_FOLDER_ID /
+// SE_FOLDER_ID must be folders 岡本 can write to (same operational
+// requirement DRIVE_ROOT_FOLDER_ID has). Uploaded files are made
+// link-readable ("anyone with
 // the link") so the admin UI can preview them via a plain
 // `https://drive.google.com/uc?export=download&id=<id>` URL without proxying
 // playback through an authenticated route.
