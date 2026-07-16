@@ -46,6 +46,7 @@ export type PostFrontmatter = {
   priority: string;
   written: string; // ISO date (YYYY-MM-DD)
   target_queries?: string[];
+  thumbnail?: string; // 例: /blog/{slug}.jpg (未設定でも壊れないfail-soft)
 };
 
 export type PostMeta = {
@@ -58,6 +59,7 @@ export type PostMeta = {
   clusterLabel: string;
   priority: string;
   readingMinutes: number;
+  thumbnail?: string;
 };
 
 export type Post = PostMeta & {
@@ -197,6 +199,7 @@ function buildPost(filename: string): Post {
     clusterLabel: CLUSTER_LABELS[data.cluster] ?? data.cluster,
     priority: data.priority,
     readingMinutes: readingMinutesFor(content),
+    thumbnail: data.thumbnail || undefined,
     html: renderHtml(content),
     toc: extractToc(tree),
     faq: extractFaq(tree),
@@ -222,7 +225,7 @@ export function getAllPosts(): Post[] {
 
 export function getAllPostsMeta(): PostMeta[] {
   return getAllPosts().map(
-    ({ slug, id, title, description, publishedAt, cluster, clusterLabel, priority, readingMinutes }) => ({
+    ({ slug, id, title, description, publishedAt, cluster, clusterLabel, priority, readingMinutes, thumbnail }) => ({
       slug,
       id,
       title,
@@ -232,6 +235,7 @@ export function getAllPostsMeta(): PostMeta[] {
       clusterLabel,
       priority,
       readingMinutes,
+      thumbnail,
     })
   );
 }

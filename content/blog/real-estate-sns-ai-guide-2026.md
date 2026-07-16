@@ -7,6 +7,7 @@ priority: P1
 cluster: B
 status: published
 written: 2026-04-23
+thumbnail: /blog/real-estate-sns-ai-guide-2026.jpg
 ---
 
 SUUMO や HOMES にしか物件を載せていない不動産会社が、ここ数年でどんどん取り残されています。若年層・転居検討層は「ポータルで見つける」前に「TikTok や Instagram でエリアと物件の雰囲気を知る」段階をはさむようになったためです。

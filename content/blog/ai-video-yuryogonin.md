@@ -10,6 +10,7 @@ priority: P1
 cluster: C
 status: published
 written: 2026-07-15
+thumbnail: /blog/ai-video-yuryogonin.jpg
 ---
 
 ## 結論

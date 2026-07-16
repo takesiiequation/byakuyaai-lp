@@ -13,6 +13,7 @@ cluster: B
 structured_data: FAQPage
 status: published
 written: 2026-07-15
+thumbnail: /blog/faq-before-contract.jpg
 ---
 
 不動産会社の社長・集客担当の方から、商談の場で実際にいただいた質問をもとに、AI動画サービスを検討する際に気になるポイントをQ&A形式でまとめました。他社サービスを比較検討する際のチェックリストは[外注先の選び方チェックリスト](/blog/outsourcing-checklist)、法令面の全体像は[景品表示法・宅建業法 完全ガイド](/blog/keihyoho-takkengyoho-complete-guide)で詳しく解説しています。

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
 import { getAllPostsMeta, CLUSTER_LABELS, type ClusterId, type PostMeta } from "../_lib/blog";
 import { SiteHeader } from "../_components/SiteHeader";
@@ -70,23 +71,36 @@ function PostCard({ post }: { post: PostMeta }) {
   return (
     <Link
       href={`/blog/${post.slug}`}
-      className="group block rounded-2xl border border-[var(--brand-border)] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--brand-orange)]/60 hover:shadow-md sm:p-7"
+      className="group block overflow-hidden rounded-2xl border border-[var(--brand-border)] bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--brand-orange)]/60 hover:shadow-md"
     >
-      <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-[var(--brand-gray-light)] sm:text-xs">
-        <span className="rounded-full bg-[var(--brand-cream)] px-2.5 py-0.5 text-[10px] font-bold text-[var(--brand-orange-dark)]">
-          {post.clusterLabel}
-        </span>
-        <span aria-hidden>·</span>
-        <time dateTime={post.publishedAt}>{formatDate(post.publishedAt)}</time>
-        <span aria-hidden>·</span>
-        <span>約{post.readingMinutes}分で読めます</span>
+      {post.thumbnail && (
+        <div className="relative aspect-[1200/630] w-full overflow-hidden bg-[var(--brand-cream)]">
+          <Image
+            src={post.thumbnail}
+            alt=""
+            fill
+            sizes="(min-width: 640px) 640px, 100vw"
+            className="object-cover transition duration-300 group-hover:scale-[1.03]"
+          />
+        </div>
+      )}
+      <div className="p-5 sm:p-7">
+        <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-[var(--brand-gray-light)] sm:text-xs">
+          <span className="rounded-full bg-[var(--brand-cream)] px-2.5 py-0.5 text-[10px] font-bold text-[var(--brand-orange-dark)]">
+            {post.clusterLabel}
+          </span>
+          <span aria-hidden>·</span>
+          <time dateTime={post.publishedAt}>{formatDate(post.publishedAt)}</time>
+          <span aria-hidden>·</span>
+          <span>約{post.readingMinutes}分で読めます</span>
+        </div>
+        <h3 className="mb-2 text-lg font-black leading-snug text-[var(--brand-ink)] transition group-hover:text-[var(--brand-orange-dark)] sm:text-xl">
+          {post.title}
+        </h3>
+        <p className="text-sm leading-relaxed text-[var(--brand-gray)]">
+          {post.description}
+        </p>
       </div>
-      <h3 className="mb-2 text-lg font-black leading-snug text-[var(--brand-ink)] transition group-hover:text-[var(--brand-orange-dark)] sm:text-xl">
-        {post.title}
-      </h3>
-      <p className="text-sm leading-relaxed text-[var(--brand-gray)]">
-        {post.description}
-      </p>
     </Link>
   );
 }

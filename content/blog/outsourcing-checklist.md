@@ -11,6 +11,7 @@ priority: P1
 cluster: B
 status: published
 written: 2026-07-15
+thumbnail: /blog/outsourcing-checklist.jpg
 ---
 
 ## 結論: 確認すべきは「実績」「法令順守」「契約」「事業継続性」の4カテゴリ

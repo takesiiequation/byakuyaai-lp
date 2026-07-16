@@ -11,6 +11,7 @@ priority: P1
 cluster: B
 status: published
 written: 2026-07-15
+thumbnail: /blog/video-production-4-options-compared.jpg
 ---
 
 ## 結論: 月の本数と物件供給量で選択肢は絞り込める

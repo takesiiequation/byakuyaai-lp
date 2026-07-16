@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getAllPostsMeta, getPostBySlug } from "../../_lib/blog";
@@ -20,6 +21,7 @@ export async function generateMetadata({
   const post = getPostBySlug(slug);
   if (!post) return {};
   const url = `${SITE_URL}/blog/${post.slug}`;
+  const ogImage = post.thumbnail ? `${SITE_URL}${post.thumbnail}` : undefined;
   return {
     title: post.title,
     description: post.description,
@@ -34,11 +36,13 @@ export async function generateMetadata({
       url,
       siteName: "ByakuyaAI",
       locale: "ja_JP",
+      ...(ogImage ? { images: [{ url: ogImage, width: 1200, height: 630 }] } : {}),
     },
     twitter: {
       card: "summary_large_image",
       title: post.title,
       description: post.description,
+      ...(ogImage ? { images: [ogImage] } : {}),
     },
   };
 }
@@ -129,6 +133,19 @@ export default async function BlogPostPage({
               {post.title}
             </h1>
           </div>
+
+          {post.thumbnail && (
+            <div className="relative mb-10 aspect-[1200/630] w-full overflow-hidden rounded-2xl bg-[var(--brand-cream)]">
+              <Image
+                src={post.thumbnail}
+                alt=""
+                fill
+                priority
+                sizes="(min-width: 672px) 672px, 100vw"
+                className="object-cover"
+              />
+            </div>
+          )}
 
           {post.toc.length > 1 && (
             <nav

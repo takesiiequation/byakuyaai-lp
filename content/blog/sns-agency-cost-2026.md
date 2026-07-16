@@ -11,6 +11,7 @@ priority: P1
 cluster: B
 status: published
 written: 2026-07-15
+thumbnail: /blog/sns-agency-cost-2026.jpg
 ---
 
 ## 結論: 月額5万円〜50万円超まで幅があり、価格を決めるのは「動画制作を含むかどうか」
