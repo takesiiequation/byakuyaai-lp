@@ -430,6 +430,29 @@ export default async function PortalPage({
         ＋ 新しい動画を作る
       </a>
 
+      {/* 写真撮影ガイドへの導線 — trial顧客の素材品質(設備ドアップ・引き不足)
+          が動画の魅力を下げていた実例を受けた顧客教育コンテンツ(2026-07-16)。
+          「+新しい動画を作る」の直下=最上部に置き、目に入りやすくする。 */}
+      <a
+        href="/portal/guide"
+        className="mb-6 flex items-center gap-3 rounded-2xl border-l-4 border-[var(--brand-orange)] bg-white px-5 py-4 shadow-sm ring-1 ring-black/5 transition-all hover:shadow-md active:scale-[0.99]"
+      >
+        <span aria-hidden className="shrink-0 text-2xl">
+          📸
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold text-[var(--brand-ink)]">
+            魅力的な動画になる写真の撮り方
+          </span>
+          <span className="mt-0.5 block text-xs text-[var(--brand-gray-light)]">
+            1分で読めます
+          </span>
+        </span>
+        <span aria-hidden className="shrink-0 text-[var(--brand-orange)]">
+          →
+        </span>
+      </a>
+
       <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 overflow-hidden mb-6">
         {rows.length === 0 ? (
           <div className="p-8 text-center text-[var(--brand-gray-light)] text-sm">

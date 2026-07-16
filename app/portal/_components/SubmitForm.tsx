@@ -430,6 +430,14 @@ export default function SubmitForm({
           そのまま動画に使用する写真({RECOMMENDED_PHOTOS}推奨・最大
           {MAX_PHOTOS}枚)。JPEG / PNG / WebP
         </p>
+        <a
+          href="/portal/guide"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mb-3 block text-xs font-semibold text-[var(--brand-orange-dark)] underline decoration-[var(--brand-orange)]/40 underline-offset-2 hover:decoration-current"
+        >
+          📸 魅力的な動画になる写真の撮り方はこちら
+        </a>
         <input
           ref={photosInputRef}
           type="file"
