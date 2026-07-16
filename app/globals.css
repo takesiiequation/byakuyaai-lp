@@ -564,15 +564,89 @@ html.theme-switching * {
   list-style-type: disc;
   padding-left: 1.4em;
 }
-.prose-custom ul li {
+.prose-custom ol {
+  list-style-type: decimal;
+  padding-left: 1.4em;
+}
+.prose-custom ul li,
+.prose-custom ol li {
   margin-top: 0.4em;
   color: var(--brand-gray);
+}
+.prose-custom ul li::marker,
+.prose-custom ol li::marker {
+  color: var(--brand-orange-dark);
+}
+.prose-custom li > p {
+  margin-top: 0;
 }
 .prose-custom strong {
   color: var(--brand-ink);
   font-weight: 800;
   background: linear-gradient(transparent 60%, rgba(247, 147, 30, 0.25) 60%);
   padding: 0 0.1em;
+}
+.prose-custom a {
+  color: var(--brand-orange-dark);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: rgba(247, 147, 30, 0.4);
+  text-underline-offset: 2px;
+}
+.prose-custom a:hover {
+  text-decoration-color: currentColor;
+}
+.prose-custom blockquote {
+  margin: 0;
+  border-left: 4px solid var(--brand-orange-light);
+  background: var(--brand-cream);
+  padding: 0.9em 1.2em;
+  border-radius: 0 0.75rem 0.75rem 0;
+  color: var(--brand-gray);
+  font-style: italic;
+}
+.prose-custom blockquote p {
+  margin: 0;
+}
+.prose-custom blockquote p + p {
+  margin-top: 0.6em;
+}
+.prose-custom hr {
+  margin: 2.4em 0;
+  border: none;
+  border-top: 1px solid var(--brand-border);
+}
+.prose-custom em {
+  color: var(--brand-gray);
+}
+.prose-custom table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  border-radius: 0.75rem;
+  border: 1px solid var(--brand-border);
+  font-size: 0.85rem;
+}
+.prose-custom th,
+.prose-custom td {
+  padding: 0.65em 0.9em;
+  text-align: left;
+  border-bottom: 1px solid var(--brand-border);
+  vertical-align: top;
+}
+.prose-custom thead th {
+  background: var(--brand-cream);
+  color: var(--brand-orange-dark);
+  font-weight: 800;
+  white-space: nowrap;
+}
+.prose-custom tbody tr:last-child td {
+  border-bottom: none;
+}
+.prose-custom tbody tr:nth-child(even) {
+  background: rgba(254, 249, 240, 0.6);
 }
 @media (min-width: 640px) {
   .prose-custom {
@@ -583,6 +657,9 @@ html.theme-switching * {
   }
   .prose-custom h3 {
     font-size: 1.2rem;
+  }
+  .prose-custom table {
+    font-size: 0.9rem;
   }
 }
 

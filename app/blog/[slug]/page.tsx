@@ -1,8 +1,11 @@
 import Link from "next/link";
-import Image from "next/image";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getAllPostsMeta, getPostBySlug } from "../../_data/posts";
+import { getAllPostsMeta, getPostBySlug } from "../../_lib/blog";
+import { SiteHeader } from "../../_components/SiteHeader";
+import { SiteFooter } from "../../_components/SiteFooter";
+
+const SITE_URL = "https://byakuyaai.com";
 
 export function generateStaticParams() {
   return getAllPostsMeta().map((p) => ({ slug: p.slug }));
@@ -16,16 +19,21 @@ export async function generateMetadata({
   const { slug } = await params;
   const post = getPostBySlug(slug);
   if (!post) return {};
+  const url = `${SITE_URL}/blog/${post.slug}`;
   return {
     title: post.title,
     description: post.description,
-    alternates: { canonical: `https://byakuyaai.com/blog/${post.slug}` },
+    alternates: { canonical: url },
     openGraph: {
       title: post.title,
       description: post.description,
       type: "article",
       publishedTime: post.publishedAt,
-      url: `https://byakuyaai.com/blog/${post.slug}`,
+      modifiedTime: post.publishedAt,
+      authors: ["ByakuyaAI"],
+      url,
+      siteName: "ByakuyaAI",
+      locale: "ja_JP",
     },
     twitter: {
       card: "summary_large_image",
@@ -44,6 +52,8 @@ export default async function BlogPostPage({
   const post = getPostBySlug(slug);
   if (!post) notFound();
 
+  const url = `${SITE_URL}/blog/${post.slug}`;
+
   const articleJsonLd = {
     "@context": "https://schema.org",
     "@type": "Article",
@@ -51,17 +61,34 @@ export default async function BlogPostPage({
     description: post.description,
     datePublished: post.publishedAt,
     dateModified: post.publishedAt,
-    author: { "@type": "Organization", name: "ByakuyaAI" },
+    author: { "@type": "Organization", name: "ByakuyaAI", url: SITE_URL },
     publisher: {
       "@type": "Organization",
       name: "ByakuyaAI",
       logo: {
         "@type": "ImageObject",
-        url: "https://byakuyaai.com/logo.png",
+        url: `${SITE_URL}/logo.png`,
       },
     },
-    mainEntityOfPage: `https://byakuyaai.com/blog/${post.slug}`,
+    mainEntityOfPage: { "@type": "WebPage", "@id": url },
+    inLanguage: "ja-JP",
   };
+
+  const faqJsonLd =
+    post.faq.length > 0
+      ? {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: post.faq.map((item) => ({
+            "@type": "Question",
+            name: item.question,
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: item.answer,
+            },
+          })),
+        }
+      : null;
 
   return (
     <main className="flex min-h-screen flex-col bg-white">
@@ -69,7 +96,13 @@ export default async function BlogPostPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
       />
-      <BlogHeader />
+      {faqJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+        />
+      )}
+      <SiteHeader />
 
       <article className="flex-1 px-4 py-10 sm:px-6 sm:py-14">
         <div className="mx-auto max-w-2xl">
@@ -84,28 +117,46 @@ export default async function BlogPostPage({
 
           <div className="mb-8 border-b border-[var(--brand-border)] pb-6">
             <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] text-[var(--brand-gray-light)] sm:text-xs">
-              <time dateTime={post.publishedAt}>
-                {formatDate(post.publishedAt)}
-              </time>
+              <span className="rounded-full bg-[var(--brand-cream)] px-2.5 py-0.5 text-[10px] font-bold text-[var(--brand-orange-dark)]">
+                {post.clusterLabel}
+              </span>
+              <span aria-hidden>·</span>
+              <time dateTime={post.publishedAt}>{formatDate(post.publishedAt)}</time>
               <span aria-hidden>·</span>
               <span>約{post.readingMinutes}分で読めます</span>
             </div>
             <h1 className="text-2xl font-black leading-tight text-[var(--brand-ink)] sm:text-3xl lg:text-4xl">
               {post.title}
             </h1>
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              {post.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-full bg-[var(--brand-cream)] px-2.5 py-0.5 text-[10px] font-bold text-[var(--brand-orange-dark)]"
-                >
-                  #{tag}
-                </span>
-              ))}
-            </div>
           </div>
 
-          <div className="prose-custom">{post.body()}</div>
+          {post.toc.length > 1 && (
+            <nav
+              aria-label="目次"
+              className="mb-10 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-cream)]/40 p-5 sm:p-6"
+            >
+              <p className="mb-3 text-xs font-bold tracking-widest text-[var(--brand-orange-dark)]">
+                目次
+              </p>
+              <ol className="space-y-2 text-sm">
+                {post.toc.map((item, i) => (
+                  <li key={item.id}>
+                    <a
+                      href={`#${item.id}`}
+                      className="text-[var(--brand-gray)] transition hover:text-[var(--brand-orange-dark)]"
+                    >
+                      {i + 1}. {item.text}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </nav>
+          )}
+
+          <div
+            className="prose-custom"
+            dangerouslySetInnerHTML={{ __html: post.html }}
+          />
 
           <div className="mt-12 rounded-2xl border border-[var(--brand-orange)]/30 bg-[var(--brand-cream)]/40 p-6 text-center sm:p-8">
             <p className="mb-3 text-sm font-bold text-[var(--brand-ink)]">
@@ -121,42 +172,8 @@ export default async function BlogPostPage({
         </div>
       </article>
 
-      <BlogFooter />
+      <SiteFooter />
     </main>
-  );
-}
-
-function BlogHeader() {
-  return (
-    <header className="sticky top-0 z-50 w-full border-b border-[var(--brand-border)] bg-white/90 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-2xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-3">
-          <Image
-            src="/logo.png"
-            alt="ByakuyaAI"
-            width={120}
-            height={36}
-            className="h-8 w-auto"
-          />
-        </Link>
-        <Link
-          href="/"
-          className="text-xs font-bold text-[var(--brand-gray)] transition hover:text-[var(--brand-orange)] sm:text-sm"
-        >
-          ← トップへ戻る
-        </Link>
-      </div>
-    </header>
-  );
-}
-
-function BlogFooter() {
-  return (
-    <footer className="border-t border-[var(--brand-border)] bg-white py-8 text-center text-xs text-[var(--brand-gray-light)]">
-      <div className="mx-auto max-w-2xl px-4 sm:px-6">
-        <p>© ByakuyaAI · info@byakuyaai.com</p>
-      </div>
-    </footer>
   );
 }
 
