@@ -16,6 +16,7 @@ import {
 } from "@/app/_lib/portal";
 import { Shell, MessageCard } from "./_components/Shell";
 import LogoutButton from "./_components/LogoutButton";
+import ApprovalActions from "./_components/ApprovalActions";
 import CollapsedHistory from "./_components/CollapsedHistory";
 import { MonthlyReportSection } from "./_components/MonthlyReport";
 import { getLatestReport } from "@/app/_lib/report";
@@ -79,12 +80,15 @@ function StatusRow({ row }: { row: ProductionRow }) {
       </div>
       <div className="shrink-0">
         {status === "pending_approval" && row.approval_id ? (
-          <a
-            href={`/revise/${row.approval_id}`}
-            className="inline-block bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] text-white font-semibold rounded-xl px-4 py-2 text-xs sm:text-sm hover:shadow-lg transition-all active:scale-[0.98]"
-          >
-            確認・修正する
-          </a>
+          // 2026-07-17 岡本要望: 承認メールのボタンからしか承認/却下できず
+          // ポータルには「確認・修正する」しかなかった盲点を埋める。
+          // ApprovalActions が承認/却下/確認・修正するの3つをまとめて描画する
+          // (実体は承認メールの<form>と同一の n8n webhook — app/_lib/
+          // approvalAction.ts参照)。
+          <ApprovalActions
+            approvalId={row.approval_id}
+            propertyName={row.property_name}
+          />
         ) : status === "posted" ? (
           // Deliberately no video URL/link here — video_url_raw expires in
           // ~3 days and permanent hosting isn't built yet (design §7.3 /
