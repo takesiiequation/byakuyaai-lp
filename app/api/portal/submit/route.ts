@@ -13,6 +13,7 @@ import {
 import {
   ASPECT_RATIOS,
   DEAL_TYPES,
+  MAX_APPEAL_NOTE_LENGTH,
   MAX_PHOTOS,
   type AspectRatio,
   type DealType,
@@ -56,6 +57,7 @@ export async function POST(req: NextRequest) {
     aspect_ratio?: unknown;
     deal_type?: unknown;
     email?: unknown;
+    appeal_note?: unknown;
   };
   try {
     body = await req.json();
@@ -132,6 +134,14 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+
+  // 2026-07-17 魅力ゾーン: 任意項目・fail-soft(欠落/不正型は空文字扱い)。
+  // フロントは maxLength=1000 で防いでいるが、直APIコール等でそれを迂回
+  // されても壊れないよう、ここでも上限まで切り詰める(拒否はしない)。
+  const appealNote =
+    typeof body.appeal_note === "string"
+      ? body.appeal_note.trim().slice(0, MAX_APPEAL_NOTE_LENGTH)
+      : "";
 
   // secret_key 空 = シート設定漏れ。n8nに投げても invalid_secret_key に
   // なるだけなので手前で止める(罠(4)-7と同型の静かな事故防止)。
@@ -210,7 +220,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // --- ペイロード組み立て(仕様書(2) 全13フィールド) ---
+  // --- ペイロード組み立て(仕様書(2) 全13フィールド + appeal_note) ---
   const payload = buildSubmitPayload({
     bundle,
     client,
@@ -219,6 +229,7 @@ export async function POST(req: NextRequest) {
     photoFileIds,
     aspectRatio: aspectRatio as AspectRatio,
     dealType: dealType as DealType,
+    appealNote,
   });
 
   const violations = payloadViolations(payload);

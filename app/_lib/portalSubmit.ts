@@ -385,7 +385,7 @@ function escapeQueryValue(v: string): string {
 }
 
 // ------------------------------------------------------------
-// ペイロード(仕様書(2) 全13フィールド・GAS正本互換)
+// ペイロード(仕様書(2) 全13フィールド・GAS正本互換 + appeal_note)
 // ------------------------------------------------------------
 
 export interface SubmitPayload {
@@ -402,6 +402,11 @@ export interface SubmitPayload {
   staging_folder_id: string; // 常に ""
   nostaging_folder_id: string;
   maisoku_folder_id: string;
+  // 2026-07-17 魅力ゾーン: GAS標準フォーム13フィールドには無い新規
+  // フィールド(任意・空文字許容)。n8n Parse Form Data 側が
+  // appeal_note 欠落/空文字を fail-soft で受ける前提で追加した —
+  // 既存のGAS経路(本フィールドを送らない)は影響を受けない。
+  appeal_note: string;
 }
 
 export function buildSubmitPayload(opts: {
@@ -412,6 +417,7 @@ export function buildSubmitPayload(opts: {
   photoFileIds: string[];
   aspectRatio: AspectRatio;
   dealType: DealType;
+  appealNote: string;
 }): SubmitPayload {
   return {
     test_bypass: false,
@@ -427,6 +433,7 @@ export function buildSubmitPayload(opts: {
     staging_folder_id: "",
     nostaging_folder_id: opts.bundle.original_folder_id,
     maisoku_folder_id: opts.bundle.maisoku_folder_id,
+    appeal_note: opts.appealNote,
   };
 }
 

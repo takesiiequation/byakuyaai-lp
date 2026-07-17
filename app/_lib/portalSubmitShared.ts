@@ -36,6 +36,38 @@ export type AspectRatio = (typeof ASPECT_RATIOS)[number];
 export const DEAL_TYPES = ["rental", "sale"] as const;
 export type DealType = (typeof DEAL_TYPES)[number];
 
+// 2026-07-17 魅力ゾーン: 「この物件の魅力」自由記入欄(任意)。GAS標準
+// フォームの13フィールドには無い新規フィールド(=payload は14フィールド
+// になる。n8n側の Parse Form Data が空文字fail-softで受ける前提)。
+export const MAX_APPEAL_NOTE_LENGTH = 1000;
+
+// 費用系ワードのソフトガード(app/revise/_components/ReviseForm.tsx の
+// COST_WARNING_KEYWORDS と同じ運用・同じ語彙をここに複製)。ブロックは
+// せず、送信前に一度だけ確認ダイアログを挟むだけ。将来語を増やす場合は
+// 両ファイルに反映すること(意図的に共有importにしていない — revise側は
+// 別フォームの別関心事のため、疎結合を優先)。
+export const COST_WARNING_KEYWORDS: string[] = [
+  "初期費用",
+  "敷金礼金",
+  "敷金・礼金",
+  "敷金0",
+  "礼金0",
+  "敷金なし",
+  "礼金なし",
+  "敷金無料",
+  "礼金無料",
+  "仲介手数料無料",
+  "仲介手数料0",
+  "手数料無料",
+  "フリーレント",
+  "更新料無料",
+  "0円",
+];
+
+export function containsCostWarningKeyword(text: string): boolean {
+  return COST_WARNING_KEYWORDS.some((k) => text.includes(k));
+}
+
 export interface FileCheck {
   ok: boolean;
   error?: string;

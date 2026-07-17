@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import {
   ASPECT_RATIOS,
   DEAL_TYPES,
+  MAX_APPEAL_NOTE_LENGTH,
   MAX_PHOTOS,
   RECOMMENDED_PHOTOS,
   checkMaisokuFile,
   checkPhotoFile,
+  containsCostWarningKeyword,
   type AspectRatio,
   type DealType,
 } from "@/app/_lib/portalSubmitShared";
@@ -17,6 +19,8 @@ import {
 // (fudosan-video/docs/forms_v15/standard_form.gs が拾う質問)と同じ:
 //   マイソク / そのまま使用する写真 / アスペクト比 / 取引種別
 // +通知メール(GASでは回答者メール自動取得だった分を明示入力に)。
+// +魅力メモ(appeal_note・2026-07-17追加・GAS標準フォームには無い新項目。
+//   任意・自由記入・n8n Parse Form Data が空文字fail-softで受ける)。
 // 秘密鍵の質問だけはポータルでは不要 — ログイン済みなのでサーバー側が
 // 契約社シートから取得する(鍵はブラウザに一切来ない)。
 //
@@ -125,6 +129,7 @@ export default function SubmitForm({
   const [photos, setPhotos] = useState<File[]>([]);
   const [aspect, setAspect] = useState<AspectRatio>("9:16");
   const [deal, setDeal] = useState<DealType>("rental");
+  const [appealNote, setAppealNote] = useState("");
   const [email, setEmail] = useState(defaultEmail);
   const [error, setError] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
@@ -180,6 +185,19 @@ export default function SubmitForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit || !maisoku) return;
+
+    // 費用系ワードのソフトガード(app/revise/_components/ReviseForm.tsx の
+    // COST_WARNING_KEYWORDS と同じ流儀)。魅力メモ(自由記入)がここに
+    // 該当したら送信前に一度だけ確認する。ブロックはしない — OKなら
+    // 通常通り送信を続行する。アップロード開始前(=通信が始まる前)に
+    // 確認するため、他のバリデーションより先に行う。
+    if (containsCostWarningKeyword(appealNote)) {
+      const proceed = window.confirm(
+        "費用に関する表現が含まれています。マイソク等の事実に基づく内容であることをご確認ください。このまま送信しますか?"
+      );
+      if (!proceed) return;
+    }
+
     setError("");
     setDryRun(null);
     setPhase("working");
@@ -270,6 +288,7 @@ export default function SubmitForm({
           aspect_ratio: aspect,
           deal_type: deal,
           email: email.trim(),
+          appeal_note: appealNote.trim(),
         });
       } catch {
         setPhase("ambiguous");
@@ -543,6 +562,32 @@ export default function SubmitForm({
             </label>
           ))}
         </div>
+      </div>
+
+      {/* 魅力メモ(任意) */}
+      <div>
+        <label className="block text-sm font-bold text-[var(--brand-ink)] mb-1">
+          この物件の魅力があれば、自由にお書きください(任意・箇条書きでも文章でもOK)
+        </label>
+        <p className="text-xs text-[var(--brand-gray-light)] mb-2">
+          物件を実際にご存知の担当者ならではの一次情報をAIが台本づくりに活かします。家賃等の数値・条件はマイソクの記載が優先されます
+        </p>
+        <textarea
+          value={appealNote}
+          disabled={busy}
+          onChange={(e) =>
+            setAppealNote(e.target.value.slice(0, MAX_APPEAL_NOTE_LENGTH))
+          }
+          maxLength={MAX_APPEAL_NOTE_LENGTH}
+          rows={5}
+          placeholder={
+            "例:\n・午後は陽当たりが良くリビングがとても明るい\n・向かいが公園で、窓からの景色と静かさが魅力\n・角部屋で風通しが良い"
+          }
+          className={`${inputClass} resize-y`}
+        />
+        <p className="mt-1 text-right text-[11px] text-[var(--brand-gray-light)]">
+          {appealNote.length} / {MAX_APPEAL_NOTE_LENGTH}
+        </p>
       </div>
 
       {/* 通知メール */}
