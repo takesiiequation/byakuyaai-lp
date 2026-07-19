@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 };
 
 // 表示するクラスターの並び順(掲載中の記事があるものだけ表示される)
-const CLUSTER_ORDER: ClusterId[] = ["A", "B", "C", "D", "E", "F"];
+const CLUSTER_ORDER: ClusterId[] = ["A", "B", "C", "D", "E", "F", "G"];
 
 export default function BlogIndexPage() {
   const posts = getAllPostsMeta();

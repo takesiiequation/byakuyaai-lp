@@ -19,7 +19,7 @@ import type { Root, Heading, RootContent } from "mdast";
 
 const BLOG_DIR = path.join(process.cwd(), "content", "blog");
 
-export type ClusterId = "A" | "B" | "C" | "D" | "E" | "F";
+export type ClusterId = "A" | "B" | "C" | "D" | "E" | "F" | "G";
 
 export const CLUSTER_LABELS: Record<ClusterId, string> = {
   A: "SNS動画マーケティング",
@@ -28,11 +28,12 @@ export const CLUSTER_LABELS: Record<ClusterId, string> = {
   D: "AI時代の集客(MEO・AEO)",
   E: "LINE×AI",
   F: "バズの型・AI動画技術",
+  G: "感情起点・啓発(なぜ今AIなのか)",
 };
 
 // 公開順(トピックマップの掲載順に合わせた表示順)。
 // 新しい記事を追加したら id をここに足す。
-const DISPLAY_ORDER = ["A1", "A6", "B1", "B2", "B3", "B4", "B5", "B6", "C1", "C4"];
+const DISPLAY_ORDER = ["A1", "A6", "B1", "B2", "B3", "B4", "B5", "B6", "C1", "C4", "G1", "G2", "G6"];
 
 export type TocItem = { id: string; text: string; depth: number };
 export type FaqItem = { question: string; answer: string };
