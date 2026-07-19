@@ -8,6 +8,15 @@ import { SiteFooter } from "../../_components/SiteFooter";
 
 const SITE_URL = "https://byakuyaai.com";
 
+// 予約公開(publishAt)記事が、再デプロイなしで公開時刻後に自動で出てくるための ISR。
+export const revalidate = 21600; // 6時間
+
+// getAllPostsMeta() は publishAt が未来の記事を除外済みなので、ビルド時点では
+// 静的パスを生成しない。dynamicParams=true により、公開時刻を過ぎてから
+// 最初にアクセスされたタイミングでオンデマンド生成・キャッシュされる
+// (それまでは getPostBySlug が undefined を返し notFound() = 404)。
+export const dynamicParams = true;
+
 export function generateStaticParams() {
   return getAllPostsMeta().map((p) => ({ slug: p.slug }));
 }

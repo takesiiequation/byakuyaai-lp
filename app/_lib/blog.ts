@@ -48,6 +48,9 @@ export type PostFrontmatter = {
   written: string; // ISO date (YYYY-MM-DD)
   target_queries?: string[];
   thumbnail?: string; // 例: /blog/{slug}.jpg (未設定でも壊れないfail-soft)
+  // 予約公開。ISO日時(例: 2026-07-22T10:00:00+09:00)を推奨。
+  // 未設定 or パース失敗は即公開扱い(fail-open・完全後方互換)。
+  publishAt?: string;
 };
 
 export type PostMeta = {
@@ -67,6 +70,7 @@ export type Post = PostMeta & {
   html: string;
   toc: TocItem[];
   faq: FaqItem[];
+  publishAt?: string;
 };
 
 function mdastToText(node: RootContent | Root): string {
@@ -183,6 +187,19 @@ function normalizeDate(value: unknown): string {
   return String(value);
 }
 
+/**
+ * 予約公開ゲート。publishAt が未来なら false(=まだ出さない)。
+ * - 未設定 → true(常に公開・既存記事は完全後方互換)
+ * - パース失敗 → true(fail-open。壊れた設定で記事が無言で消えるより、
+ *   意図せず即時公開される方が実害が小さい)
+ */
+function isPublished(publishAt: string | undefined, now: Date): boolean {
+  if (!publishAt) return true;
+  const t = Date.parse(publishAt);
+  if (Number.isNaN(t)) return true;
+  return t <= now.getTime();
+}
+
 function buildPost(filename: string): Post {
   const slug = filename.replace(/\.md$/, "");
   const { data, content, raw } = readSource(filename);
@@ -201,6 +218,7 @@ function buildPost(filename: string): Post {
     priority: data.priority,
     readingMinutes: readingMinutesFor(content),
     thumbnail: data.thumbnail || undefined,
+    publishAt: data.publishAt || undefined,
     html: renderHtml(content),
     toc: extractToc(tree),
     faq: extractFaq(tree),
@@ -221,7 +239,10 @@ function displayRank(id: string): number {
 }
 
 export function getAllPosts(): Post[] {
-  return [...loadAll()].sort((a, b) => displayRank(a.id) - displayRank(b.id));
+  const now = new Date();
+  return [...loadAll()]
+    .filter((post) => isPublished(post.publishAt, now))
+    .sort((a, b) => displayRank(a.id) - displayRank(b.id));
 }
 
 export function getAllPostsMeta(): PostMeta[] {
@@ -242,5 +263,9 @@ export function getAllPostsMeta(): PostMeta[] {
 }
 
 export function getPostBySlug(slug: string): Post | undefined {
-  return loadAll().find((p) => p.slug === slug);
+  const post = loadAll().find((p) => p.slug === slug);
+  if (!post) return undefined;
+  // 未来の publishAt を持つ記事は直接URLアクセスでも404扱い(呼び出し元が notFound() する)。
+  if (!isPublished(post.publishAt, new Date())) return undefined;
+  return post;
 }

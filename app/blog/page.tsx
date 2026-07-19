@@ -5,6 +5,9 @@ import { getAllPostsMeta, CLUSTER_LABELS, type ClusterId, type PostMeta } from "
 import { SiteHeader } from "../_components/SiteHeader";
 import { SiteFooter } from "../_components/SiteFooter";
 
+// 予約公開(publishAt)記事が、再デプロイなしで公開時刻後に自動で出てくるための ISR。
+export const revalidate = 21600; // 6時間
+
 export const metadata: Metadata = {
   title: "ブログ",
   description:

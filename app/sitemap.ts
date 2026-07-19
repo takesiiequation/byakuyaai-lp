@@ -3,6 +3,9 @@ import { getAllPostsMeta } from "./_lib/blog";
 
 const SITE_URL = "https://byakuyaai.com";
 
+// 予約公開(publishAt)記事が、再デプロイなしで公開時刻後に自動で出てくるための ISR。
+export const revalidate = 21600; // 6時間
+
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
   const posts = getAllPostsMeta();
