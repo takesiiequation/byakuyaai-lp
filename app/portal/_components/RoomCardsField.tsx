@@ -10,6 +10,7 @@
 // 意味論=順序のみ・design.md §0-4)。生成AI用語は出さない — 文言は
 // 「この順に映像が動きます」等の顧客語彙のみ(要件7)。
 
+import { useEffect, useMemo } from "react";
 import {
   MAX_ROOMS,
   MAX_ROOM_PHOTOS_PER_CARD,
@@ -43,6 +44,50 @@ export interface RoomCardState {
 function formatBytes(n: number): string {
   if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)}MB`;
   return `${Math.max(1, Math.round(n / 1024))}KB`;
+}
+
+const thumbClass =
+  "h-24 w-24 shrink-0 rounded-lg object-cover ring-1 ring-black/10 bg-black/5";
+
+/** 部屋カードUI サムネイル(P1・入稿UI仕様v3)。写真は実画像、動画は
+ * <video>のメタデータプレビュー(muted・自動再生しない=poster的表示)。
+ * URL.createObjectURL は同期API(ネットワーク待ちなし)なのでレンダー中に
+ * useMemoで直接生成し、破棄(revoke)だけをuseEffectのクリーンアップに
+ * 閉じ込める(fileが変わる/アンマウントされるたびに必ずrevoke=メモリ
+ * リーク防止。RoomCardsField本体は毎レンダーでobjectURLを作らない —
+ * 生成/破棄の責務をこの子コンポーネントに閉じ込めるための切り出し)。 */
+function ItemThumbnail({ file, kind }: { file: File; kind: "photo" | "video" }) {
+  const url = useMemo(() => URL.createObjectURL(file), [file]);
+
+  useEffect(() => {
+    return () => URL.revokeObjectURL(url);
+  }, [url]);
+
+  if (kind === "photo") {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={url} alt="" className={thumbClass} />
+    );
+  }
+  return (
+    <video
+      src={url}
+      muted
+      playsInline
+      preload="metadata"
+      className={thumbClass}
+      onLoadedMetadata={(e) => {
+        const v = e.currentTarget;
+        try {
+          // 先頭フレームを描画させるための最小シーク(黒画面のまま止まる
+          // ブラウザ対策)。失敗しても致命ではない(fail-soft)。
+          v.currentTime = Math.min(0.1, v.duration || 0.1);
+        } catch {
+          // no-op
+        }
+      }}
+    />
+  );
 }
 
 const pickerButtonClass =
@@ -231,8 +276,11 @@ export default function RoomCardsField({
             {room.items.length > 0 && (
               <ul className="space-y-1.5">
                 {room.items.map((it, ii) => {
+                  // 「始まり/終わり」は写真のみの部屋なら1枚時点でも付与する
+                  // (入稿UI仕様v3: 2枚1組が既定=1枚目は常に「始まりの1枚」
+                  // 扱い)。動画が入る部屋には付けない。
                   const frameLabel =
-                    it.kind === "photo" && room.items.length === 2
+                    it.kind === "photo" && !hasVideo
                       ? ii === 0
                         ? "始まりの1枚"
                         : "終わりの1枚"
@@ -253,40 +301,57 @@ export default function RoomCardsField({
                           : undefined
                       }
                     >
-                      <div className="flex items-center gap-3">
-                        {frameLabel && (
-                          <span className="shrink-0 rounded-full bg-[var(--brand-orange)]/15 text-[var(--brand-orange-dark)] text-[10px] font-semibold px-2 py-0.5">
-                            {frameLabel}
-                          </span>
-                        )}
-                        <span className="flex-1 min-w-0 truncate text-sm text-[var(--brand-ink)]">
-                          {it.file.name}
-                        </span>
-                        <span className="text-xs text-[var(--brand-gray-light)] shrink-0">
-                          {formatBytes(it.file.size)}
-                        </span>
-                        {onMoveItemToRoom && rooms.length > 1 && (
-                          <select
-                            aria-label="別の部屋へ移動"
-                            disabled={busy}
-                            value=""
-                            onChange={(e) => {
-                              const targetUid = e.target.value;
-                              if (targetUid) onMoveItemToRoom(room.uid, ii, targetUid);
-                              e.target.value = "";
-                            }}
-                            className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-1.5 py-1 text-[11px] text-[var(--brand-ink)]/70 max-w-[6.5rem]"
-                          >
-                            <option value="">他の部屋へ</option>
-                            {rooms
-                              .filter((r) => r.uid !== room.uid)
-                              .map((r) => (
-                                <option key={r.uid} value={r.uid}>
-                                  {r.label ?? `部屋${rooms.findIndex((x) => x.uid === r.uid) + 1}`}
-                                </option>
-                              ))}
-                          </select>
-                        )}
+                      <div className="flex items-start gap-3">
+                        <ItemThumbnail file={it.file} kind={it.kind} />
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {frameLabel && (
+                              <span className="shrink-0 rounded-full bg-[var(--brand-orange)]/15 text-[var(--brand-orange-dark)] text-[10px] font-semibold px-2 py-0.5">
+                                {frameLabel}
+                              </span>
+                            )}
+                            <span className="min-w-0 flex-1 truncate text-sm text-[var(--brand-ink)]">
+                              {it.file.name}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs text-[var(--brand-gray-light)] shrink-0">
+                              {formatBytes(it.file.size)}
+                            </span>
+                            {onMoveItemToRoom && rooms.length > 1 && (
+                              <select
+                                aria-label="別の部屋へ移動"
+                                disabled={busy}
+                                value=""
+                                onChange={(e) => {
+                                  const targetUid = e.target.value;
+                                  if (targetUid) onMoveItemToRoom(room.uid, ii, targetUid);
+                                  e.target.value = "";
+                                }}
+                                className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-1.5 py-1 text-[11px] text-[var(--brand-ink)]/70 max-w-[6.5rem]"
+                              >
+                                <option value="">他の部屋へ</option>
+                                {rooms
+                                  .filter((r) => r.uid !== room.uid)
+                                  .map((r) => (
+                                    <option key={r.uid} value={r.uid}>
+                                      {r.label ?? `部屋${rooms.findIndex((x) => x.uid === r.uid) + 1}`}
+                                    </option>
+                                  ))}
+                              </select>
+                            )}
+                          </div>
+                          {it.kind === "photo" && it.lowRes === true && (
+                            <p className="text-[11px] text-amber-600">
+                              画質が少し粗いようです(長辺{ROOM_PHOTO_MIN_LONG_SIDE}px未満)。このまま送信することもできます
+                            </p>
+                          )}
+                          {it.kind === "video" && it.durationSec !== null && (
+                            <p className="text-[11px] text-[var(--brand-gray-light)]">
+                              長さ: 約{Math.round(it.durationSec)}秒・1080p設定推奨
+                            </p>
+                          )}
+                        </div>
                         {!busy && (
                           <button
                             type="button"
@@ -297,16 +362,6 @@ export default function RoomCardsField({
                           </button>
                         )}
                       </div>
-                      {it.kind === "photo" && it.lowRes === true && (
-                        <p className="mt-1 text-[11px] text-amber-600">
-                          画質が少し粗いようです(長辺{ROOM_PHOTO_MIN_LONG_SIDE}px未満)。このまま送信することもできます
-                        </p>
-                      )}
-                      {it.kind === "video" && it.durationSec !== null && (
-                        <p className="mt-1 text-[11px] text-[var(--brand-gray-light)]">
-                          長さ: 約{Math.round(it.durationSec)}秒・1080p設定推奨
-                        </p>
-                      )}
                     </li>
                   );
                 })}
@@ -339,22 +394,39 @@ export default function RoomCardsField({
               </div>
             )}
 
+            {/* 空の「終わりの1枚」スロット(入稿UI仕様v3要件3)。1枚部屋は
+                例外フォールバック — 2枚1組が基本であることを常に明示する。 */}
             {room.items.length === 1 && canAddPhoto && (
-              <label className={pickerButtonClass}>
-                + もう1枚追加(終わりの1枚)
-                <input
-                  type="file"
-                  accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-                  disabled={busy}
-                  className="hidden"
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files.length > 0) {
-                      onAddPhotos(room.uid, e.target.files);
-                    }
-                    e.target.value = "";
-                  }}
-                />
-              </label>
+              <div className="space-y-1">
+                <label className="flex items-center gap-3 rounded-xl border-2 border-dashed border-black/15 bg-white/30 px-4 py-2.5 cursor-pointer hover:bg-white/50 transition-colors">
+                  <span className="flex h-24 w-24 shrink-0 items-center justify-center rounded-lg border border-dashed border-black/20 text-2xl text-black/25">
+                    +
+                  </span>
+                  <span className="min-w-0 flex-1 space-y-1">
+                    <span className="block w-fit rounded-full bg-black/5 text-[var(--brand-ink)]/40 text-[10px] font-semibold px-2 py-0.5">
+                      終わりの1枚
+                    </span>
+                    <span className="block text-xs font-medium text-[var(--brand-orange-dark)]">
+                      + 2枚目を追加
+                    </span>
+                  </span>
+                  <input
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                    disabled={busy}
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files.length > 0) {
+                        onAddPhotos(room.uid, e.target.files);
+                      }
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                <p className="text-[11px] text-[var(--brand-gray-light)]">
+                  2枚1組が基本です。どうしても難しい場合のみ1枚でも作成できます
+                </p>
+              </div>
             )}
 
             {room.items.length === 1 && hasVideo && (

@@ -28,7 +28,10 @@ import RoomCardsField, {
   type RoomLocalItem,
 } from "./RoomCardsField";
 import BulkRoomIntake from "./BulkRoomIntake";
-import { autoGroupBulkFiles } from "@/app/portal/_lib/roomAutoPairing";
+import {
+  pairPhotosByCaptureTime,
+  groupVideosIndividually,
+} from "@/app/portal/_lib/roomAutoPairing";
 
 // /portal/submit の本体フォーム。項目構成は現行のGoogle標準フォーム
 // (fudosan-video/docs/forms_v15/standard_form.gs が拾う質問)と同じ:
@@ -416,82 +419,69 @@ export default function SubmitForm({
   // spec」)。生成した rooms は上の手動カードハンドラ群(setRoomLabelChip
   // 等)や送信処理(handleRoomsSubmit)とまったく同じ state/経路を使う —
   // データ層はPhase Aと共通のため、送信ロジックには一切手を入れていない。
+  //
+  // 入稿UI仕様v3(2026-07-21岡本裁定)以降、写真タブ/動画タブは別ピッカー
+  // (accept属性も分離・混在選択不可)。どちらのタブから追加しても既存の
+  // rooms へ「合流」する(置き換えない)ため、両タブを行き来しながら
+  // 部屋を積み増せる。
 
   function resetBulkRooms() {
     setError("");
     setRooms([]);
   }
 
-  async function handleBulkFilesSelected(files: FileList) {
+  async function handleBulkPhotosSelected(files: FileList) {
     setError("");
     const picked = Array.from(files);
     if (picked.length === 0) return;
-
-    const photoFiles: File[] = [];
-    const videoFiles: File[] = [];
     for (const file of picked) {
-      const looksLikeVideo =
-        file.type.startsWith("video/") || /\.(mp4|mov)$/i.test(file.name);
-      if (looksLikeVideo) {
-        const check = checkVideoFile(file.name, file.type, file.size);
-        if (!check.ok) {
-          setError(check.error || "このファイルは使用できません");
-          return;
-        }
-        videoFiles.push(file);
-      } else {
-        const check = checkPhotoFile(file.name, file.type, file.size);
-        if (!check.ok) {
-          setError(check.error || "このファイルは使用できません");
-          return;
-        }
-        photoFiles.push(file);
+      const check = checkPhotoFile(file.name, file.type, file.size);
+      if (!check.ok) {
+        setError(check.error || "このファイルは使用できません");
+        return;
       }
     }
 
-    const photoCapacity = MAX_ROOMS * MAX_ROOM_PHOTOS_PER_CARD;
-    if (photoFiles.length > photoCapacity) {
-      setError(`写真は一度に最大${photoCapacity}枚までです(現在${photoFiles.length}枚選択されています)`);
-      return;
-    }
-    if (videoFiles.length > MAX_VIDEOS) {
-      setError(`動画は一度に最大${MAX_VIDEOS}本までです(現在${videoFiles.length}本選択されています)`);
+    const existingPhotoCount = rooms.reduce(
+      (sum, r) => sum + r.items.filter((it) => it.kind === "photo").length,
+      0
+    );
+    const photoCapacity = MAX_ROOMS * MAX_ROOM_PHOTOS_PER_CARD - existingPhotoCount;
+    if (picked.length > photoCapacity) {
+      setError(`写真は一度に最大${Math.max(photoCapacity, 0)}枚まで追加できます(現在${picked.length}枚選択されています)`);
       return;
     }
 
     setBulkAnalyzing(true);
     try {
-      const groups = await autoGroupBulkFiles([...photoFiles, ...videoFiles]);
-      if (groups.length > MAX_ROOMS) {
+      // 時系列連続ペアリング(EXIF撮影時刻→lastModified→選択順の優先度で
+      // 昇順ソートし、前から2枚ずつ組む。design.md「入稿UI仕様v3」)。
+      const groups = await pairPhotosByCaptureTime(picked);
+      if (rooms.length + groups.length > MAX_ROOMS) {
         setError(
-          `部屋数が多すぎます(自動振り分けで${groups.length}部屋・上限${MAX_ROOMS})。写真の点数を減らすか、「詳しく自分で整理する」をお試しください`
+          `部屋数が多すぎます(追加すると${rooms.length + groups.length}部屋・上限${MAX_ROOMS})。写真の点数を減らすか、「詳しく自分で整理する」をお試しください`
         );
         return;
       }
-      const nextRooms: RoomCardState[] = groups.map((g) => {
+      const newRooms: RoomCardState[] = groups.map((g) => {
         roomUidCounter.current += 1;
         const uid = `room-${roomUidCounter.current}`;
-        const items: RoomLocalItem[] =
-          g.kind === "video"
-            ? [{ kind: "video" as const, file: g.files[0], durationSec: null }]
-            : g.files.map((file) => ({ kind: "photo" as const, file, lowRes: null }));
+        const items: RoomLocalItem[] = g.files.map((file) => ({
+          kind: "photo" as const,
+          file,
+          lowRes: null,
+        }));
         return { uid, label: g.label, customLabelMode: g.customLabelMode, items };
       });
-      setRooms(nextRooms);
+      setRooms((prev) => [...prev, ...newRooms]);
 
-      // 長辺/尺チェックは既存の手動モードと同じ非同期チェックを流用する
+      // 長辺チェックは既存の手動モードと同じ非同期チェックを流用する
       // (fail-soft・§2のバリデーション文言と統一するため)。
-      nextRooms.forEach((room) => {
+      newRooms.forEach((room) => {
         room.items.forEach((it, ii) => {
-          if (it.kind === "photo") {
-            readImageLongSide(it.file).then((longSide) => {
-              setPhotoItemLowRes(room.uid, ii, longSide !== null && longSide < ROOM_PHOTO_MIN_LONG_SIDE);
-            });
-          } else {
-            readVideoDurationSec(it.file).then((duration) => {
-              setVideoItemDuration(room.uid, ii, duration ?? 0);
-            });
-          }
+          readImageLongSide(it.file).then((longSide) => {
+            setPhotoItemLowRes(room.uid, ii, longSide !== null && longSide < ROOM_PHOTO_MIN_LONG_SIDE);
+          });
         });
       });
     } catch {
@@ -499,6 +489,62 @@ export default function SubmitForm({
     } finally {
       setBulkAnalyzing(false);
     }
+  }
+
+  function handleBulkVideoSelected(files: FileList) {
+    setError("");
+    const picked = Array.from(files);
+    if (picked.length === 0) return;
+    for (const file of picked) {
+      const check = checkVideoFile(file.name, file.type, file.size);
+      if (!check.ok) {
+        setError(check.error || "このファイルは使用できません");
+        return;
+      }
+    }
+
+    const existingVideoCount = rooms.reduce(
+      (sum, r) => sum + r.items.filter((it) => it.kind === "video").length,
+      0
+    );
+    if (existingVideoCount + picked.length > MAX_VIDEOS) {
+      setError(`動画は一度に最大${MAX_VIDEOS}本までです(追加すると${existingVideoCount + picked.length}本になります)`);
+      return;
+    }
+    if (rooms.length + picked.length > MAX_ROOMS) {
+      setError(`部屋数が多すぎます(追加すると${rooms.length + picked.length}部屋・上限${MAX_ROOMS})`);
+      return;
+    }
+
+    const groups = groupVideosIndividually(picked);
+    const newRooms: RoomCardState[] = groups.map((g) => {
+      roomUidCounter.current += 1;
+      const uid = `room-${roomUidCounter.current}`;
+      return {
+        uid,
+        label: g.label,
+        customLabelMode: g.customLabelMode,
+        items: [{ kind: "video" as const, file: g.files[0], durationSec: null }],
+      };
+    });
+    setRooms((prev) => [...prev, ...newRooms]);
+
+    // 尺チェックは既存の手動モードと同じ非同期チェックを流用(30秒超は
+    // 拒否・fail-hard=§2)。超過時はカードを消さず items を空にして
+    // 再投入を促す(手動追加時のaddVideoToRoomと同じ挙動)。
+    newRooms.forEach((room) => {
+      const file = room.items[0].file;
+      readVideoDurationSec(file).then((duration) => {
+        if (duration !== null && duration > MAX_VIDEO_DURATION_SEC) {
+          setError(
+            `${file.name}: 動画は${MAX_VIDEO_DURATION_SEC}秒以内でアップロードしてください(${Math.round(duration)}秒でした)`
+          );
+          setRooms((prev) => prev.map((r) => (r.uid === room.uid ? { ...r, items: [] } : r)));
+          return;
+        }
+        setVideoItemDuration(room.uid, 0, duration ?? 0);
+      });
+    });
   }
 
   function moveRoomItemToRoom(fromUid: string, itemIdx: number, toUid: string) {
@@ -1018,7 +1064,7 @@ export default function SubmitForm({
           </label>
           <p className="text-xs text-[var(--brand-gray-light)] mb-2">
             {roomsMode === "bulk"
-              ? "写真・動画をまとめて選ぶだけで、部屋ごとに自動で振り分けます"
+              ? "同じ部屋を2枚1組(始まり→終わり)で撮ってアップロードしてください"
               : "部屋を追加して、それぞれに写真(1〜2枚)または動画(1本)を入れてください"}
           </p>
           <a
@@ -1054,53 +1100,48 @@ export default function SubmitForm({
                 onSwapFrames={swapRoomFrames}
               />
             </>
-          ) : rooms.length === 0 ? (
-            <BulkRoomIntake
-              busy={busy}
-              analyzing={bulkAnalyzing}
-              onFilesSelected={handleBulkFilesSelected}
-              onSwitchToAdvanced={() => setRoomsMode("advanced")}
-            />
           ) : (
             <>
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs text-[var(--brand-gray-light)]">
-                  システムが仮に部屋ごとへ振り分けました。違っていたら下で自由に直してください(部屋名の変更・写真の入れ替え・別の部屋への移動ができます)
-                </p>
-                <div className="flex shrink-0 items-center gap-3 text-xs">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={resetBulkRooms}
-                    className="underline text-[var(--brand-orange-dark)] disabled:opacity-50"
-                  >
-                    写真を選び直す
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => setRoomsMode("advanced")}
-                    className="underline text-[var(--brand-ink)]/50 hover:text-[var(--brand-ink)]/80 disabled:opacity-50"
-                  >
-                    詳しく自分で整理する
-                  </button>
-                </div>
-              </div>
-              <RoomCardsField
-                rooms={rooms}
+              <BulkRoomIntake
                 busy={busy}
-                onAddRoom={addRoom}
-                onRemoveRoom={removeRoom}
-                onMoveRoom={moveRoom}
-                onSetLabelChip={setRoomLabelChip}
-                onSetLabelCustomText={setRoomLabelCustomText}
-                onAddPhotos={addPhotosToRoom}
-                onAddVideo={addVideoToRoom}
-                onRemoveItem={removeRoomItem}
-                onSwapFrames={swapRoomFrames}
-                onMoveItemToRoom={moveRoomItemToRoom}
-                onUnpairRoom={unpairRoom}
+                analyzing={bulkAnalyzing}
+                hasRooms={rooms.length > 0}
+                onPhotoFilesSelected={handleBulkPhotosSelected}
+                onVideoFilesSelected={handleBulkVideoSelected}
+                onSwitchToAdvanced={() => setRoomsMode("advanced")}
               />
+              {rooms.length > 0 && (
+                <>
+                  <div className="mt-4 mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-[var(--brand-gray-light)]">
+                      部屋ごとの一覧です。違っていたら下で自由に直してください(部屋名の変更・写真の入れ替え・別の部屋への移動ができます)
+                    </p>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={resetBulkRooms}
+                      className="shrink-0 text-xs underline text-[var(--brand-orange-dark)] disabled:opacity-50"
+                    >
+                      最初からやり直す
+                    </button>
+                  </div>
+                  <RoomCardsField
+                    rooms={rooms}
+                    busy={busy}
+                    onAddRoom={addRoom}
+                    onRemoveRoom={removeRoom}
+                    onMoveRoom={moveRoom}
+                    onSetLabelChip={setRoomLabelChip}
+                    onSetLabelCustomText={setRoomLabelCustomText}
+                    onAddPhotos={addPhotosToRoom}
+                    onAddVideo={addVideoToRoom}
+                    onRemoveItem={removeRoomItem}
+                    onSwapFrames={swapRoomFrames}
+                    onMoveItemToRoom={moveRoomItemToRoom}
+                    onUnpairRoom={unpairRoom}
+                  />
+                </>
+              )}
             </>
           )}
         </div>

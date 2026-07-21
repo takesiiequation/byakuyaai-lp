@@ -325,10 +325,79 @@ function clusterPhotoInfos(infos: PhotoHashInfo[]): Array<AutoGroupedRoom & { an
   return result;
 }
 
+// --- 時系列連続ペアリング(入稿UI仕様v3・2026-07-21岡本裁定) ---
+// dHashクラスタリングは実写内装で閾値が効かず(design.md追補v2 P2実測)、
+// 「2枚1組は当たり前」の入稿契約に転換したことで前提そのものが変わった
+// — 顧客は部屋ごとに連続して2枚撮るはずなので、EXIF撮影時刻(→無ければ
+// lastModified→無ければ選択順)で並べて前から2枚ずつ組むのが最も精度が
+// 高い。dHash関連コード(上のcomputeDHash/clusterPhotoInfos等)は削除せず
+// 残す(将来の妥当性警告=「この2枚は本当に近いか」の補助チェック用)。
+
+interface TimeOrderedPhoto {
+  file: File;
+  index: number; // 選択順(EXIF/lastModifiedとも無い場合の最終フォールバック)
+  sortKey: number;
+  guessedLabel: string | null;
+}
+
+/** 写真ファイル群を「同じ部屋を2枚1組(始まり→終わり)」の既定則で
+ * 部屋グループへ変換する。並び順は EXIF DateTimeOriginal → file.lastModified
+ * → 選択順、の優先度で昇順ソートしたのち前から2枚ずつ組む。奇数の余りは
+ * 1枚部屋になる(confirm画面で「+2枚目を追加」できる=呼び出し側の
+ * RoomCardsFieldが対応)。動画は扱わない(呼び出し側でタブ分離済み)。 */
+export async function pairPhotosByCaptureTime(files: File[]): Promise<AutoGroupedRoom[]> {
+  const infos: TimeOrderedPhoto[] = await Promise.all(
+    files.map(async (file, index) => {
+      const capturedAt = await readExifDateTaken(file);
+      const lastModified =
+        Number.isFinite(file.lastModified) && file.lastModified > 0 ? file.lastModified : null;
+      const sortKey = capturedAt ?? lastModified ?? index;
+      return { file, index, sortKey, guessedLabel: guessLabelFromFilename(file.name) };
+    })
+  );
+
+  // sortKeyが同値(lastModified無しで選択順にフォールバックした場合等)の
+  // ときは選択順(index)で安定させる。
+  const sorted = [...infos].sort((a, b) => a.sortKey - b.sortKey || a.index - b.index);
+
+  const rooms: AutoGroupedRoom[] = [];
+  for (let i = 0; i < sorted.length; i += 2) {
+    const first = sorted[i];
+    const second = sorted[i + 1];
+    if (second) {
+      const label = first.guessedLabel ?? second.guessedLabel ?? TENTATIVE_ROOM_LABEL;
+      rooms.push({
+        label,
+        customLabelMode: !isKnownLabel(label),
+        kind: "photo",
+        files: [first.file, second.file],
+      });
+    } else {
+      const label = first.guessedLabel ?? TENTATIVE_ROOM_LABEL;
+      rooms.push({ label, customLabelMode: !isKnownLabel(label), kind: "photo", files: [first.file] });
+    }
+  }
+  return rooms;
+}
+
+/** 動画ファイル群を「1本=1部屋」に変換する(design.md「動画は単独で
+ * 1部屋」)。入稿UI仕様v3では動画タブが写真タブと分離されたため、混在
+ * 判定(isVideoFile)は不要— 呼び出し側が動画のみを渡す前提。 */
+export function groupVideosIndividually(files: File[]): AutoGroupedRoom[] {
+  return files.map((file) => {
+    const label = guessLabelFromFilename(file.name) ?? TENTATIVE_ROOM_LABEL;
+    return { label, customLabelMode: !isKnownLabel(label), kind: "video", files: [file] };
+  });
+}
+
 /** 一括選択されたファイル群(写真+動画混在可)を、部屋ごとのグループへ
  * 分ける。写真はハッシュ+EXIF近接でグルーピング、動画は常に単独1部屋
  * (design.md「動画は単独で1部屋」)。戻り値は元の選択順を尊重した並び。
- * サーバー往復なし・純クライアント処理。 */
+ * サーバー往復なし・純クライアント処理。
+ * ⚠️入稿UI仕様v3(2026-07-21)以降、SubmitFormからは呼ばれていない
+ * (写真/動画タブ分離+時系列ペアリングに置き換え済み=pairPhotosByCaptureTime/
+ * groupVideosIndividually)。dHashクラスタリングの資産として残す
+ * (将来の妥当性警告用途)。 */
 export async function autoGroupBulkFiles(files: File[]): Promise<AutoGroupedRoom[]> {
   const photoEntries: { file: File; index: number }[] = [];
   const videoEntries: { file: File; index: number }[] = [];
