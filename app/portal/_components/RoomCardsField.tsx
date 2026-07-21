@@ -104,8 +104,11 @@ function ItemThumbnail({
 
   if (kind === "photo") {
     return (
+      // draggable=false: <img>はブラウザ標準でドラッグ可能なため、押して
+      // 動かした瞬間にHTML5ネイティブドラッグが始まりPointer Eventsが
+      // pointercancelで打ち切られる(=useRoomItemDragが一切発火しない)。
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={url} alt="" className={className} />
+      <img src={url} alt="" draggable={false} className={className} />
     );
   }
   return (
