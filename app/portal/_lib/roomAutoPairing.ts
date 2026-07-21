@@ -195,7 +195,6 @@ async function readExifDateTaken(file: File): Promise<number | null> {
       const marker = view.getUint16(offset);
       if ((marker & 0xff00) !== 0xff00) break;
       if (marker === 0xffe1) {
-        const size = view.getUint16(offset + 2);
         const exifStart = offset + 4;
         if (exifStart + 6 > view.byteLength) return null;
         if (view.getUint32(exifStart) !== 0x45786966 /* "Exif" */) return null;
@@ -368,5 +367,10 @@ export async function autoGroupBulkFiles(files: File[]): Promise<AutoGroupedRoom
 
   return [...photoGroups, ...videoGroups]
     .sort((a, b) => a.anchorIndex - b.anchorIndex)
-    .map(({ anchorIndex: _anchorIndex, ...rest }) => rest);
+    .map((g): AutoGroupedRoom => ({
+      label: g.label,
+      customLabelMode: g.customLabelMode,
+      kind: g.kind,
+      files: g.files,
+    }));
 }
