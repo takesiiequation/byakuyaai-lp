@@ -8,15 +8,20 @@ import {
 } from "@/app/_lib/portalSubmit";
 import {
   MAX_PHOTOS,
+  MAX_VIDEOS,
   checkMaisokuFile,
   checkPhotoFile,
+  checkVideoFile,
 } from "@/app/_lib/portalSubmitShared";
 
 // FIX-3b/c(最小濫用キャップ・KV不要): 1バンドルから発行できる
 // アップロードセッションの総数を Drive 列挙による簡易カウントで縛る
 // (写真10+マイソク1=11)。本格的なレート制限(Vercel KV/Upstash等)は
 // 実弾後ハードニング課題。
-const MAX_BUNDLE_UPLOADS = MAX_PHOTOS + 1;
+// 2026-07-21 部屋カードUI(Phase A): 動画(target="video")も同じ original
+// フォルダへフラット格納するため、この上限にも動画枠を足す。フラグOFF
+// (現行UI)は target="video" を送らないため実質不変。
+const MAX_BUNDLE_UPLOADS = MAX_PHOTOS + MAX_VIDEOS + 1;
 
 // /portal/submit ステップ2: ファイル1件ごとに Drive resumable upload
 // session を発行して返す。ファイル本体はブラウザが session URL へ直接
@@ -75,7 +80,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const target = body.target === "maisoku" ? "maisoku" : body.target === "photo" ? "photo" : null;
+  const target =
+    body.target === "maisoku"
+      ? "maisoku"
+      : body.target === "photo"
+        ? "photo"
+        : body.target === "video" // 2026-07-21 部屋カードUI(Phase A・PORTAL_ROOMS_UI経路のみ使用)
+          ? "video"
+          : null;
   const name = typeof body.name === "string" ? body.name : "";
   const mimeType = typeof body.mime_type === "string" ? body.mime_type : "";
   const size = typeof body.size === "number" && Number.isFinite(body.size) ? body.size : -1;
@@ -93,12 +105,20 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+  if (target === "video" && (index < 0 || index >= MAX_VIDEOS)) {
+    return NextResponse.json(
+      { ok: false, error: `動画は最大${MAX_VIDEOS}本までです` },
+      { status: 400 }
+    );
+  }
 
   // クライアント側と同一のバリデーションをサーバーでも強制
   const check =
     target === "photo"
       ? checkPhotoFile(name, mimeType, size)
-      : checkMaisokuFile(name, mimeType, size);
+      : target === "video"
+        ? checkVideoFile(name, mimeType, size)
+        : checkMaisokuFile(name, mimeType, size);
   if (!check.ok) {
     return NextResponse.json({ ok: false, error: check.error }, { status: 400 });
   }
@@ -149,15 +169,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // 写真は連番プレフィックスで順序を固定(Driveのfiles.listはorderBy未指定
-  // =順序不定のため・仕様書(3))。Directorが並べ替えるので影響は限定的だが
-  // 決定論に寄せておく。
+  // 写真/動画は連番プレフィックスで順序を固定(Driveのfiles.listはorderBy
+  // 未指定=順序不定のため・仕様書(3))。Directorが並べ替えるので影響は
+  // 限定的だが決定論に寄せておく。動画(target="video")も写真と同じ
+  // original フォルダへフラット格納する(§2「Driveはフラット格納のまま」
+  // ・現行方式のOAuth直PUTを流用・n8n側の「List Photos」クエリは
+  // mimeType contains 'image/' のためvideo/*は既存経路から自然に無視される)。
   const finalName =
     target === "photo"
       ? `${String(index + 1).padStart(2, "0")}_${sanitizeName(name)}`
-      : `maisoku_${sanitizeName(name)}`;
+      : target === "video"
+        ? `vid${String(index + 1).padStart(2, "0")}_${sanitizeName(name)}`
+        : `maisoku_${sanitizeName(name)}`;
   const folderId =
-    target === "photo" ? bundle.original_folder_id : bundle.maisoku_folder_id;
+    target === "maisoku" ? bundle.maisoku_folder_id : bundle.original_folder_id;
 
   try {
     const uploadUrl = await createResumableUploadUrl({

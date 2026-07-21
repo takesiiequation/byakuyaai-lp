@@ -15,9 +15,67 @@ import {
   DEAL_TYPES,
   MAX_APPEAL_NOTE_LENGTH,
   MAX_PHOTOS,
+  MAX_ROOMS,
+  MAX_ROOM_PHOTOS_PER_CARD,
   type AspectRatio,
   type DealType,
+  type RoomPayload,
+  type RoomPayloadItem,
 } from "@/app/_lib/portalSubmitShared";
+
+// 2026-07-21 部屋カードUI(Phase A・design.md §1)。body.rooms は任意 —
+// 未指定(フラグOFF/旧クライアント)なら下のvalidateRoomsShapeは呼ばれず
+// そのまま従来どおり(rooms無しのpayloadを組み立てる)。指定時のみ
+// 構造検証+Drive実在確認(FIX-1と同じ「files.get個別強整合」方式)を行う。
+// FILE_ID_RE の実体は下で定義(同ファイル内で1つに統一・関数本体からの
+// 参照はPOST実行時=モジュール評価完了後のため定義順に依存しない)。
+
+/** 構造が壊れている場合はエラーメッセージを返す(null=構造OK)。
+ * ここは「実装バグ検知」ではなく「顧客ブラウザ発の入力」を扱うため、
+ * payloadViolations(500)ではなく400で弾く。 */
+function validateRoomsShape(raw: unknown): { rooms: RoomPayload[] } | { error: string } {
+  if (!Array.isArray(raw)) return { error: "rooms must be an array" };
+  if (raw.length > MAX_ROOMS) return { error: `部屋は最大${MAX_ROOMS}件までです` };
+  const rooms: RoomPayload[] = [];
+  for (const r of raw) {
+    if (typeof r !== "object" || r === null) return { error: "invalid room entry" };
+    const rec = r as Record<string, unknown>;
+    const order = typeof rec.order === "number" ? rec.order : NaN;
+    const label = typeof rec.label === "string" ? rec.label.trim().slice(0, 50) : null;
+    if (!Number.isFinite(order)) return { error: "invalid room order" };
+    if (!Array.isArray(rec.items) || rec.items.length === 0) {
+      return { error: "各部屋には写真1〜2枚または動画1本が必要です" };
+    }
+    const items: RoomPayloadItem[] = [];
+    for (const it of rec.items) {
+      if (typeof it !== "object" || it === null) return { error: "invalid room item" };
+      const itemRec = it as Record<string, unknown>;
+      const driveId = typeof itemRec.drive_id === "string" ? itemRec.drive_id.trim() : "";
+      if (!FILE_ID_RE.test(driveId)) return { error: "invalid room item drive_id" };
+      if (itemRec.kind === "photo") {
+        const frameRole = itemRec.frame_role === "end" ? "end" : "start";
+        items.push({ kind: "photo", drive_id: driveId, frame_role: frameRole });
+      } else if (itemRec.kind === "video") {
+        const duration =
+          typeof itemRec.duration_sec === "number" && Number.isFinite(itemRec.duration_sec)
+            ? Math.round(itemRec.duration_sec)
+            : 0;
+        items.push({ kind: "video", drive_id: driveId, duration_sec: duration });
+      } else {
+        return { error: "invalid room item kind" };
+      }
+    }
+    if (items.length > MAX_ROOM_PHOTOS_PER_CARD) {
+      return { error: `1部屋の写真は最大${MAX_ROOM_PHOTOS_PER_CARD}枚までです` };
+    }
+    const videoCount = items.filter((i) => i.kind === "video").length;
+    if (videoCount > 0 && items.length > 1) {
+      return { error: "動画のカードは1本のみです(写真との併用不可)" };
+    }
+    rooms.push({ order, label, items });
+  }
+  return { rooms };
+}
 
 // /portal/submit ステップ3(最終): ペイロード組み立て→送信ゲート。
 //
@@ -58,6 +116,7 @@ export async function POST(req: NextRequest) {
     deal_type?: unknown;
     email?: unknown;
     appeal_note?: unknown;
+    rooms?: unknown; // 2026-07-21 部屋カードUI(Phase A)。未指定=従来どおり。
   };
   try {
     body = await req.json();
@@ -102,6 +161,18 @@ export async function POST(req: NextRequest) {
       { ok: false, error: `写真は1〜${MAX_PHOTOS}枚でアップロードしてください` },
       { status: 400 }
     );
+  }
+
+  // 2026-07-21 部屋カードUI(Phase A): body.rooms は任意。未指定(旧
+  // クライアント/フラグOFF)なら roomsInput は undefined のまま以降の
+  // 経路を一切変えない。指定時のみ構造検証(400)→Drive実在確認(409)を行う。
+  let roomsInput: RoomPayload[] | undefined;
+  if (body.rooms !== undefined) {
+    const parsed = validateRoomsShape(body.rooms);
+    if ("error" in parsed) {
+      return NextResponse.json({ ok: false, error: parsed.error }, { status: 400 });
+    }
+    roomsInput = parsed.rooms;
   }
 
   const aspectRatio = body.aspect_ratio;
@@ -212,6 +283,32 @@ export async function POST(req: NextRequest) {
         { status: 409 }
       );
     }
+
+    // 2026-07-21 部屋カードUI(Phase A): rooms 指定時は、各アイテムの
+    // drive_id も上と同じ FIX-1 方式(files.get 個別強整合)で実在確認する。
+    // 写真/動画とも flat 格納(original_folder_id)のため所属フォルダは
+    // 共通・kindごとにmimeType接頭辞のみ出し分ける。
+    if (roomsInput) {
+      const flatItems = roomsInput.flatMap((r) => r.items);
+      const metas = await Promise.all(flatItems.map((it) => getFileMeta(it.drive_id)));
+      const roomsOk = flatItems.every((it, i) => {
+        const m = metas[i];
+        if (!m || m.trashed || !m.parents.includes(bundle.original_folder_id)) return false;
+        return it.kind === "photo"
+          ? m.mimeType.startsWith("image/")
+          : m.mimeType.startsWith("video/");
+      });
+      if (!roomsOk) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "部屋の写真・動画のアップロード内容を確認できませんでした。最初からやり直してください",
+          },
+          { status: 409 }
+        );
+      }
+    }
   } catch (e) {
     console.error("[portal/submit] drive verification failed:", e);
     return NextResponse.json(
@@ -220,7 +317,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // --- ペイロード組み立て(仕様書(2) 全13フィールド + appeal_note) ---
+  // --- ペイロード組み立て(仕様書(2) 全13フィールド + appeal_note + rooms) ---
   const payload = buildSubmitPayload({
     bundle,
     client,
@@ -230,6 +327,7 @@ export async function POST(req: NextRequest) {
     aspectRatio: aspectRatio as AspectRatio,
     dealType: dealType as DealType,
     appealNote,
+    rooms: roomsInput,
   });
 
   const violations = payloadViolations(payload);

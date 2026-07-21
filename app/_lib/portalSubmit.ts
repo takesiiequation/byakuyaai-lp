@@ -8,6 +8,7 @@ import {
   MAX_PHOTOS,
   type AspectRatio,
   type DealType,
+  type RoomPayload,
 } from "./portalSubmitShared";
 
 // ============================================================
@@ -407,6 +408,13 @@ export interface SubmitPayload {
   // appeal_note 欠落/空文字を fail-soft で受ける前提で追加した —
   // 既存のGAS経路(本フィールドを送らない)は影響を受けない。
   appeal_note: string;
+  // 2026-07-21 部屋カードUI(Phase A・design.md §1)。デュアルペイロード
+  // の新フィールド — 未指定(undefined)なら JSON.stringify がキー自体を
+  // 落とすため、rooms を送らない旧クライアント/フラグOFF経路は payload の
+  // 形が今までと完全に同一のまま(n8n未対応でも壊れない)。Phase Bで
+  // n8n Parse Form Data が rooms を読み始めるまでは無視されるだけの
+  // 追加情報。
+  rooms?: RoomPayload[];
 }
 
 export function buildSubmitPayload(opts: {
@@ -418,6 +426,7 @@ export function buildSubmitPayload(opts: {
   aspectRatio: AspectRatio;
   dealType: DealType;
   appealNote: string;
+  rooms?: RoomPayload[];
 }): SubmitPayload {
   return {
     test_bypass: false,
@@ -434,6 +443,7 @@ export function buildSubmitPayload(opts: {
     nostaging_folder_id: opts.bundle.original_folder_id,
     maisoku_folder_id: opts.bundle.maisoku_folder_id,
     appeal_note: opts.appealNote,
+    ...(opts.rooms && opts.rooms.length > 0 ? { rooms: opts.rooms } : {}),
   };
 }
 

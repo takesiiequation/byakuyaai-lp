@@ -76,6 +76,7 @@ export default async function PortalSubmitPage() {
           </div>
           <SubmitForm
             defaultEmail={client.notify_email || client.approval_email || ""}
+            roomsUiEnabled={process.env.PORTAL_ROOMS_UI === "true"}
           />
         </>
       )}

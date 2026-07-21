@@ -73,6 +73,97 @@ export interface FileCheck {
   error?: string;
 }
 
+// ============================================================
+// 部屋カードUI(Phase A・2026-07-21・fudosan-video/docs/smapho_hitotsu_
+// design.md §1/§2)。env `PORTAL_ROOMS_UI` が "true" のときだけ
+// SubmitForm がこの下の型/定数を使う新UIに切り替わる。フラグ未設定/
+// false は現行UI(物件写真フラット選択)を1行も変えず維持する。
+// ============================================================
+
+// 部屋名チップ。「その他」を選ぶと自由記入欄に切り替わる(§2「チップ+
+// 自由記入」)。ラベルは任意 — 未選択は null のまま送る(Vision現行判定)。
+export const ROOM_LABEL_CHIPS = [
+  "リビング",
+  "キッチン",
+  "浴室",
+  "洗面",
+  "トイレ",
+  "玄関",
+  "廊下",
+  "洋室",
+  "和室",
+  "バルコニー",
+  "外観",
+  "その他",
+] as const;
+export const ROOM_LABEL_OTHER = "その他";
+
+export const MAX_ROOMS = 10; // 部屋カードの上限(写真上限MAX_PHOTOSと同水準)
+export const MAX_ROOM_PHOTOS_PER_CARD = 2; // 1カードの写真は「始まり/終わり」の最大2枚
+// 動画は1カード1本まで。全体上限は写真と別枠(1部屋1本クリップの想定本数は
+// 少数のため、写真ほど大きくしない)。
+export const MAX_VIDEOS = 10;
+
+// 写真の長辺推奨値未満は警告のみ(fail-soft・送信は妨げない・§2)。
+export const ROOM_PHOTO_MIN_LONG_SIDE = 1500;
+
+// 動画の尺上限(§2「30秒超は拒否」)。1080p設定推奨はUI文言のみで技術的
+// 検証はしない(解像度メタはブラウザ側で取りにくく、拒否根拠にはしない)。
+export const MAX_VIDEO_DURATION_SEC = 30;
+
+export const VIDEO_MIME_TYPES = ["video/mp4", "video/quicktime"];
+const VIDEO_EXT_RE = /\.(mp4|mov)$/i;
+
+// 写真/マイソクのMAX_..._BYTES(25MB)はimgbbの32MB上限に余裕を持たせた
+// 値(このファイル冒頭コメント参照)で、imgbbを経由しない動画には出典が
+// 適用されない。動画はDriveへ直接resumable PUTするため下流のサイズ制約が
+// 現状存在しない — 実写クリップ(10秒推奨/30秒上限・1080p)の実測レンジ
+// (スマホ撮影30秒1080pで概ね数十〜150MB程度)に余裕を持たせて300MBとする。
+// Phase B/C でn8n側の動画パイプラインが確定したら数値を見直すこと。
+export const MAX_VIDEO_BYTES = 300 * 1024 * 1024;
+
+export function checkVideoFile(name: string, mime: string, size: number): FileCheck {
+  const extOk = VIDEO_EXT_RE.test(name);
+  const mimeOk = VIDEO_MIME_TYPES.includes(mime);
+  if (!extOk && !mimeOk) {
+    return { ok: false, error: `${name}: 動画は MP4 / MOV のみアップロードできます` };
+  }
+  if (size > MAX_VIDEO_BYTES) {
+    return {
+      ok: false,
+      error: `${name}: ファイルサイズが大きすぎます(上限${Math.round(MAX_VIDEO_BYTES / (1024 * 1024))}MB)`,
+    };
+  }
+  if (size <= 0) {
+    return { ok: false, error: `${name}: 空のファイルです` };
+  }
+  return { ok: true };
+}
+
+// --- 入稿スキーマ(design.md §1 と同型・payload の `rooms` フィールド) ---
+
+export type RoomFrameRole = "start" | "end";
+
+export interface RoomPayloadPhotoItem {
+  kind: "photo";
+  drive_id: string;
+  frame_role: RoomFrameRole;
+}
+
+export interface RoomPayloadVideoItem {
+  kind: "video";
+  drive_id: string;
+  duration_sec: number;
+}
+
+export type RoomPayloadItem = RoomPayloadPhotoItem | RoomPayloadVideoItem;
+
+export interface RoomPayload {
+  order: number;
+  label: string | null;
+  items: RoomPayloadItem[];
+}
+
 export function checkPhotoFile(name: string, mime: string, size: number): FileCheck {
   if (BANNED_EXT_RE.test(name) || mime === "image/heic" || mime === "image/heif") {
     return {
