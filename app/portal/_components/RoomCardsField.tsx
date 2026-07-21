@@ -10,7 +10,7 @@
 // 意味論=順序のみ・design.md §0-4)。生成AI用語は出さない — 文言は
 // 「この順に映像が動きます」等の顧客語彙のみ(要件7)。
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useState } from "react";
 import {
   MAX_ROOMS,
   MAX_ROOM_PHOTOS_PER_CARD,
@@ -51,17 +51,22 @@ const thumbClass =
 
 /** 部屋カードUI サムネイル(P1・入稿UI仕様v3)。写真は実画像、動画は
  * <video>のメタデータプレビュー(muted・自動再生しない=poster的表示)。
- * URL.createObjectURL は同期API(ネットワーク待ちなし)なのでレンダー中に
- * useMemoで直接生成し、破棄(revoke)だけをuseEffectのクリーンアップに
- * 閉じ込める(fileが変わる/アンマウントされるたびに必ずrevoke=メモリ
- * リーク防止。RoomCardsField本体は毎レンダーでobjectURLを作らない —
- * 生成/破棄の責務をこの子コンポーネントに閉じ込めるための切り出し)。 */
+ * objectURLの生成と破棄(revoke)は同一のuseEffect呼び出しに閉じ込める —
+ * useMemoで作るとStrictModeの mount→cleanup→mount でrevoke済みURLが
+ * memoに残り、破棄済みblobを参照し続ける(ERR_FILE_NOT_FOUND)。effect
+ * 1回の実行が自分のURLだけを所有すれば、二重マウントでもfile差し替え
+ * でもアンマウントでも必ず対で生成/破棄される=メモリリーク防止。 */
 function ItemThumbnail({ file, kind }: { file: File; kind: "photo" | "video" }) {
-  const url = useMemo(() => URL.createObjectURL(file), [file]);
+  const [url, setUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    return () => URL.revokeObjectURL(url);
-  }, [url]);
+    const u = URL.createObjectURL(file);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- objectURLの所有権をこのeffect実行に閉じるための同期set(上記コメント)
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
+
+  if (!url) return <div className={thumbClass} aria-hidden />;
 
   if (kind === "photo") {
     return (
