@@ -66,6 +66,11 @@ export interface RoomCardsFieldProps {
   onAddVideo: (uid: string, file: File) => void;
   onRemoveItem: (uid: string, itemIdx: number) => void;
   onSwapFrames: (uid: string) => void;
+  // 自動ペアリング確認画面(SubmitFormのbulk確認モード)専用の追加操作。
+  // 未指定(=手動カードモード/Phase A)の間は何も描画しない — 既存の
+  // 手動カードUIは1行も変わらない(design.md「確認UI実装spec」)。
+  onMoveItemToRoom?: (fromUid: string, itemIdx: number, toUid: string) => void;
+  onUnpairRoom?: (uid: string) => void;
 }
 
 export default function RoomCardsField({
@@ -80,6 +85,8 @@ export default function RoomCardsField({
   onAddVideo,
   onRemoveItem,
   onSwapFrames,
+  onMoveItemToRoom,
+  onUnpairRoom,
 }: RoomCardsFieldProps) {
   return (
     <div className="space-y-4">
@@ -98,6 +105,23 @@ export default function RoomCardsField({
           <div
             key={room.uid}
             className="rounded-xl border border-black/10 bg-white/60 p-4 space-y-3"
+            onDragOver={onMoveItemToRoom ? (e) => e.preventDefault() : undefined}
+            onDrop={
+              onMoveItemToRoom
+                ? (e) => {
+                    e.preventDefault();
+                    try {
+                      const raw = e.dataTransfer.getData("text/plain");
+                      const data = raw ? (JSON.parse(raw) as { uid?: string; itemIdx?: number }) : null;
+                      if (data?.uid && typeof data.itemIdx === "number") {
+                        onMoveItemToRoom(data.uid, data.itemIdx, room.uid);
+                      }
+                    } catch {
+                      // 不正なドロップデータは無視(fail-soft)
+                    }
+                  }
+                : undefined
+            }
           >
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-bold text-[var(--brand-ink)]">
@@ -217,6 +241,17 @@ export default function RoomCardsField({
                     <li
                       key={`${it.file.name}-${it.file.size}-${ii}`}
                       className="rounded-xl bg-white/70 border border-black/5 px-4 py-2.5"
+                      draggable={!!onMoveItemToRoom && !busy}
+                      onDragStart={
+                        onMoveItemToRoom
+                          ? (e) => {
+                              e.dataTransfer.setData(
+                                "text/plain",
+                                JSON.stringify({ uid: room.uid, itemIdx: ii })
+                              );
+                            }
+                          : undefined
+                      }
                     >
                       <div className="flex items-center gap-3">
                         {frameLabel && (
@@ -230,6 +265,28 @@ export default function RoomCardsField({
                         <span className="text-xs text-[var(--brand-gray-light)] shrink-0">
                           {formatBytes(it.file.size)}
                         </span>
+                        {onMoveItemToRoom && rooms.length > 1 && (
+                          <select
+                            aria-label="別の部屋へ移動"
+                            disabled={busy}
+                            value=""
+                            onChange={(e) => {
+                              const targetUid = e.target.value;
+                              if (targetUid) onMoveItemToRoom(room.uid, ii, targetUid);
+                              e.target.value = "";
+                            }}
+                            className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-1.5 py-1 text-[11px] text-[var(--brand-ink)]/70 max-w-[6.5rem]"
+                          >
+                            <option value="">他の部屋へ</option>
+                            {rooms
+                              .filter((r) => r.uid !== room.uid)
+                              .map((r) => (
+                                <option key={r.uid} value={r.uid}>
+                                  {r.label ?? `部屋${rooms.findIndex((x) => x.uid === r.uid) + 1}`}
+                                </option>
+                              ))}
+                          </select>
+                        )}
                         {!busy && (
                           <button
                             type="button"
@@ -257,16 +314,28 @@ export default function RoomCardsField({
             )}
 
             {room.items.length === 2 && room.items.every((it) => it.kind === "photo") && (
-              <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--brand-gray-light)]">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[var(--brand-gray-light)]">
                 <span>始まりの1枚→終わりの1枚の順に映像が動きます</span>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => onSwapFrames(room.uid)}
-                  className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-2 py-1 text-[var(--brand-ink)]/70 hover:bg-white transition-colors"
-                >
-                  ↕ 入れ替える
-                </button>
+                <div className="flex items-center gap-2">
+                  {onUnpairRoom && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => onUnpairRoom(room.uid)}
+                      className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-2 py-1 text-[var(--brand-ink)]/70 hover:bg-white transition-colors"
+                    >
+                      ペア解除
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onSwapFrames(room.uid)}
+                    className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-2 py-1 text-[var(--brand-ink)]/70 hover:bg-white transition-colors"
+                  >
+                    ↕ 入れ替える
+                  </button>
+                </div>
               </div>
             )}
 
