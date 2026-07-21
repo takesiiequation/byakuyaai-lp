@@ -390,6 +390,29 @@ export function groupVideosIndividually(files: File[]): AutoGroupedRoom[] {
   });
 }
 
+// --- ペア妥当性警告(v3.1改修B・入稿UI仕様v3.1・smapho_hitotsu_design.md
+// 「UI v3.1改修+誤ペア三重ガード」段1)。dHashクラスタリングは部屋自動
+// 仕分けの主経路からは降格したが(上記コメント参照)、「この2枚は本当に
+// 同じ部屋か」という第2ガードとしてここで再登用する。実測(design.md
+// 該当節): 同室ペアの距離=24 / 別部屋ペアの距離=31。誤警告(過検知)の
+// 方が見逃しより顧客体験を損なう非ブロッキング警告のため、やや同室側に
+// 寄せた28を閾値に採用する。 ---
+
+export const PAIR_MISMATCH_THRESHOLD = 28;
+
+/** ペア2枚(始まり/終わり)のdHashハミング距離を計算する。どちらかの
+ * デコードに失敗したら null を返す(fail-open — 呼び出し側は警告を
+ * 出さない)。既存の computeDHash / hammingDistance をそのまま再利用
+ * (シグネチャ変更なし)。 */
+export async function computePairMismatchDistance(
+  fileA: File,
+  fileB: File
+): Promise<number | null> {
+  const [a, b] = await Promise.all([computeDHash(fileA), computeDHash(fileB)]);
+  if (!a || !b) return null;
+  return hammingDistance(a.bits, b.bits);
+}
+
 /** 一括選択されたファイル群(写真+動画混在可)を、部屋ごとのグループへ
  * 分ける。写真はハッシュ+EXIF近接でグルーピング、動画は常に単独1部屋
  * (design.md「動画は単独で1部屋」)。戻り値は元の選択順を尊重した並び。
