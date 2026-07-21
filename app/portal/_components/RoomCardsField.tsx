@@ -22,7 +22,7 @@
 // 2枚目追加後のいずれも)dHash(roomAutoPairing.tsの資産)で類似度を
 // 非同期チェックし、閾値超なら非ブロッキング警告を出す(PairMismatchWarning)。
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   MAX_ROOMS,
   MAX_ROOM_PHOTOS_PER_CARD,
@@ -41,6 +41,11 @@ import { useRoomItemDrag, type RoomItemRef } from "@/app/portal/_lib/useRoomItem
 // PairPhoto/PairPhotosBlockはこのbundleを1個のpropとして受け取り、内部で
 // activeItem/dropTargetを見て自分がドラッグ元/ドロップ先かを判定する。
 type RoomDnd = ReturnType<typeof useRoomItemDrag> & { enabled: boolean };
+
+// v3.1段3: mutedPairKeysの安定した既定値(advancedモード等・未指定時)。
+// 毎レンダー新しいSetを作ると無駄な参照変化を生むため module スコープの
+// 1個を使い回す(中身は常に空・書き換えない)。
+const EMPTY_MUTED_PAIR_KEYS = new Set<string>();
 
 export interface RoomLocalPhotoItem {
   kind: "photo";
@@ -162,6 +167,97 @@ function PairMismatchWarning({ fileA, fileB }: { fileA: File; fileB: File }) {
     <p className="text-[10px] leading-snug text-amber-600">
       ⚠️ この2枚は別の部屋の可能性があります。同じ部屋の2枚1組かご確認ください
     </p>
+  );
+}
+
+// --- v3.1段3(2026-07-21・アコーディオン+誤ペア警告のアクション格上げ)---
+
+function fileIdentityKey(f: File): string {
+  return `${f.name}__${f.size}__${f.lastModified}`;
+}
+
+/** ペアの恒久ミュートキー。2ファイルの実体(name+size+lastModified)から
+ * 順序非依存で安定した文字列を作る — 「始まり/終わり」の位置が入れ替わって
+ * も同じ組は同じキーになり(=組み替えでミュートが復活しない)、どちらか
+ * 一方でも別ファイルに置き換われば別キーになる(=別の組は再判定される)。
+ * ミュート集合自体はSubmitForm側のstate(mutedPairKeys)で保持する — この
+ * コンポーネントがアンマウント/再マウントされても消えない。 */
+function pairMuteKey(fileA: File, fileB: File): string {
+  const [a, b] = [fileIdentityKey(fileA), fileIdentityKey(fileB)].sort();
+  return `${a}|${b}`;
+}
+
+/** ペア妥当性の判定を折りたたみ中も止めずに実行する非表示コンポーネント。
+ * bulk確認モード(dnd.enabled)のときだけ、ペア部屋ごとに1個だけ常時マウント
+ * する(展開/折りたたみの表示切り替えとは無関係に描画し続ける=判定
+ * stateが消えないようにするための資産)。結果は onChange 経由で親
+ * (RoomCardsField)の mismatchByUid へ集約し、折りたたみ行の⚠アイコンと
+ * 展開時のアクションUIの双方が同じ結果を参照する(二重計算しない)。 */
+function PairMismatchTracker({
+  uid,
+  fileA,
+  fileB,
+  onChange,
+}: {
+  uid: string;
+  fileA: File;
+  fileB: File;
+  onChange: (uid: string, mismatched: boolean) => void;
+}) {
+  useEffect(() => {
+    let cancelled = false;
+    computePairMismatchDistance(fileA, fileB).then((d) => {
+      if (!cancelled) onChange(uid, d !== null && d > PAIR_MISMATCH_THRESHOLD);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [uid, fileA, fileB, onChange]);
+
+  return null;
+}
+
+/** 誤ペア警告のアクション二択(v3.1段3 要件2「警告→分岐点」)。bulk確認
+ * モードでのみ使用(advancedモードは既存の PairMismatchWarning のまま —
+ * このコンポーネントには触れない)。「同じ部屋です」はミュート(恒久・
+ * ファイル実体キー)、「別々の部屋に分ける」は既存 onUnpairRoom を1タップ
+ * 発動(1枚×2部屋分割・部屋名引き継ぎは実装済み)。onUnpair未提供時は
+ * そのボタンだけ出さない(既存の「ペア解除」ボタンと同じ gating 流儀)。 */
+function PairMismatchAction({
+  busy,
+  onMute,
+  onUnpair,
+}: {
+  busy: boolean;
+  onMute: () => void;
+  onUnpair?: () => void;
+}) {
+  return (
+    <div className="space-y-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2">
+      <p className="text-[10px] leading-snug text-amber-700">
+        ⚠ この2枚は別の部屋のようです
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onMute}
+          className="rounded-md border border-amber-300 bg-white/80 px-2 py-1 text-[10px] font-medium text-amber-800 transition-colors hover:bg-white disabled:opacity-50"
+        >
+          同じ部屋です(このまま)
+        </button>
+        {onUnpair && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onUnpair}
+            className="rounded-md border border-amber-300 bg-white/80 px-2 py-1 text-[10px] font-medium text-amber-800 transition-colors hover:bg-white disabled:opacity-50"
+          >
+            別々の部屋に分ける
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -367,19 +463,28 @@ function PairPhotosBlock({
   rooms,
   busy,
   dnd,
+  isMismatchActive,
+  mismatchKey,
   onRemoveItem,
   onSwapFrames,
   onUnpairRoom,
   onMoveItemToRoom,
+  onMutePair,
 }: {
   room: RoomCardState;
   rooms: RoomCardState[];
   busy: boolean;
   dnd: RoomDnd;
+  // v3.1段3: 事前計算済みの誤ペア判定(mismatchByUid由来・dnd.enabled時
+  // のみ意味を持つ)。ミュート済みなら呼び出し側(RoomCardsField)側で
+  // 既に false になっている。
+  isMismatchActive: boolean;
+  mismatchKey: string | null;
   onRemoveItem: (uid: string, itemIdx: number) => void;
   onSwapFrames: (uid: string) => void;
   onUnpairRoom?: (uid: string) => void;
   onMoveItemToRoom?: (fromUid: string, itemIdx: number, toUid: string) => void;
+  onMutePair?: (key: string) => void;
 }) {
   const first = room.items[0];
   const second = room.items[1];
@@ -414,7 +519,20 @@ function PairPhotosBlock({
           onMoveItemToRoom={onMoveItemToRoom}
         />
       </div>
-      <PairMismatchWarning fileA={first.file} fileB={second.file} />
+      {dnd.enabled ? (
+        // bulk確認モード: アクション二択(v3.1段3)。advancedモードの
+        // PairMismatchWarning(下のelse節)には一切触れない。
+        isMismatchActive &&
+        mismatchKey && (
+          <PairMismatchAction
+            busy={busy}
+            onMute={() => onMutePair?.(mismatchKey)}
+            onUnpair={onUnpairRoom ? () => onUnpairRoom(room.uid) : undefined}
+          />
+        )
+      ) : (
+        <PairMismatchWarning fileA={first.file} fileB={second.file} />
+      )}
       <div className="flex items-center justify-between gap-2 text-[10px] text-[var(--brand-gray-light)]">
         <span className="truncate">この順に映像が動きます</span>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -442,6 +560,80 @@ function PairPhotosBlock({
   );
 }
 
+/** アコーディオン折りたたみ行(v3.1段3・bulk確認モードのみ)。高さ約48px
+ * 目安 — 部屋番号+部屋名+ミニサムネ+状態アイコンだけの要約1行。data-drop-room
+ * は親(このコンポーネントを包む外側div)側が既に持っているため、ここでは
+ * 何も付けない — 折りたたみ中でも外側divへドロップすれば移動先として
+ * 機能する(要件どおり)。クリックで展開するだけの薄いボタン — DnDの
+ * pointerdownハンドルはここには一切付いていない(ドラッグはPairPhoto等の
+ * サムネハンドルからのみ開始する設計のため競合しない)。 */
+function CollapsedRoomRow({
+  idx,
+  room,
+  hasMismatch,
+  onExpand,
+}: {
+  idx: number;
+  room: RoomCardState;
+  hasMismatch: boolean;
+  onExpand: () => void;
+}) {
+  const hasVideo = room.items.some((it) => it.kind === "video");
+  const isSingle = room.items.length === 1 && !hasVideo;
+
+  return (
+    <button type="button" onClick={onExpand} className="flex w-full items-center gap-2 text-left">
+      <span className="w-4 shrink-0 text-center text-xs font-bold text-[var(--brand-ink)]/50">
+        {idx + 1}
+      </span>
+      <span className="flex shrink-0 items-center gap-0.5">
+        {hasVideo ? (
+          <span
+            className="flex h-8 w-8 items-center justify-center rounded-md bg-black/5 text-sm"
+            aria-hidden
+          >
+            🎬
+          </span>
+        ) : room.items.length === 0 ? (
+          <span
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-dashed border-black/15 text-xs text-black/25"
+            aria-hidden
+          >
+            +
+          </span>
+        ) : (
+          room.items.map((it, ii) =>
+            it.kind === "photo" ? (
+              <ItemThumbnail
+                key={ii}
+                file={it.file}
+                kind="photo"
+                className="h-8 w-8 shrink-0 rounded-md object-cover ring-1 ring-black/10 bg-black/5"
+              />
+            ) : null
+          )
+        )}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--brand-ink)]">
+        {room.label ?? `部屋${idx + 1}`}
+      </span>
+      {hasMismatch && (
+        <span className="shrink-0 text-xs text-amber-600" aria-hidden title="別の部屋の可能性">
+          ⚠
+        </span>
+      )}
+      {isSingle && (
+        <span className="shrink-0 rounded-full bg-black/5 px-1.5 py-0.5 text-[9px] text-[var(--brand-ink)]/50">
+          1枚
+        </span>
+      )}
+      <span className="shrink-0 text-[10px] text-black/30" aria-hidden>
+        ▸
+      </span>
+    </button>
+  );
+}
+
 export interface RoomCardsFieldProps {
   rooms: RoomCardState[];
   busy: boolean;
@@ -466,6 +658,12 @@ export interface RoomCardsFieldProps {
     a: { uid: string; itemIdx: number },
     b: { uid: string; itemIdx: number }
   ) => void;
+  // v3.1段3(2026-07-21・誤ペア警告のアクション格上げ)。onMoveItemToRoomと
+  // 同じgating(bulk確認モードのみ)— 未指定の間はPairPhotosBlockが
+  // advancedモードの旧PairMismatchWarningのままになる(上のPairPhotosBlock
+  // 内 dnd.enabled 分岐参照)。
+  mutedPairKeys?: Set<string>;
+  onMutePair?: (key: string) => void;
 }
 
 export default function RoomCardsField({
@@ -483,10 +681,57 @@ export default function RoomCardsField({
   onMoveItemToRoom,
   onUnpairRoom,
   onSwapItems,
+  mutedPairKeys = EMPTY_MUTED_PAIR_KEYS,
+  onMutePair,
 }: RoomCardsFieldProps) {
   // v3.1段2: DnDはonMoveItemToRoomと同じ場面(bulk確認モード)でのみ有効
   // (design.md方針=段1以前の「移動セレクトが使える場面」を1行も広げない)。
   const dndEnabled = !!onMoveItemToRoom;
+  // v3.1段3: アコーディオン(改修1)・誤ペア警告のアクション格上げ(改修2)
+  // も同じ判断基準を流用する — 「bulk確認モードでのみ」という要件はこの
+  // 既存gatingとぴったり一致するため、新しいpropを増やさない。
+  const accordionEnabled = dndEnabled;
+
+  // アコーディオン: 展開中の部屋は1つだけ。新しい部屋が追加されたら自動で
+  // それを展開する(最後に触った部屋を展開が自然=design.md v3.1段3仕様)。
+  // 展開中の部屋が消えた(削除/移動で空になった等)場合は折りたたみへ戻す。
+  // advancedモード(accordionEnabled=false)ではこのstateは未使用のまま
+  // (isExpanded判定側でaccordionEnabled自体を先に見るため参照されない)。
+  const [expandedUid, setExpandedUid] = useState<string | null>(null);
+  const prevRoomUidsRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!accordionEnabled) return;
+    const uids = rooms.map((r) => r.uid);
+    const uidSet = new Set(uids);
+    const prevUids = prevRoomUidsRef.current;
+    if (prevUids === null) {
+      // 初回マウント時、まだ何も展開していなければ最初の部屋を開く
+      // (rooms propが親から来る値のため「前回のuid集合」との比較でしか
+      // 新規判定できない=このeffectでの同期setStateが必要。ItemThumbnail
+      // のobjectURL所有パターンと同じ理由で意図的)。
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (uids.length > 0) setExpandedUid((cur) => cur ?? uids[0]);
+    } else {
+      const added = uids.filter((uid) => !prevUids.has(uid));
+      if (added.length > 0) {
+        // 新規追加された部屋(bulk一括投入含む)を自動展開する
+        // (design.md v3.1段3仕様「最後に触った部屋を展開が自然」)。
+        setExpandedUid(added[added.length - 1]);
+      } else {
+        // 展開中の部屋が消えた(削除/移動で空になった等)場合だけ折りたたみへ
+        // 戻す(それ以外は現状維持=関数更新のため無駄な再レンダーもない)。
+        setExpandedUid((cur) => (cur && !uidSet.has(cur) ? null : cur));
+      }
+    }
+    prevRoomUidsRef.current = uidSet;
+  }, [rooms, accordionEnabled]);
+
+  // 誤ペア判定(v3.1段3改修2)。PairMismatchTrackerが折りたたみ中も常時
+  // マウントされ続けてここへ結果を集約する(uid -> 判定結果の低頻度state)。
+  const [mismatchByUid, setMismatchByUid] = useState<Record<string, boolean>>({});
+  const handleMismatchChange = useCallback((uid: string, mismatched: boolean) => {
+    setMismatchByUid((prev) => (prev[uid] === mismatched ? prev : { ...prev, [uid]: mismatched }));
+  }, []);
 
   // 部屋本体へのドロップ(move)を許可してよいかの判定。moveRoomItemToRoom
   // 内の実バリデーション(SubmitForm.tsx)と同じルール(動画は空部屋のみ/
@@ -525,6 +770,24 @@ export default function RoomCardsField({
         const canAddPhoto = !hasVideo && photoCount < MAX_ROOM_PHOTOS_PER_CARD;
         const isPair = room.items.length === 2 && room.items.every((it) => it.kind === "photo");
 
+        // v3.1段3改修2: ペアの恒久ミュートキー+誤ペア判定の事前計算
+        // (mismatchByUidはPairMismatchTrackerが常時マウントされて埋める —
+        // 折りたたみ中も計算が止まらないための設計・下のtracker参照)。
+        const pairFiles: [File, File] | null =
+          isPair && room.items[0].kind === "photo" && room.items[1].kind === "photo"
+            ? [room.items[0].file, room.items[1].file]
+            : null;
+        const mismatchKeyForRoom = pairFiles ? pairMuteKey(pairFiles[0], pairFiles[1]) : null;
+        const isMismatchActive =
+          dnd.enabled &&
+          !!pairFiles &&
+          mismatchByUid[room.uid] === true &&
+          !(mismatchKeyForRoom !== null && mutedPairKeys.has(mismatchKeyForRoom));
+
+        // v3.1段3改修1: アコーディオン。advancedモード(accordionEnabled=
+        // false)では常にtrue=フル表示のまま(既存挙動を1行も変えない)。
+        const isExpanded = !accordionEnabled || expandedUid === room.uid;
+
         // v3.1段2: 部屋本体への「move」ドロップ先ハイライト(有効な受け先
         // だけ・上のisValidMoveTarget参照)。旧HTML5 native drag
         // (onDragOver/onDrop)はここで撤去 — useRoomItemDragのpointerup
@@ -536,12 +799,34 @@ export default function RoomCardsField({
           <div
             key={room.uid}
             data-drop-room={dnd.enabled ? room.uid : undefined}
-            className={`rounded-xl border p-3 space-y-2 transition-colors ${
+            className={`rounded-xl border transition-colors ${isExpanded ? "p-3 space-y-2" : "p-2"} ${
               isRoomMoveTarget
                 ? "border-[var(--brand-orange)] bg-[var(--brand-orange)]/10 ring-2 ring-[var(--brand-orange)]"
                 : "border-black/10 bg-white/60"
             }`}
           >
+            {/* v3.1段3: 誤ペア判定は展開/折りたたみに関係なく常時マウント
+                (要件「折りたたみ中も生かす」)。何も描画しない — 結果は
+                mismatchByUid経由でCollapsedRoomRowの⚠アイコン/展開時の
+                PairMismatchActionの両方が参照する。 */}
+            {dnd.enabled && pairFiles && (
+              <PairMismatchTracker
+                uid={room.uid}
+                fileA={pairFiles[0]}
+                fileB={pairFiles[1]}
+                onChange={handleMismatchChange}
+              />
+            )}
+
+            {accordionEnabled && !isExpanded ? (
+              <CollapsedRoomRow
+                idx={idx}
+                room={room}
+                hasMismatch={isMismatchActive}
+                onExpand={() => setExpandedUid(room.uid)}
+              />
+            ) : (
+              <>
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-bold text-[var(--brand-ink)]">
                 部屋 {idx + 1}
@@ -630,10 +915,13 @@ export default function RoomCardsField({
                 rooms={rooms}
                 busy={busy}
                 dnd={dnd}
+                isMismatchActive={isMismatchActive}
+                mismatchKey={mismatchKeyForRoom}
                 onRemoveItem={onRemoveItem}
                 onSwapFrames={onSwapFrames}
                 onUnpairRoom={onUnpairRoom}
                 onMoveItemToRoom={onMoveItemToRoom}
+                onMutePair={onMutePair}
               />
             )}
 
@@ -769,6 +1057,8 @@ export default function RoomCardsField({
               <p className="text-[10px] text-[var(--brand-gray-light)]">
                 動画は{MAX_VIDEO_DURATION_SEC}秒以内・1080p設定推奨です
               </p>
+            )}
+              </>
             )}
           </div>
         );

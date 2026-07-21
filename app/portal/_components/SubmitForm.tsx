@@ -213,6 +213,24 @@ export default function SubmitForm({
   const [roomsMode, setRoomsMode] = useState<"bulk" | "advanced">("bulk");
   const [bulkAnalyzing, setBulkAnalyzing] = useState(false);
 
+  // v3.1段3(2026-07-21・誤ペア警告のアクション格上げ・design.md「v3.1段3
+  // 仕様」改修2)。「同じ部屋です(このまま)」で恒久ミュートしたペアの
+  // キー集合。RoomCardsField.tsx の pairMuteKey(=ファイル実体の
+  // name+size+lastModifiedから順序非依存に導出)と同じ形のキーを受け取る
+  // だけ — このコンポーネントはキーの中身に関知しない。SubmitForm側の
+  // stateとして保持するため、警告UI自体が再マウントされても消えない
+  // (bulk確認モードのみで使用・advancedモードには渡さない)。
+  const [mutedPairKeys, setMutedPairKeys] = useState<Set<string>>(new Set());
+
+  function mutePairMismatch(key: string) {
+    setMutedPairKeys((prev) => {
+      if (prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
+  }
+
   const busy = phase === "working";
 
   function handleMaisokuPick(files: FileList | null) {
@@ -1173,6 +1191,8 @@ export default function SubmitForm({
                     onMoveItemToRoom={moveRoomItemToRoom}
                     onUnpairRoom={unpairRoom}
                     onSwapItems={swapRoomItems}
+                    mutedPairKeys={mutedPairKeys}
+                    onMutePair={mutePairMismatch}
                   />
                 </>
               )}
