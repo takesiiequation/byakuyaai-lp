@@ -7,13 +7,25 @@ import {
   DEAL_TYPES,
   MAX_APPEAL_NOTE_LENGTH,
   MAX_PHOTOS,
+  MAX_ROOMS,
+  MAX_ROOM_PHOTOS_PER_CARD,
+  MAX_VIDEO_DURATION_SEC,
+  ROOM_LABEL_OTHER,
+  ROOM_PHOTO_MIN_LONG_SIDE,
   RECOMMENDED_PHOTOS,
   checkMaisokuFile,
   checkPhotoFile,
+  checkVideoFile,
   containsCostWarningKeyword,
   type AspectRatio,
   type DealType,
+  type RoomFrameRole,
+  type RoomPayload,
 } from "@/app/_lib/portalSubmitShared";
+import RoomCardsField, {
+  type RoomCardState,
+  type RoomLocalItem,
+} from "./RoomCardsField";
 
 // /portal/submit の本体フォーム。項目構成は現行のGoogle標準フォーム
 // (fudosan-video/docs/forms_v15/standard_form.gs が拾う質問)と同じ:
@@ -119,10 +131,53 @@ async function postJson(
   return { res, data };
 }
 
+/** 部屋カードUI(Phase A)専用: 画像の長辺(px)を取得する。読めない場合は
+ * null(fail-soft — 判定できないだけで警告を出さない)。 */
+function readImageLongSide(file: File): Promise<number | null> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const longSide = Math.max(img.naturalWidth, img.naturalHeight);
+      resolve(longSide > 0 ? longSide : null);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    img.src = url;
+  });
+}
+
+/** 部屋カードUI(Phase A)専用: 動画の長さ(秒)を取得する。読めない場合は
+ * null(30秒超の判定はできないが、ブロックはしない=fail-soft)。 */
+function readVideoDurationSec(file: File): Promise<number | null> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement("video");
+    v.preload = "metadata";
+    v.onloadedmetadata = () => {
+      URL.revokeObjectURL(url);
+      resolve(Number.isFinite(v.duration) ? v.duration : null);
+    };
+    v.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    };
+    v.src = url;
+  });
+}
+
 export default function SubmitForm({
   defaultEmail,
+  roomsUiEnabled = false,
 }: {
   defaultEmail: string;
+  /** env PORTAL_ROOMS_UI が "true" のときだけ true(サーバーコンポーネント
+   * の /portal/submit/page.tsx から渡される)。未指定/false は現行UIを
+   * 1行も変えずに維持する(design.md §2のフィーチャーフラグ方針)。 */
+  roomsUiEnabled?: boolean;
 }) {
   const router = useRouter();
   const [maisoku, setMaisoku] = useState<File | null>(null);
@@ -138,6 +193,11 @@ export default function SubmitForm({
   const [dryRun, setDryRun] = useState<DryRunResult | null>(null);
   const maisokuInputRef = useRef<HTMLInputElement>(null);
   const photosInputRef = useRef<HTMLInputElement>(null);
+
+  // 部屋カードUI(Phase A・roomsUiEnabled時のみ使用。フラグOFF時はこの
+  // stateは常に空のまま参照されない=既存挙動に影響しない)。
+  const [rooms, setRooms] = useState<RoomCardState[]>([]);
+  const roomUidCounter = useRef(0);
 
   const busy = phase === "working";
 
@@ -179,11 +239,185 @@ export default function SubmitForm({
     setPhotos((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  const canSubmit =
+  // --- 部屋カードUI(Phase A)ハンドラ群。roomsUiEnabled=falseの間は
+  // どこからも呼ばれない(RoomCardsFieldがrender されないため)。 ---
+
+  function addRoom() {
+    if (rooms.length >= MAX_ROOMS) return;
+    roomUidCounter.current += 1;
+    const uid = `room-${roomUidCounter.current}`;
+    setRooms((prev) => [...prev, { uid, label: null, customLabelMode: false, items: [] }]);
+  }
+
+  function removeRoom(uid: string) {
+    setRooms((prev) => prev.filter((r) => r.uid !== uid));
+  }
+
+  function moveRoom(uid: string, dir: -1 | 1) {
+    setRooms((prev) => {
+      const idx = prev.findIndex((r) => r.uid === uid);
+      const swapIdx = idx + dir;
+      if (idx < 0 || swapIdx < 0 || swapIdx >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
+      return next;
+    });
+  }
+
+  function setRoomLabelChip(uid: string, chip: string) {
+    setRooms((prev) =>
+      prev.map((r) => {
+        if (r.uid !== uid) return r;
+        if (chip === ROOM_LABEL_OTHER) {
+          return { ...r, customLabelMode: true };
+        }
+        if (r.label === chip && !r.customLabelMode) {
+          return { ...r, label: null }; // 同じチップの再クリックで解除(任意項目)
+        }
+        return { ...r, label: chip, customLabelMode: false };
+      })
+    );
+  }
+
+  function setRoomLabelCustomText(uid: string, text: string) {
+    setRooms((prev) =>
+      prev.map((r) =>
+        r.uid === uid ? { ...r, label: text.length > 0 ? text.slice(0, 50) : null } : r
+      )
+    );
+  }
+
+  function removeRoomItem(uid: string, itemIdx: number) {
+    setRooms((prev) =>
+      prev.map((r) => (r.uid === uid ? { ...r, items: r.items.filter((_, i) => i !== itemIdx) } : r))
+    );
+  }
+
+  function swapRoomFrames(uid: string) {
+    setRooms((prev) =>
+      prev.map((r) =>
+        r.uid === uid && r.items.length === 2 ? { ...r, items: [r.items[1], r.items[0]] } : r
+      )
+    );
+  }
+
+  function setPhotoItemLowRes(uid: string, itemIdx: number, lowRes: boolean) {
+    setRooms((prev) =>
+      prev.map((r) =>
+        r.uid !== uid
+          ? r
+          : {
+              ...r,
+              items: r.items.map((it, i) =>
+                i === itemIdx && it.kind === "photo" ? { ...it, lowRes } : it
+              ),
+            }
+      )
+    );
+  }
+
+  function setVideoItemDuration(uid: string, itemIdx: number, durationSec: number) {
+    setRooms((prev) =>
+      prev.map((r) =>
+        r.uid !== uid
+          ? r
+          : {
+              ...r,
+              items: r.items.map((it, i) =>
+                i === itemIdx && it.kind === "video" ? { ...it, durationSec } : it
+              ),
+            }
+      )
+    );
+  }
+
+  function addPhotosToRoom(uid: string, files: FileList) {
+    setError("");
+    const room = rooms.find((r) => r.uid === uid);
+    if (!room) return;
+    if (room.items.some((it) => it.kind === "video")) return; // 写真/動画は排他
+    const capacity = MAX_ROOM_PHOTOS_PER_CARD - room.items.length;
+    const picked = Array.from(files);
+    if (picked.length === 0) return;
+    if (picked.length > capacity) {
+      setError(`このカードに追加できる写真はあと${capacity}枚です`);
+      return;
+    }
+    for (const file of picked) {
+      const check = checkPhotoFile(file.name, file.type, file.size);
+      if (!check.ok) {
+        setError(check.error || "このファイルは使用できません");
+        return;
+      }
+    }
+    const startIdx = room.items.length;
+    setRooms((prev) =>
+      prev.map((r) =>
+        r.uid === uid
+          ? {
+              ...r,
+              items: [
+                ...r.items,
+                ...picked.map((file) => ({ kind: "photo" as const, file, lowRes: null })),
+              ],
+            }
+          : r
+      )
+    );
+    // 長辺チェックは非同期(fail-soft・送信は妨げない・§2)
+    picked.forEach((file, i) => {
+      readImageLongSide(file).then((longSide) => {
+        setPhotoItemLowRes(uid, startIdx + i, longSide !== null && longSide < ROOM_PHOTO_MIN_LONG_SIDE);
+      });
+    });
+  }
+
+  function addVideoToRoom(uid: string, file: File) {
+    setError("");
+    const room = rooms.find((r) => r.uid === uid);
+    if (!room || room.items.length > 0) return; // 写真/動画は排他・1本まで
+    const check = checkVideoFile(file.name, file.type, file.size);
+    if (!check.ok) {
+      setError(check.error || "このファイルは使用できません");
+      return;
+    }
+    setRooms((prev) =>
+      prev.map((r) =>
+        r.uid === uid ? { ...r, items: [{ kind: "video" as const, file, durationSec: null }] } : r
+      )
+    );
+    // 尺チェックは非同期。30秒超は拒否(§2・fail-hard)。
+    readVideoDurationSec(file).then((duration) => {
+      if (duration !== null && duration > MAX_VIDEO_DURATION_SEC) {
+        setError(
+          `${file.name}: 動画は${MAX_VIDEO_DURATION_SEC}秒以内でアップロードしてください(${Math.round(duration)}秒でした)`
+        );
+        setRooms((prev) => prev.map((r) => (r.uid === uid ? { ...r, items: [] } : r)));
+        return;
+      }
+      setVideoItemDuration(uid, 0, duration ?? 0);
+    });
+  }
+
+  const legacyCanSubmit =
     !!maisoku && photos.length >= 1 && email.trim().length > 3 && !busy;
+  const roomsCanSubmit =
+    !!maisoku &&
+    rooms.length >= 1 &&
+    rooms.every((r) => r.items.length >= 1) &&
+    email.trim().length > 3 &&
+    !busy;
+  const canSubmit = roomsUiEnabled ? roomsCanSubmit : legacyCanSubmit;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // 部屋カードUI(Phase A)は完全に独立した送信経路(下のhandleRoomsSubmit)
+    // へ分岐する。ここから先(既存のフラット写真配列を前提にした送信処理)
+    // は roomsUiEnabled=false のとき従来と1バイトも変わらない。
+    if (roomsUiEnabled) {
+      await handleRoomsSubmit();
+      return;
+    }
     if (!canSubmit || !maisoku) return;
 
     // 費用系ワードのソフトガード(app/revise/_components/ReviseForm.tsx の
@@ -328,6 +562,185 @@ export default function SubmitForm({
     }
   }
 
+  // 部屋カードUI(Phase A)専用の送信経路。上のhandleSubmit本体(現行UI)を
+  // 一切書き換えずに済むよう、あえて独立させている(重複はあるが「フラグ
+  // OFF時に現行UIと同一」を機械的に保証するための意図的な選択)。
+  // デュアルペイロード(design.md §1「後方互換」): photo_file_ids は従来
+  // どおり写真Drive IDの配列(roomsをorder順にflattenして生成)、加えて
+  // 新フィールド rooms を同送する。n8nがrooms未対応でもphoto_file_ids等の
+  // 旧フィールドは今までと完全に同じ形のまま届く。
+  async function handleRoomsSubmit() {
+    if (!maisoku || !roomsCanSubmit) return;
+
+    if (containsCostWarningKeyword(appealNote)) {
+      const proceed = window.confirm(
+        "費用に関する表現が含まれています。マイソク等の事実に基づく内容であることをご確認ください。このまま送信しますか?"
+      );
+      if (!proceed) return;
+    }
+
+    setError("");
+    setDryRun(null);
+    setPhase("working");
+
+    interface FlatUploadTarget {
+      roomUid: string;
+      itemIdx: number;
+      item: RoomLocalItem;
+      progressLabel: string;
+    }
+    const flatTargets: FlatUploadTarget[] = [];
+    rooms.forEach((r, ri) => {
+      const roomTag = r.label ? `部屋${ri + 1}(${r.label})` : `部屋${ri + 1}`;
+      r.items.forEach((it, ii) => {
+        flatTargets.push({
+          roomUid: r.uid,
+          itemIdx: ii,
+          item: it,
+          progressLabel: `${roomTag} ${it.kind === "photo" ? `写真${ii + 1}` : "動画"}: ${it.file.name}`,
+        });
+      });
+    });
+
+    const items: UploadItem[] = [
+      { label: `マイソク: ${maisoku.name}`, pct: 0, state: "wait" },
+      ...flatTargets.map((t) => ({ label: t.progressLabel, pct: 0, state: "wait" as UploadState })),
+    ];
+    setUploads(items);
+
+    const setItem = (i: number, patch: Partial<UploadItem>) =>
+      setUploads((prev) =>
+        prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it))
+      );
+
+    try {
+      setStepNote("アップロード先を準備しています…");
+      const init = await postJson("/api/portal/submit/init", {});
+      if (!init.res.ok || !init.data.ok) {
+        throw new Error(
+          (init.data.error as string) || "アップロード準備に失敗しました"
+        );
+      }
+      const token = init.data.token as string;
+
+      setStepNote("ファイルをアップロードしています…");
+      const uploadOne = async (
+        file: File,
+        target: "maisoku" | "photo" | "video",
+        index: number,
+        itemIdx: number
+      ): Promise<string> => {
+        setItem(itemIdx, { state: "uploading" });
+        const urlRes = await postJson("/api/portal/submit/upload-url", {
+          token,
+          target,
+          name: file.name,
+          mime_type: file.type,
+          size: file.size,
+          index,
+        });
+        if (!urlRes.res.ok || !urlRes.data.ok) {
+          setItem(itemIdx, { state: "error" });
+          throw new Error(
+            (urlRes.data.error as string) || "アップロード準備に失敗しました"
+          );
+        }
+        try {
+          const fileId = await putFileToDrive(
+            urlRes.data.upload_url as string,
+            file,
+            (pct) => setItem(itemIdx, { pct })
+          );
+          setItem(itemIdx, { pct: 100, state: "done" });
+          return fileId;
+        } catch (err) {
+          setItem(itemIdx, { state: "error" });
+          throw err;
+        }
+      };
+
+      const maisokuFileId = await uploadOne(maisoku, "maisoku", 0, 0);
+
+      let photoIdx = 0;
+      let videoIdx = 0;
+      const driveIdByKey = new Map<string, string>();
+      for (let t = 0; t < flatTargets.length; t++) {
+        const target = flatTargets[t];
+        const index = target.item.kind === "photo" ? photoIdx++ : videoIdx++;
+        const driveId = await uploadOne(target.item.file, target.item.kind, index, t + 1);
+        driveIdByKey.set(`${target.roomUid}:${target.itemIdx}`, driveId);
+      }
+
+      const photoFileIds: string[] = [];
+      const roomsPayload: RoomPayload[] = rooms.map((r, ri) => ({
+        order: ri + 1,
+        label: r.label,
+        items: r.items.map((it, ii) => {
+          const driveId = driveIdByKey.get(`${r.uid}:${ii}`) ?? "";
+          if (it.kind === "photo") {
+            photoFileIds.push(driveId);
+            const frameRole: RoomFrameRole =
+              r.items.length >= 2 && ii === 1 ? "end" : "start";
+            return { kind: "photo" as const, drive_id: driveId, frame_role: frameRole };
+          }
+          return {
+            kind: "video" as const,
+            drive_id: driveId,
+            duration_sec: Math.round(it.durationSec ?? 0),
+          };
+        }),
+      }));
+
+      // 3) 送信(サーバーがペイロード組み立て+送信ゲート判定)
+      setStepNote("リクエストを送信しています…");
+      let submit: { res: Response; data: Record<string, unknown> };
+      try {
+        submit = await postJson("/api/portal/submit", {
+          token,
+          maisoku_file_id: maisokuFileId,
+          photo_file_ids: photoFileIds,
+          aspect_ratio: aspect,
+          deal_type: deal,
+          email: email.trim(),
+          appeal_note: appealNote.trim(),
+          rooms: roomsPayload,
+        });
+      } catch {
+        setPhase("ambiguous");
+        setStepNote("");
+        return;
+      }
+      if (!submit.res.ok || !submit.data.ok) {
+        throw new Error(
+          (submit.data.error as string) || "送信に失敗しました"
+        );
+      }
+
+      if (submit.data.sent === true) {
+        router.push("/portal?submitted=1");
+        router.refresh();
+        return;
+      }
+
+      setDryRun({
+        message:
+          (submit.data.message as string) || "送信機能は準備中です",
+        execId: (submit.data.exec_id as string) || "",
+        photoCount:
+          typeof submit.data.photo_count === "number"
+            ? submit.data.photo_count
+            : photoFileIds.length,
+        payloadJson: JSON.stringify(submit.data.payload ?? {}, null, 2),
+      });
+      setPhase("done_dry");
+      setStepNote("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
+      setPhase("idle");
+      setStepNote("");
+    }
+  }
+
   const inputClass =
     "w-full border border-black/10 bg-white/80 text-[var(--brand-ink)] placeholder:text-black/35 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-[var(--brand-orange)] focus:border-transparent focus:bg-white/95 transition-colors";
   const pickerButtonClass =
@@ -440,75 +853,107 @@ export default function SubmitForm({
         )}
       </div>
 
-      {/* 物件写真 */}
-      <div>
-        <label className="block text-sm font-bold text-[var(--brand-ink)] mb-1">
-          物件写真 <span className="text-red-500">*</span>
-        </label>
-        <p className="text-xs text-[var(--brand-gray-light)] mb-2">
-          そのまま動画に使用する写真({RECOMMENDED_PHOTOS}推奨・最大
-          {MAX_PHOTOS}枚)。JPEG / PNG / WebP
-        </p>
-        <a
-          href="/portal/guide"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mb-3 block text-xs font-semibold text-[var(--brand-orange-dark)] underline decoration-[var(--brand-orange)]/40 underline-offset-2 hover:decoration-current"
-        >
-          📸 魅力的な動画になる写真の撮り方はこちら
-        </a>
-        <input
-          ref={photosInputRef}
-          type="file"
-          accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-          multiple
-          className="hidden"
-          disabled={busy}
-          onChange={(e) => {
-            handlePhotosPick(e.target.files);
-            e.target.value = "";
-          }}
-        />
-        {photos.length > 0 && (
-          <ul className="mb-2 space-y-1.5">
-            {photos.map((f, i) => (
-              <li
-                key={`${f.name}-${f.size}`}
-                className="flex items-center gap-3 rounded-xl bg-white/70 border border-black/5 px-4 py-2.5"
-              >
-                <span className="text-[11px] font-semibold text-[var(--brand-gray-light)] shrink-0 w-5">
-                  {i + 1}
-                </span>
-                <span className="flex-1 min-w-0 truncate text-sm text-[var(--brand-ink)]">
-                  {f.name}
-                </span>
-                <span className="text-xs text-[var(--brand-gray-light)] shrink-0">
-                  {formatBytes(f.size)}
-                </span>
-                {!busy && (
-                  <button
-                    type="button"
-                    onClick={() => removePhoto(i)}
-                    className="text-xs text-red-500 hover:text-red-600 shrink-0"
-                  >
-                    削除
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-        {photos.length < MAX_PHOTOS && (
-          <button
-            type="button"
-            className={pickerButtonClass}
-            disabled={busy}
-            onClick={() => photosInputRef.current?.click()}
+      {/* 物件写真(部屋カードUI・Phase A・PORTAL_ROOMS_UI) */}
+      {roomsUiEnabled ? (
+        <div>
+          <label className="block text-sm font-bold text-[var(--brand-ink)] mb-1">
+            部屋ごとの写真・動画 <span className="text-red-500">*</span>
+          </label>
+          <p className="text-xs text-[var(--brand-gray-light)] mb-2">
+            部屋を追加して、それぞれに写真(1〜2枚)または動画(1本)を入れてください
+          </p>
+          <a
+            href="/portal/guide"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mb-3 block text-xs font-semibold text-[var(--brand-orange-dark)] underline decoration-[var(--brand-orange)]/40 underline-offset-2 hover:decoration-current"
           >
-            + 写真を追加({photos.length}/{MAX_PHOTOS})
-          </button>
-        )}
-      </div>
+            📸 魅力的な動画になる写真・動画の撮り方はこちら
+          </a>
+          <RoomCardsField
+            rooms={rooms}
+            busy={busy}
+            onAddRoom={addRoom}
+            onRemoveRoom={removeRoom}
+            onMoveRoom={moveRoom}
+            onSetLabelChip={setRoomLabelChip}
+            onSetLabelCustomText={setRoomLabelCustomText}
+            onAddPhotos={addPhotosToRoom}
+            onAddVideo={addVideoToRoom}
+            onRemoveItem={removeRoomItem}
+            onSwapFrames={swapRoomFrames}
+          />
+        </div>
+      ) : (
+        <div>
+          <label className="block text-sm font-bold text-[var(--brand-ink)] mb-1">
+            物件写真 <span className="text-red-500">*</span>
+          </label>
+          <p className="text-xs text-[var(--brand-gray-light)] mb-2">
+            そのまま動画に使用する写真({RECOMMENDED_PHOTOS}推奨・最大
+            {MAX_PHOTOS}枚)。JPEG / PNG / WebP
+          </p>
+          <a
+            href="/portal/guide"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mb-3 block text-xs font-semibold text-[var(--brand-orange-dark)] underline decoration-[var(--brand-orange)]/40 underline-offset-2 hover:decoration-current"
+          >
+            📸 魅力的な動画になる写真の撮り方はこちら
+          </a>
+          <input
+            ref={photosInputRef}
+            type="file"
+            accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+            multiple
+            className="hidden"
+            disabled={busy}
+            onChange={(e) => {
+              handlePhotosPick(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          {photos.length > 0 && (
+            <ul className="mb-2 space-y-1.5">
+              {photos.map((f, i) => (
+                <li
+                  key={`${f.name}-${f.size}`}
+                  className="flex items-center gap-3 rounded-xl bg-white/70 border border-black/5 px-4 py-2.5"
+                >
+                  <span className="text-[11px] font-semibold text-[var(--brand-gray-light)] shrink-0 w-5">
+                    {i + 1}
+                  </span>
+                  <span className="flex-1 min-w-0 truncate text-sm text-[var(--brand-ink)]">
+                    {f.name}
+                  </span>
+                  <span className="text-xs text-[var(--brand-gray-light)] shrink-0">
+                    {formatBytes(f.size)}
+                  </span>
+                  {!busy && (
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(i)}
+                      className="text-xs text-red-500 hover:text-red-600 shrink-0"
+                    >
+                      削除
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {photos.length < MAX_PHOTOS && (
+            <button
+              type="button"
+              className={pickerButtonClass}
+              disabled={busy}
+              onClick={() => photosInputRef.current?.click()}
+            >
+              + 写真を追加({photos.length}/{MAX_PHOTOS})
+            </button>
+          )}
+        </div>
+      )}
 
       {/* アスペクト比 */}
       <div>
