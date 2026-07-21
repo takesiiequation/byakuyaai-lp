@@ -34,6 +34,13 @@ import {
   PAIR_MISMATCH_THRESHOLD,
   computePairMismatchDistance,
 } from "@/app/portal/_lib/roomAutoPairing";
+import { useRoomItemDrag, type RoomItemRef } from "@/app/portal/_lib/useRoomItemDrag";
+
+// v3.1段2(2026-07-21・写真タイルのポインタDnD): dnd bundleの型は
+// useRoomItemDrag の戻り値からそのまま導出する(enabledだけこちらで足す)。
+// PairPhoto/PairPhotosBlockはこのbundleを1個のpropとして受け取り、内部で
+// activeItem/dropTargetを見て自分がドラッグ元/ドロップ先かを判定する。
+type RoomDnd = ReturnType<typeof useRoomItemDrag> & { enabled: boolean };
 
 export interface RoomLocalPhotoItem {
   kind: "photo";
@@ -272,7 +279,13 @@ function MoveToRoomSelect({
   );
 }
 
-/** ペア写真1枚分(サムネ+オーバーレイバッジ+削除+移動)。v3.1改修A②。 */
+/** ペア写真1枚分(サムネ+オーバーレイバッジ+削除+移動)。v3.1改修A②。
+ * v3.1段2: 旧HTML5 native drag(draggable/onDragStart)はタッチで動かない
+ * ため撤去し、useRoomItemDrag(Pointer Events)へ完全に置き換えた(二重
+ * 発火防止・design.md「UI v3.1改修+誤ペア三重ガード」段2)。ドラッグの
+ * 掴み手/ドロップ先(data-drop-photo)は「relative」div(サムネ+バッジ+
+ * 削除ボタン)に限定 — ファイル名/移動セレクトはドラッグ対象外にすることで
+ * タップ操作(削除ボタン・セレクト)と衝突しない。 */
 function PairPhoto({
   room,
   rooms,
@@ -280,6 +293,7 @@ function PairPhoto({
   itemIdx,
   frameLabel,
   busy,
+  dnd,
   onRemoveItem,
   onMoveItemToRoom,
 }: {
@@ -289,25 +303,29 @@ function PairPhoto({
   itemIdx: number;
   frameLabel: string;
   busy: boolean;
+  dnd: RoomDnd;
   onRemoveItem: (uid: string, itemIdx: number) => void;
   onMoveItemToRoom?: (fromUid: string, itemIdx: number, toUid: string) => void;
 }) {
+  const dragKey: RoomItemRef = { uid: room.uid, itemIdx };
+  const isDragging =
+    dnd.enabled && dnd.activeItem?.uid === room.uid && dnd.activeItem?.itemIdx === itemIdx;
+  const isSwapTarget =
+    dnd.enabled &&
+    dnd.dropTarget?.kind === "swap" &&
+    dnd.dropTarget.uid === room.uid &&
+    dnd.dropTarget.itemIdx === itemIdx;
+  const handleProps = dnd.enabled && !busy ? dnd.getHandleProps(dragKey) : {};
+
   return (
-    <div
-      className="min-w-0 flex-1"
-      draggable={!!onMoveItemToRoom && !busy}
-      onDragStart={
-        onMoveItemToRoom
-          ? (e) => {
-              e.dataTransfer.setData(
-                "text/plain",
-                JSON.stringify({ uid: room.uid, itemIdx })
-              );
-            }
-          : undefined
-      }
-    >
-      <div className="relative">
+    <div className={`min-w-0 flex-1 ${isDragging ? "opacity-30" : ""}`}>
+      <div
+        className={`relative ${dnd.enabled && !busy ? "cursor-grab active:cursor-grabbing" : ""} ${
+          isSwapTarget ? "rounded-lg ring-2 ring-[var(--brand-orange)] ring-offset-2" : ""
+        }`}
+        data-drop-photo={dnd.enabled ? `${room.uid}:${itemIdx}` : undefined}
+        {...handleProps}
+      >
         <ItemThumbnail file={item.file} kind="photo" className={`${thumbClassPair} w-full`} />
         <span className="absolute left-1 top-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-semibold text-white">
           {frameLabel}
@@ -345,6 +363,7 @@ function PairPhotosBlock({
   room,
   rooms,
   busy,
+  dnd,
   onRemoveItem,
   onSwapFrames,
   onUnpairRoom,
@@ -353,6 +372,7 @@ function PairPhotosBlock({
   room: RoomCardState;
   rooms: RoomCardState[];
   busy: boolean;
+  dnd: RoomDnd;
   onRemoveItem: (uid: string, itemIdx: number) => void;
   onSwapFrames: (uid: string) => void;
   onUnpairRoom?: (uid: string) => void;
@@ -372,6 +392,7 @@ function PairPhotosBlock({
           itemIdx={0}
           frameLabel="始まり"
           busy={busy}
+          dnd={dnd}
           onRemoveItem={onRemoveItem}
           onMoveItemToRoom={onMoveItemToRoom}
         />
@@ -385,6 +406,7 @@ function PairPhotosBlock({
           itemIdx={1}
           frameLabel="終わり"
           busy={busy}
+          dnd={dnd}
           onRemoveItem={onRemoveItem}
           onMoveItemToRoom={onMoveItemToRoom}
         />
@@ -434,6 +456,13 @@ export interface RoomCardsFieldProps {
   // 手動カードUIは1行も変わらない(design.md「確認UI実装spec」)。
   onMoveItemToRoom?: (fromUid: string, itemIdx: number, toUid: string) => void;
   onUnpairRoom?: (uid: string) => void;
+  // v3.1段2(2026-07-21・写真タイルのポインタDnD)。onMoveItemToRoomと同じ
+  // gating(bulk確認モードでのみ有効)— 未指定の間はドラッグハンドル自体を
+  // 描画しない。
+  onSwapItems?: (
+    a: { uid: string; itemIdx: number },
+    b: { uid: string; itemIdx: number }
+  ) => void;
 }
 
 export default function RoomCardsField({
@@ -450,7 +479,35 @@ export default function RoomCardsField({
   onSwapFrames,
   onMoveItemToRoom,
   onUnpairRoom,
+  onSwapItems,
 }: RoomCardsFieldProps) {
+  // v3.1段2: DnDはonMoveItemToRoomと同じ場面(bulk確認モード)でのみ有効
+  // (design.md方針=段1以前の「移動セレクトが使える場面」を1行も広げない)。
+  const dndEnabled = !!onMoveItemToRoom;
+
+  // 部屋本体へのドロップ(move)を許可してよいかの判定。moveRoomItemToRoom
+  // 内の実バリデーション(SubmitForm.tsx)と同じルール(動画は空部屋のみ/
+  // 写真は動画のない部屋かつ2枚未満)をハイライト表示専用に複製している
+  // — 実際の確定処理・エラー表示は既存ハンドラ側に一本化したまま
+  // (ここでの誤判定があっても実処理側のガードが最終防波堤)。
+  function isValidMoveTarget(from: RoomItemRef, toUid: string): boolean {
+    const fromRoom = rooms.find((r) => r.uid === from.uid);
+    const toRoom = rooms.find((r) => r.uid === toUid);
+    const item = fromRoom?.items[from.itemIdx];
+    if (!item || !toRoom) return false;
+    if (item.kind === "video") return toRoom.items.length === 0;
+    if (toRoom.items.some((it) => it.kind === "video")) return false;
+    return toRoom.items.length < MAX_ROOM_PHOTOS_PER_CARD;
+  }
+
+  const { activeItem, dropTarget, getHandleProps } = useRoomItemDrag({
+    onSwap: (a, b) => onSwapItems?.(a, b),
+    onMove: (from, toUid) => onMoveItemToRoom?.(from.uid, from.itemIdx, toUid),
+    isValidMoveTarget,
+    disabled: busy || !dndEnabled,
+  });
+  const dnd: RoomDnd = { enabled: dndEnabled, activeItem, dropTarget, getHandleProps };
+
   return (
     <div className="space-y-2">
       {rooms.length === 0 && (
@@ -465,27 +522,22 @@ export default function RoomCardsField({
         const canAddPhoto = !hasVideo && photoCount < MAX_ROOM_PHOTOS_PER_CARD;
         const isPair = room.items.length === 2 && room.items.every((it) => it.kind === "photo");
 
+        // v3.1段2: 部屋本体への「move」ドロップ先ハイライト(有効な受け先
+        // だけ・上のisValidMoveTarget参照)。旧HTML5 native drag
+        // (onDragOver/onDrop)はここで撤去 — useRoomItemDragのpointerup
+        // ハンドラがonMoveItemToRoomを直接呼ぶため、二重発火の余地はない。
+        const isRoomMoveTarget =
+          dnd.enabled && dropTarget?.kind === "move" && dropTarget.uid === room.uid;
+
         return (
           <div
             key={room.uid}
-            className="rounded-xl border border-black/10 bg-white/60 p-3 space-y-2"
-            onDragOver={onMoveItemToRoom ? (e) => e.preventDefault() : undefined}
-            onDrop={
-              onMoveItemToRoom
-                ? (e) => {
-                    e.preventDefault();
-                    try {
-                      const raw = e.dataTransfer.getData("text/plain");
-                      const data = raw ? (JSON.parse(raw) as { uid?: string; itemIdx?: number }) : null;
-                      if (data?.uid && typeof data.itemIdx === "number") {
-                        onMoveItemToRoom(data.uid, data.itemIdx, room.uid);
-                      }
-                    } catch {
-                      // 不正なドロップデータは無視(fail-soft)
-                    }
-                  }
-                : undefined
-            }
+            data-drop-room={dnd.enabled ? room.uid : undefined}
+            className={`rounded-xl border p-3 space-y-2 transition-colors ${
+              isRoomMoveTarget
+                ? "border-[var(--brand-orange)] bg-[var(--brand-orange)]/10 ring-2 ring-[var(--brand-orange)]"
+                : "border-black/10 bg-white/60"
+            }`}
           >
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-bold text-[var(--brand-ink)]">
@@ -574,6 +626,7 @@ export default function RoomCardsField({
                 room={room}
                 rooms={rooms}
                 busy={busy}
+                dnd={dnd}
                 onRemoveItem={onRemoveItem}
                 onSwapFrames={onSwapFrames}
                 onUnpairRoom={onUnpairRoom}
@@ -589,24 +642,41 @@ export default function RoomCardsField({
                   // (入稿UI仕様v3: 2枚1組が既定=1枚目は常に「始まり」扱い)。
                   // 動画が入る部屋には付けない。
                   const frameLabel = it.kind === "photo" && !hasVideo ? "始まり" : null;
+                  // v3.1段2: DnD対象は写真タイルのみ(動画は対象外・旧
+                  // draggable/onDragStartはここで撤去=native dragとの
+                  // 二重発火防止)。
+                  const isPhotoTile = it.kind === "photo";
+                  const dragKey: RoomItemRef = { uid: room.uid, itemIdx: ii };
+                  const isDragging =
+                    isPhotoTile &&
+                    dnd.enabled &&
+                    dnd.activeItem?.uid === room.uid &&
+                    dnd.activeItem?.itemIdx === ii;
+                  const isSwapTarget =
+                    isPhotoTile &&
+                    dnd.enabled &&
+                    dnd.dropTarget?.kind === "swap" &&
+                    dnd.dropTarget.uid === room.uid &&
+                    dnd.dropTarget.itemIdx === ii;
+                  const handleProps =
+                    isPhotoTile && dnd.enabled && !busy ? dnd.getHandleProps(dragKey) : {};
                   return (
                     <li
                       key={`${it.file.name}-${it.file.size}-${ii}`}
-                      className="rounded-lg bg-white/70 border border-black/5 px-2.5 py-2"
-                      draggable={!!onMoveItemToRoom && !busy}
-                      onDragStart={
-                        onMoveItemToRoom
-                          ? (e) => {
-                              e.dataTransfer.setData(
-                                "text/plain",
-                                JSON.stringify({ uid: room.uid, itemIdx: ii })
-                              );
-                            }
-                          : undefined
-                      }
+                      className={`rounded-lg bg-white/70 border border-black/5 px-2.5 py-2 ${
+                        isDragging ? "opacity-30" : ""
+                      }`}
                     >
                       <div className="flex items-start gap-2">
-                        <ItemThumbnail file={it.file} kind={it.kind} />
+                        <div
+                          className={`shrink-0 ${
+                            isPhotoTile && dnd.enabled && !busy ? "cursor-grab active:cursor-grabbing" : ""
+                          } ${isSwapTarget ? "rounded-lg ring-2 ring-[var(--brand-orange)] ring-offset-2" : ""}`}
+                          data-drop-photo={isPhotoTile && dnd.enabled ? `${room.uid}:${ii}` : undefined}
+                          {...handleProps}
+                        >
+                          <ItemThumbnail file={it.file} kind={it.kind} />
+                        </div>
                         <div className="min-w-0 flex-1 space-y-1">
                           <div className="flex items-center gap-1.5">
                             {frameLabel && (

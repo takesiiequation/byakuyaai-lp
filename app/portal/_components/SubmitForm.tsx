@@ -574,6 +574,39 @@ export default function SubmitForm({
     });
   }
 
+  // v3.1段2(2026-07-21・写真タイルのポインタDnD・design.md「UI v3.1改修+
+  // 誤ペア三重ガード」段2)。同じ部屋内(start/end入替=既存swapRoomFramesと
+  // 同義)・別の部屋間のどちらも同じ意味論で扱う。2枚の位置(itemIdx)だけを
+  // 入れ替えるため各部屋のitems件数は不変 — 容量上限/写真動画排他の
+  // invariantは件数が変わらないことから自動的に保たれる(追加チェック不要)。
+  // 対象はphoto同士のみ(useRoomItemDragのdata-drop-photoはphotoアイテムに
+  // しか付与されないため呼ばれないが、念のためkindを再検証しfail-softに
+  // 無視する)。
+  //
+  // 検証済み: 入替後はroom.items[0]/[1]のFile参照が入れ替わるため、段1の
+  // PairMismatchWarning(PairPhotosBlock内・依存配列[fileA, fileB])はFile
+  // 参照の変化だけで再計算が走る仕様(RoomCardsField.tsx該当コメント参照)。
+  // 組が変われば警告も自然に発火し直す。
+  function swapRoomItems(
+    a: { uid: string; itemIdx: number },
+    b: { uid: string; itemIdx: number }
+  ) {
+    if (a.uid === b.uid && a.itemIdx === b.itemIdx) return;
+    setError("");
+    setRooms((prev) => {
+      const next = prev.map((r) => ({ ...r, items: [...r.items] }));
+      const roomA = next.find((r) => r.uid === a.uid);
+      const roomB = next.find((r) => r.uid === b.uid);
+      const itemA = roomA?.items[a.itemIdx];
+      const itemB = roomB?.items[b.itemIdx];
+      if (!roomA || !roomB || !itemA || !itemB) return prev;
+      if (itemA.kind !== "photo" || itemB.kind !== "photo") return prev;
+      roomA.items[a.itemIdx] = itemB;
+      roomB.items[b.itemIdx] = itemA;
+      return next;
+    });
+  }
+
   function unpairRoom(uid: string) {
     setError("");
     setRooms((prev) => {
@@ -1139,6 +1172,7 @@ export default function SubmitForm({
                     onSwapFrames={swapRoomFrames}
                     onMoveItemToRoom={moveRoomItemToRoom}
                     onUnpairRoom={unpairRoom}
+                    onSwapItems={swapRoomItems}
                   />
                 </>
               )}
