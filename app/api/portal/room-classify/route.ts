@@ -16,7 +16,8 @@ import { requirePortalClient } from "@/app/_lib/portalSubmitGuard";
 // ブロックしない。語彙外・JSONパース失敗は{label:"その他"}を200で返す
 // (呼び出し側が「その他」を非採用として扱う=design.md仕様どおり)。
 
-const GEMINI_MODEL = "gemini-2.5-flash-lite";
+// gemini-2.5-flash-liteは新規キーに閉鎖済み(404実測2026-07-22)。エイリアスで追随する
+const GEMINI_MODEL = "gemini-flash-lite-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 const GEMINI_TIMEOUT_MS = 8_000;
 
