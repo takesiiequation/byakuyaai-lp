@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getPortalClientId } from "@/app/_lib/portalAuth";
 import { getClientById } from "@/app/_lib/sheets";
@@ -29,6 +30,15 @@ import { Shell, MessageCard } from "../_components/Shell";
 // hook=一番映える室内 / intro=外観または玄関・廊下 / body=内見導線順
 // (LDK→キッチン→水回り→居室→バルコニー) / reveal=外観優先(夜景演出)+
 // 価格はラスト発表(reveal統合)。顧客向けには内部用語を使わず翻訳して掲載。
+//
+// 「同じ部屋を2枚1組で撮る」セクション(2026-07-22追加)の根拠:
+// 入稿フォームの部屋カードUI(RoomCardsField)は同一部屋の写真2枚を
+// 「始まり/終わり」の順序ラベルで受け付ける(docs/smapho_hitotsu_design.md
+// のピボット設計)。start画像→end画像の2位置間をカメラ移動でつなぐため、
+// 反対側から振り返って撮った「真逆の2枚」は間の映像が作れず不自然になる
+// (=NG例として明記)。実演素材は public/guide/pair_demo_*(モデルルーム
+// のサンプル・実物件ではない)。1枚のみの投稿は引き続きサポート対象の
+// フォールバックなので、2枚1組は「できれば」の推奨として案内する。
 
 export const dynamic = "force-dynamic";
 
@@ -80,7 +90,7 @@ export default async function PortalGuidePage() {
           📸 魅力的な動画になる写真の撮り方
         </h1>
         <p className="text-xs text-[var(--brand-gray-light)] mt-0.5">
-          読了目安:1〜2分
+          読了目安:2〜3分
         </p>
       </div>
 
@@ -93,24 +103,119 @@ export default async function PortalGuidePage() {
             弊社の動画は、皆さまからお預かりしたお写真をそのまま活かして制作しています。同じ物件でも、お写真の撮り方ひとつで動画の完成度は大きく変わります。以下のポイントを意識していただくだけで、より魅力的な動画に仕上がります。少しだけお時間をいただき、ご協力いただけますと幸いです。
           </p>
 
-          <h2>基本の3原則</h2>
+          <h2>同じ部屋を2枚1組で撮る(基本ルール)</h2>
+          <p>
+            各お部屋の写真は、できるだけ<strong>2枚1組</strong>でお送りください。同じ部屋を、同じ向きのまま2〜3歩進んだ2つの位置から撮っていただくだけで、その2枚から自然なカメラ移動のある映像を作ることができます。1枚目が映像の「始まり」、2枚目が「終わり」になり、その間をなめらかにつないだ映像に仕上がります。
+          </p>
+          <p>
+            ※ 1枚のみでも動画は作成できます。ただし2枚1組でお送りいただいたお部屋は、より内見に近い臨場感のある仕上がりになります。
+          </p>
+
+          {/* 実演ブロック: 始まり/終わりの2枚 → 矢印 → 生成された映像 */}
+          <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-cream)]/60 p-4 sm:p-5">
+            <div className="flex items-center justify-center gap-2 sm:gap-4">
+              <figure className="w-[36%] max-w-[160px]">
+                <Image
+                  src="/guide/pair_demo_start.jpg"
+                  alt="始まりの1枚(撮影例・LDKを広めに撮った1枚目)"
+                  width={768}
+                  height={1024}
+                  sizes="160px"
+                  className="h-auto w-full rounded-lg ring-1 ring-black/10"
+                />
+                <figcaption className="mt-1.5 text-center text-[10px] font-bold text-[var(--brand-orange-dark)]">
+                  始まりの1枚
+                </figcaption>
+              </figure>
+              <span
+                aria-hidden
+                className="shrink-0 text-xl text-[var(--brand-gray-light)] sm:text-2xl"
+              >
+                →
+              </span>
+              <figure className="w-[36%] max-w-[160px]">
+                <Image
+                  src="/guide/pair_demo_end.jpg"
+                  alt="終わりの1枚(撮影例・同じ向きのまま数歩進んだ2枚目)"
+                  width={768}
+                  height={1024}
+                  sizes="160px"
+                  className="h-auto w-full rounded-lg ring-1 ring-black/10"
+                />
+                <figcaption className="mt-1.5 text-center text-[10px] font-bold text-[var(--brand-orange-dark)]">
+                  終わりの1枚
+                </figcaption>
+              </figure>
+            </div>
+            <video
+              src="/guide/pair_demo_ldk.mp4"
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              className="mx-auto mt-4 block w-full max-w-[220px] rounded-xl ring-1 ring-black/10"
+            />
+            <p className="mt-3 text-center text-xs text-[var(--brand-gray-light)]">
+              この2枚から、このカメラ移動が生まれます(作例はモデルルームのサンプルです)
+            </p>
+          </div>
+
+          <h3>場所別・2枚の撮り方の目安</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>場所</th>
+                <th>2枚の撮り方</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>通常の部屋</td>
+                <td>部屋の同じ側から、向きを変えずに2〜3歩前進</td>
+              </tr>
+              <tr>
+                <td>細長い部屋・廊下</td>
+                <td>同じ向きのまま、5歩ほど前進</td>
+              </tr>
+              <tr>
+                <td>狭い部屋・バルコニー</td>
+                <td>その場に立ったまま、少しだけ向きを変えて2枚(90°以内)</td>
+              </tr>
+              <tr>
+                <td>浴室・トイレ</td>
+                <td>入口から1枚+半歩入って1枚</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3>こんな2枚の撮り方はご注意ください</h3>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-sm font-semibold text-amber-800">
+              ⚠ 部屋の反対側に回り込んで、振り返って撮った2枚(真逆の2枚)
+            </p>
+            <p className="mt-1 text-sm text-amber-700">
+              2枚の間をつなぐ映像が作れず、不自然な仕上がりになってしまいます。必ず同じ向きのまま、前に進んだ2枚をお送りください。
+            </p>
+          </div>
+
+          <h2>スマホは「縦向き」のまま撮ってください</h2>
+          <p>
+            横向きに構え直していただく必要はありません。スマートフォンを持ったそのままの縦向きで撮影してください。弊社の動画はすべて縦画面でご覧いただく形式のため、横向きで撮ったお写真や、不動産ポータルサイト掲載用にすでに横長で保存されているお写真をお送りいただくと、画面にうまく収まらず画質が大きく落ちてしまいます。お手数ですが、動画用には縦向きで撮影したお写真を新たにご用意ください。
+          </p>
+
+          <h2>基本の2原則</h2>
           <ol>
             <li>
               <strong>部屋の対角(角)から、引きで撮る</strong>
               <p>
-                部屋の隅に立ち、対角線上を狙って撮影してください。壁が2面と床が写り込む構図だと、部屋の広さや奥行きがしっかり伝わります。
+                部屋の隅に立ち、対角線上を狙って撮影してください。壁が2面と床が写り込む構図だと、部屋の広さや奥行きがしっかり伝わります。被写体に寄りすぎないよう、2〜3歩下がって部屋全体が入る位置から撮影してください。下がるスペースがない部屋では、カメラの超広角(0.5×)に切り替えるのも効果的です。
               </p>
             </li>
             <li>
               <strong>昼間の明るい時間に、カーテンは全開で</strong>
               <p>
                 自然光が入っている状態が一番きれいに写ります。曇りの日でも問題ありませんが、夜間や照明だけでの撮影は避けてください。
-              </p>
-            </li>
-            <li>
-              <strong>縦向き(スマホのまま)でOK、ただし2〜3歩下がって</strong>
-              <p>
-                横向きに構え直していただく必要はありません。そのままの縦向きで大丈夫です。ただし被写体に寄りすぎず、2〜3歩下がって部屋全体が入る位置から撮影してください。下がるスペースがない部屋では、カメラの超広角(0.5×)に切り替えるのも効果的です。
               </p>
             </li>
           </ol>
@@ -155,6 +260,19 @@ export default async function PortalGuidePage() {
           <p>
             全体で5〜10枚程度が目安です。似た構図の写真を何枚も送っていただくより、部屋ごとに角度を変えて撮っていただいたほうが、動画の中でバラエティ豊かに活きます。
           </p>
+
+          <h2>動画で撮影する場合</h2>
+          <p>
+            お写真の代わりに、動画で撮影していただいても構いません。次の点を意識してください。
+          </p>
+          <ul>
+            <li>スマホは縦向きのまま撮影してください</li>
+            <li>ゆっくり歩く、またはゆっくりパン(横に振る)しながら撮影してください</li>
+            <li>1本あたり30秒以内を目安にしてください</li>
+            <li>
+              いちばん見せたい瞬間が最初の数秒に来るように撮影してください(お送りいただいた動画から、いい部分を切り出して使用します)
+            </li>
+          </ul>
 
           <h2>お送りいただいた写真は、こんな動画になります</h2>
           <p>
