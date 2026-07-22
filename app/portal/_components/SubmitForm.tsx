@@ -824,6 +824,16 @@ export default function SubmitForm({
   async function handleRoomsSubmit() {
     if (!maisoku || !roomsCanSubmit) return;
 
+    // Phase D v0の制約: 動画のみのご依頼は未対応(本体WFの写真ループが起点のため)。
+    // 写真の部屋が1つ以上あれば動画部屋は混在可。v1(動画のみ対応)で撤去予定。
+    const hasPhotoRoom = rooms.some((r) => r.items.some((it) => it.kind === "photo"));
+    if (!hasPhotoRoom) {
+      setError(
+        "動画のみのご依頼は現在準備中です。お手数ですが、写真の部屋(2枚1組または1枚)も1つ以上あわせてご登録ください"
+      );
+      return;
+    }
+
     if (containsCostWarningKeyword(appealNote)) {
       const proceed = window.confirm(
         "費用に関する表現が含まれています。マイソク等の事実に基づく内容であることをご確認ください。このまま送信しますか?"
