@@ -1184,6 +1184,10 @@ export default function SubmitForm({
                   <div className="mt-4 mb-3 flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs text-[var(--brand-gray-light)]">
                       部屋ごとの一覧です。違っていたら下で自由に直してください(部屋名の変更・写真の入れ替え・別の部屋への移動ができます)
+                      {/* DnDヒントはタッチ端末向け(lg未満)のみ。PCはマウス即ドラッグ+全ボタン操作可のため不要 */}
+                      <span className="lg:hidden block mt-0.5">
+                        👆 写真を<strong>長押し</strong>すると、つまんで別の部屋へ動かせます
+                      </span>
                     </p>
                     <button
                       type="button"
