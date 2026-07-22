@@ -8,7 +8,7 @@ const REVISE_KEY = process.env.REVISE_RELAY_KEY;
 
 export const APPROVAL_ID_RE = /^APR-[a-z0-9]+-[a-f0-9]{16,}$/i;
 export const ROLE_RE = /^[a-z][a-z0-9_]{0,49}$/i;
-export const MAX_TEXT_LEN = 35;
+export const MAX_TEXT_LEN = 30; // 2026-07-23 岡本指示3: 台本30字化(画面はみ出し対策)に合わせ顧客修正フォームの上限も30へ同期(旧35)
 export const MAX_CAPTION_LEN = 2200;
 
 // Reading override ("yomi"): this box now holds the *full narration script*
