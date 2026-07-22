@@ -457,6 +457,29 @@ export default async function PortalPage({
         </span>
       </a>
 
+      {/* ご意見・ご要望への導線(2026-07-22 岡本発案)。目立ちすぎない
+          セカンダリカードとして、写真ガイドの直下=一覧の直前に置く
+          (確実に目に入るが主役CTAとは競合しない位置)。 */}
+      <a
+        href="/portal/feedback"
+        className="mb-6 flex items-center gap-3 rounded-2xl border border-[var(--brand-border)] bg-white/70 px-5 py-3.5 shadow-sm transition-all hover:shadow-md active:scale-[0.99]"
+      >
+        <span aria-hidden className="shrink-0 text-xl">
+          📮
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-[var(--brand-ink)]">
+            ご意見・ご要望
+          </span>
+          <span className="mt-0.5 block text-xs text-[var(--brand-gray-light)]">
+            使い心地について気軽にお聞かせください
+          </span>
+        </span>
+        <span aria-hidden className="shrink-0 text-[var(--brand-gray-light)]">
+          →
+        </span>
+      </a>
+
       <div className="bg-white rounded-2xl shadow-sm ring-1 ring-black/5 overflow-hidden mb-6">
         {rows.length === 0 ? (
           <div className="p-8 text-center text-[var(--brand-gray-light)] text-sm">

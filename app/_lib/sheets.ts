@@ -140,6 +140,45 @@ export async function addClient(data: Client): Promise<void> {
   });
 }
 
+// --- Portal: 顧客フィードバック ------------------------------------------
+// 2026-07-22 岡本発案: ポータルから気軽に意見・要望・不満を送れる画面
+// (app/portal/feedback)。目的は①不満の早期検知(解約前に拾う)②好評の声の
+// 収集(営業・LP転用の証言資産)。専用タブなので addClient のようなヘッダー
+// 駆動マッピングは不要 — 列順を固定してそのまま追記する
+// (recorded_at, client_id, score, category, body, page)。
+const FEEDBACK_TAB = process.env.GOOGLE_SHEET_FEEDBACK_TAB || "フィードバック";
+
+export interface FeedbackEntry {
+  recorded_at: string;
+  client_id: string;
+  score: number;
+  category: string;
+  body: string;
+  page: string;
+}
+
+/** 呼び出し側(app/api/portal/feedback/route.ts)が fail-soft でキャッチする
+ * 前提で、ここでは素直に throw する(シートが存在しない/権限不足等)。 */
+export async function appendFeedback(entry: FeedbackEntry): Promise<void> {
+  await sheets().spreadsheets.values.append({
+    spreadsheetId: SHEET_ID,
+    range: `${qt(FEEDBACK_TAB)}!A:A`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: {
+      values: [
+        [
+          entry.recorded_at,
+          entry.client_id,
+          String(entry.score),
+          entry.category,
+          entry.body,
+          entry.page,
+        ],
+      ],
+    },
+  });
+}
+
 // --- Module C: 承認待ち / 直近の生成履歴 --------------------------------
 // The real headers of this tab are unconfirmed from code, so this reader is
 // intentionally defensive: generic header-driven parsing (no assumed column
