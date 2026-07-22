@@ -36,6 +36,9 @@ export default async function PortalSubmitPage() {
   }
 
   const qs = quotaState(client);
+  // v3.2(2026-07-22・PCレイアウト対応): 入稿画面はlg+で2カラムフォームに
+  // なるため、他のportalページ(ダッシュボード等)を巻き込まずこのページ
+  // だけ横幅を広げる(Shell.tsxのmaxWidthClassName override)。
   // reset-aware な数字(quota.ts と統一)— client.used_this_month の生値を
   // そのまま出すと、判定は「もう投稿できる」なのに表示が「上限到達」に見える
   // ズレが起き得る(quota_reset を過ぎたがシートの used_this_month が
@@ -43,7 +46,7 @@ export default async function PortalSubmitPage() {
   const qsummary = quotaSummary(client);
 
   return (
-    <Shell>
+    <Shell maxWidthClassName="max-w-lg lg:max-w-5xl">
       <div className="mb-6">
         <a
           href="/portal"

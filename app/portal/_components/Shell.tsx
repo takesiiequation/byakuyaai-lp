@@ -8,12 +8,22 @@ import Link from "next/link";
 export function Shell({
   children,
   wide,
+  maxWidthClassName,
 }: {
   children: React.ReactNode;
   wide?: boolean;
+  /** v3.2(2026-07-22・PCレイアウト対応・design.md「v3.2仕様」): 生の
+   * Tailwindクラスで最大幅を上書きする。既存の `wide`(ダッシュボード用・
+   * lg:max-w-[1700px])はそのまま残す — 変えるとダッシュボードの見た目が
+   * 変わってしまうため。/portal/submit・/portal/guide だけを個別に広げ
+   * たい場合はこちらでpropを渡す(Shellを一律変更せず対象ページだけ広げる
+   * 方針)。指定時はwideより優先。 */
+  maxWidthClassName?: string;
 }) {
-  const maxWidth = wide ? "max-w-lg lg:max-w-[1700px]" : "max-w-lg";
-  const padX = wide ? "px-4 sm:px-6 lg:px-8" : "px-4 sm:px-6";
+  const maxWidth =
+    maxWidthClassName ?? (wide ? "max-w-lg lg:max-w-[1700px]" : "max-w-lg");
+  const isWidened = wide || !!maxWidthClassName;
+  const padX = isWidened ? "px-4 sm:px-6 lg:px-8" : "px-4 sm:px-6";
   return (
     <main className="min-h-screen bg-[var(--brand-cream)]">
       <header className="sticky top-0 z-30 w-full border-b border-[var(--brand-border)] bg-white/90 backdrop-blur-md">

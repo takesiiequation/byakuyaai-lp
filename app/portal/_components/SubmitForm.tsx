@@ -1054,10 +1054,18 @@ export default function SubmitForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="liquid-glass-white rounded-2xl shadow-2xl shadow-black/10 p-6 sm:p-8 space-y-6"
+      // v3.2(2026-07-22・PCレイアウト対応・design.md「v3.2仕様」): lg+で
+      // 2カラム化。DOM順(マイソク→部屋素材→アスペクト比→…→送信ボタン→
+      // 注記)はモバイル現状のまま1バイトも変えず、明示的なgrid-column/
+      // grid-rowだけで視覚的に並び替える(「部屋素材ゾーン」1個だけが
+      // 右カラムへ、残り8項目は下の1個のwrapper divへまとめて左カラムの
+      // 2行目に置く=grid行の数を2つに抑えてtrack-sizingの歪みを避ける
+      // 設計)。<lg では lg: 系クラスは一切効かないため現状の
+      // space-y-6ブロック積みと完全に同一。
+      className="liquid-glass-white rounded-2xl shadow-2xl shadow-black/10 p-6 sm:p-8 space-y-6 lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start lg:gap-x-8 lg:gap-y-6"
     >
       {/* マイソク */}
-      <div>
+      <div className="lg:col-start-1 lg:row-start-1">
         <label className="block text-sm font-bold text-[var(--brand-ink)] mb-1">
           マイソク(物件図面) <span className="text-red-500">*</span>
         </label>
@@ -1109,7 +1117,7 @@ export default function SubmitForm({
           bulk・「詳しく自分で整理する」でPhase Aの手動カードadvancedへ。
           design.md「入口UIの再設計」/「自動ペアリング確認UI実装spec」) */}
       {roomsUiEnabled ? (
-        <div>
+        <div className="lg:col-start-2 lg:row-start-1 lg:row-span-2">
           <label className="block text-sm font-bold text-[var(--brand-ink)] mb-1">
             部屋ごとの写真・動画 <span className="text-red-500">*</span>
           </label>
@@ -1200,7 +1208,7 @@ export default function SubmitForm({
           )}
         </div>
       ) : (
-        <div>
+        <div className="lg:col-start-2 lg:row-start-1 lg:row-span-2">
           <label className="block text-sm font-bold text-[var(--brand-ink)] mb-1">
             物件写真 <span className="text-red-500">*</span>
           </label>
@@ -1270,6 +1278,11 @@ export default function SubmitForm({
         </div>
       )}
 
+      {/* v3.2: 左カラムの2行目(マイソクの下)にアスペクト比〜送信ボタン/
+          注記までをまとめる。このwrapper自体はモバイルでは何も変えない
+          (space-y-6は今までform全体にかかっていたのと同じ値をここで
+          肩代わりするだけ)。 */}
+      <div className="space-y-6 lg:col-start-1 lg:row-start-2">
       {/* アスペクト比 */}
       <div>
         <label className="block text-sm font-bold text-[var(--brand-ink)] mb-2">
@@ -1419,6 +1432,7 @@ export default function SubmitForm({
       <p className="text-center text-xs text-[var(--brand-ink)]/50">
         送信後、完成動画の確認依頼がメールで届きます(通常15〜30分)
       </p>
+      </div>
     </form>
   );
 }

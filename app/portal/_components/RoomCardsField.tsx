@@ -47,6 +47,36 @@ type RoomDnd = ReturnType<typeof useRoomItemDrag> & { enabled: boolean };
 // 1個を使い回す(中身は常に空・書き換えない)。
 const EMPTY_MUTED_PAIR_KEYS = new Set<string>();
 
+// v3.2(2026-07-22・PCレイアウト対応・design.md「v3.2仕様」): TailwindのMD
+// lg ブレークポイント(1024px)と同じ値をJS側の判定にも使う。CSSメディア
+// クエリだけでは「アコーディオンの展開state」というJS側の状態と絡むため、
+// window.matchMedia の変化を isDesktop として state化する方式を採用
+// (指示どおり)。
+const DESKTOP_MEDIA_QUERY = "(min-width: 1024px)";
+
+/** 現在のビューポートがlg+かどうか。SSR/初回レンダーは常にfalse(モバイル
+ * 優先のフォールバック)— マウント後のeffectで実際の値へ即補正する(既存
+ * のItemThumbnail等と同じ「SSRはfalse/マウント後に同期set」パターン)。
+ * matchMediaの"change"イベントを購読するため、リサイズでlgを跨いでも
+ * (縮小/拡大どちらの向きでも)追随する。 */
+function useIsDesktopViewport(): boolean {
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const mql = window.matchMedia(DESKTOP_MEDIA_QUERY);
+    // マウント直後に実際のビューポート幅を反映するための同期set(SSR時の
+    // false初期値をクライアントの実値へ即補正する。ItemThumbnailの
+    // objectURL所有パターンと同じ理由で意図的)。
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsDesktop(mql.matches);
+    const onChange = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
+  return isDesktop;
+}
+
 export interface RoomLocalPhotoItem {
   kind: "photo";
   file: File;
@@ -692,6 +722,12 @@ export default function RoomCardsField({
   // 既存gatingとぴったり一致するため、新しいpropを増やさない。
   const accordionEnabled = dndEnabled;
 
+  // v3.2: lg+ではアコーディオンを無効化して全カード常時展開+2列グリッド
+  // にする(design.md「v3.2仕様」— 畳みはスマホの生存戦略・PCは一覧性
+  // 優先)。advanced/bulk確認モードどちらの部屋カードにも適用する(段3の
+  // accordionEnabled/dnd.enabledのゲートとは独立 — こちらはモード非依存)。
+  const isDesktop = useIsDesktopViewport();
+
   // アコーディオン: 展開中の部屋は1つだけ。新しい部屋が追加されたら自動で
   // それを展開する(最後に触った部屋を展開が自然=design.md v3.1段3仕様)。
   // 展開中の部屋が消えた(削除/移動で空になった等)場合は折りたたみへ戻す。
@@ -757,9 +793,14 @@ export default function RoomCardsField({
   const dnd: RoomDnd = { enabled: dndEnabled, activeItem, dropTarget, getHandleProps };
 
   return (
-    <div className="space-y-2">
+    // v3.2: lg+で部屋カードを2列グリッド化(space-y-2はモバイル専用の
+    // 縦積み間隔・lg+ではgap-3に置き換える)。DnDのdata-drop-room/
+    // data-drop-photoは各カード自身のdivに付いたまま(このコンテナの
+    // レイアウト変更とは無関係)なので、elementFromPoint方式のドロップ
+    // 判定は列をまたいでも無改修で機能する。
+    <div className="space-y-2 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-3 lg:items-start">
       {rooms.length === 0 && (
-        <p className="text-xs text-[var(--brand-gray-light)]">
+        <p className="text-xs text-[var(--brand-gray-light)] lg:col-span-2">
           「部屋を追加」から、部屋ごとに写真(1〜2枚)または動画(1本)を追加してください。
         </p>
       )}
@@ -786,7 +827,9 @@ export default function RoomCardsField({
 
         // v3.1段3改修1: アコーディオン。advancedモード(accordionEnabled=
         // false)では常にtrue=フル表示のまま(既存挙動を1行も変えない)。
-        const isExpanded = !accordionEnabled || expandedUid === room.uid;
+        // v3.2: lg+はisDesktopがtrueになり、accordionEnabled/expandedUidの
+        // 値に関わらず常にフル展開(design.md「v3.2仕様」PCは一覧性優先)。
+        const isExpanded = !accordionEnabled || isDesktop || expandedUid === room.uid;
 
         // v3.1段2: 部屋本体への「move」ドロップ先ハイライト(有効な受け先
         // だけ・上のisValidMoveTarget参照)。旧HTML5 native drag
@@ -1068,7 +1111,7 @@ export default function RoomCardsField({
         type="button"
         disabled={busy || rooms.length >= MAX_ROOMS}
         onClick={onAddRoom}
-        className={`${pickerButtonClass} disabled:opacity-50 disabled:cursor-not-allowed`}
+        className={`${pickerButtonClass} lg:col-span-2 disabled:opacity-50 disabled:cursor-not-allowed`}
       >
         + 部屋を追加({rooms.length}/{MAX_ROOMS})
       </button>

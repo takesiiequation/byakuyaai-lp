@@ -64,7 +64,11 @@ export default async function PortalGuidePage() {
   }
 
   return (
-    <Shell>
+    // v3.2(2026-07-22・PCレイアウト対応・design.md「v3.2仕様」): 記事幅を
+    // lg+で拡大。本文自体(prose-custom)はmax-w-proseで1行の長さを抑え、
+    // 余った横幅は将来の作例グリッド(下のSHOWCASE_VIDEOS)がlg:grid-cols-2
+    // 〜3で使う想定(design.md「ガイド記事(lg+)」)。
+    <Shell maxWidthClassName="max-w-lg lg:max-w-4xl">
       <div className="mb-6">
         <a
           href="/portal"
@@ -81,7 +85,10 @@ export default async function PortalGuidePage() {
       </div>
 
       <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-black/5 sm:p-8">
-        <div className="prose-custom">
+        {/* v3.2: 本文の可読性のためmax-w-proseで1行の長さを常に抑える
+            (モバイルではShellのmax-w-lgの方が既に狭いため見た目は不変・
+            lg+で記事幅が広がったぶんの余白は左右に均等配分=mx-auto)。 */}
+        <div className="prose-custom mx-auto max-w-prose">
           <p>
             弊社の動画は、皆さまからお預かりしたお写真をそのまま活かして制作しています。同じ物件でも、お写真の撮り方ひとつで動画の完成度は大きく変わります。以下のポイントを意識していただくだけで、より魅力的な動画に仕上がります。少しだけお時間をいただき、ご協力いただけますと幸いです。
           </p>
@@ -207,19 +214,25 @@ export default async function PortalGuidePage() {
               <p>
                 上の流れで実際に仕上がった動画のお手本です。撮影の際のイメージづくりにぜひご覧ください。
               </p>
-              {SHOWCASE_VIDEOS.map((v) => (
-                <div key={v.url}>
-                  <h3>{v.title}</h3>
-                  {v.note && <p>{v.note}</p>}
-                  <video
-                    controls
-                    preload="metadata"
-                    playsInline
-                    src={v.url}
-                    className="mx-auto w-full max-w-[280px] rounded-xl ring-1 ring-black/10"
-                  />
-                </div>
-              ))}
+              {/* v3.2: 作例はlg+で2列グリッド(design.md「ガイド記事(lg+)」)。
+                  本文自体はmax-w-proseで幅を抑えているぶん、このグリッドの
+                  実効幅も控えめ(280px級の縦動画2列は収まる・3列は本文幅を
+                  超えるため見送り)。モバイルは現状どおり縦積み。 */}
+              <div className="space-y-6 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-6">
+                {SHOWCASE_VIDEOS.map((v) => (
+                  <div key={v.url}>
+                    <h3>{v.title}</h3>
+                    {v.note && <p>{v.note}</p>}
+                    <video
+                      controls
+                      preload="metadata"
+                      playsInline
+                      src={v.url}
+                      className="mx-auto w-full max-w-[280px] lg:max-w-full rounded-xl ring-1 ring-black/10"
+                    />
+                  </div>
+                ))}
+              </div>
             </>
           )}
 
