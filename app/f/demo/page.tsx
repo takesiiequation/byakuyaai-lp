@@ -6,6 +6,7 @@ import {
   shirokanedaiProperty,
   SHIROKANEDAI_CLIENT_NAME,
   SHIROKANEDAI_TAGLINE,
+  SHIROKANEDAI_POSTER,
 } from "../_data/shirokanedai";
 
 // 白金台デモ (design §7.1 exception): fully static — no Sheets read, no
@@ -43,7 +44,13 @@ const DEMO_CUSTOMER: CustomerData = {
 };
 
 export default function DemoPortfolioPage() {
-  const properties: ViewProperty[] = [toViewProperty(shirokanedaiProperty, 0)];
+  // PropertyRow has no poster/thumbnail column (see viewModel.ts) —
+  // toViewProperty() always maps posterUrl to "". Override it locally here
+  // with the real generated-video poster, same technique as
+  // app/f/hatsunezaka/page.tsx's HATSUNEZAKA_GALLERY_PHOTOS[0] override.
+  const properties: ViewProperty[] = [
+    { ...toViewProperty(shirokanedaiProperty, 0), posterUrl: SHIROKANEDAI_POSTER },
+  ];
 
   return (
     <PortfolioView

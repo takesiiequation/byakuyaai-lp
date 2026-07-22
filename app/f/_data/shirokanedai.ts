@@ -13,6 +13,14 @@ export const SHIROKANEDAI_CLIENT_NAME = "ByakuyaAI ポートフォリオサン�
 export const SHIROKANEDAI_TAGLINE =
   "AIが自動生成する物件ポートフォリオページのサンプルです。実際の運用では取扱物件が自動的に並びます。";
 
+// 2026-07-23差し替え: 岡本認定の最高品質Seedance生成映像
+// (public/f/demo/shirokanedai_living.mp4)のポスター画像。同じ override
+// パターンを hatsunezaka.ts の HATSUNEZAKA_GALLERY_PHOTOS と揃える —
+// 現行の物件DBスキーマには poster/thumbnail 列が無いため(viewModel.ts参照)、
+// app/f/demo/page.tsx がここで posterUrl をローカル上書きする(共有の
+// viewModel.ts 自体は変更しない)。
+export const SHIROKANEDAI_POSTER = "/f/demo/shirokanedai_poster.jpg";
+
 export const shirokanedaiProperty: PropertyRow = {
   property_key: "demo::プレステージレジデンス白金台302号室",
   client_id: "demo",
@@ -48,13 +56,12 @@ export const shirokanedaiProperty: PropertyRow = {
   caption_instagram: "",
   caption_tiktok: "",
   staged: false,
-  // No dedicated demo video asset was found/committed for this property at
-  // implementation time — see the front-f handoff report. Left empty so
-  // PropertyCard falls back to its placeholder visual and PropertyJsonLd
-  // correctly omits VideoObject, rather than misattributing an unrelated
-  // stock clip to this listing.
+  // 2026-07-23差し替え: 岡本認定の最高品質Seedance生成映像を配線
+  // (以前はこのプロパティ専用の動画素材が無く空文字だった — 現在は
+  // public/f/demo/shirokanedai_living.mp4 が実際にこの物件の生成物として
+  // 存在する)。
   video_url_raw: "",
-  video_url_permanent: "",
+  video_url_permanent: "/f/demo/shirokanedai_living.mp4",
   approval_id: "",
   exec_id: "",
   manifest_url: "",

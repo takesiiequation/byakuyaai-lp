@@ -36,9 +36,10 @@ import { Shell, MessageCard } from "../_components/Shell";
 // 「始まり/終わり」の順序ラベルで受け付ける(docs/smapho_hitotsu_design.md
 // のピボット設計)。start画像→end画像の2位置間をカメラ移動でつなぐため、
 // 反対側から振り返って撮った「真逆の2枚」は間の映像が作れず不自然になる
-// (=NG例として明記)。実演素材は public/guide/pair_demo_*(モデルルーム
-// のサンプル・実物件ではない)。1枚のみの投稿は引き続きサポート対象の
-// フォールバックなので、2枚1組は「できれば」の推奨として案内する。
+// (=NG例として明記)。実演素材は public/guide/pair_demo_*(2026-07-23差し
+// 替え: 白金台の実物件写真から生成した実演。モデルルームのサンプルではない)。
+// 1枚のみの投稿は引き続きサポート対象のフォールバックなので、2枚1組は
+// 「できれば」の推奨として案内する。
 
 export const dynamic = "force-dynamic";
 
@@ -119,7 +120,7 @@ export default async function PortalGuidePage() {
                   src="/guide/pair_demo_start.jpg"
                   alt="始まりの1枚(撮影例・LDKを広めに撮った1枚目)"
                   width={768}
-                  height={1024}
+                  height={768}
                   sizes="160px"
                   className="h-auto w-full rounded-lg ring-1 ring-black/10"
                 />
@@ -138,7 +139,7 @@ export default async function PortalGuidePage() {
                   src="/guide/pair_demo_end.jpg"
                   alt="終わりの1枚(撮影例・同じ向きのまま数歩進んだ2枚目)"
                   width={768}
-                  height={1024}
+                  height={768}
                   sizes="160px"
                   className="h-auto w-full rounded-lg ring-1 ring-black/10"
                 />
@@ -154,10 +155,10 @@ export default async function PortalGuidePage() {
               loop
               playsInline
               preload="metadata"
-              className="mx-auto mt-4 block w-full max-w-[220px] rounded-xl ring-1 ring-black/10"
+              className="mx-auto mt-4 block w-full max-w-[200px] rounded-xl ring-1 ring-black/10"
             />
             <p className="mt-3 text-center text-xs text-[var(--brand-gray-light)]">
-              この2枚から、このカメラ移動が生まれます(作例はモデルルームのサンプルです)
+              この2枚から、このカメラ移動が生まれます(作例は実際の物件写真から生成した映像です)
             </p>
           </div>
 
