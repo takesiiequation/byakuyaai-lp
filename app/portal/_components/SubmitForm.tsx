@@ -31,7 +31,9 @@ import BulkRoomIntake from "./BulkRoomIntake";
 import {
   pairPhotosByCaptureTime,
   groupVideosIndividually,
+  TENTATIVE_ROOM_LABEL,
 } from "@/app/portal/_lib/roomAutoPairing";
+import { classifyRoomsAsync } from "@/app/portal/_lib/roomClassify";
 
 // /portal/submit の本体フォーム。項目構成は現行のGoogle標準フォーム
 // (fudosan-video/docs/forms_v15/standard_form.gs が拾う質問)と同じ:
@@ -363,6 +365,33 @@ export default function SubmitForm({
     );
   }
 
+  // P3(部屋名Vision自動下書き・2026-07-22・design.md「UIテスト実測レポート」
+  // P3改修)。Vision分類の結果を部屋へ適用してよいかを、適用しようとする
+  // その瞬間の最新state内で再判定する(setRoomsの関数型更新の内側で完結
+  // させる — 分類は非同期なので、リクエスト送出後に顧客がその部屋の
+  // ラベルを触っている可能性があり、古いclosureのroomsを見ると判定が
+  // 古くなるため)。
+  //
+  // 「未設定」の定義: label===null(手動カードUIの初期状態=addRoom()の
+  // まま)、または label===TENTATIVE_ROOM_LABEL(="お部屋"・自動仕分けで
+  // ファイル名ヒントが効かなかった場合の既定プレースホルダ)。どちらも
+  // 「顧客がまだ触っていない」ことを表す値 — 顧客が既知チップを選んだ
+  // (label=チップ文字列・customLabelMode=false)場合、あるいは自由記入欄に
+  // 何か入力した(label=お部屋でも null でもない文字列)場合は対象外にする
+  // (「担当者一次情報の原則」— 顧客の入力を機械が上書きしない)。
+  // 適用後に顧客が変更すれば、setRoomLabelChip/setRoomLabelCustomTextが
+  // 同じ rooms state を書き換えるだけなので当然そちらが勝つ。
+  function applyAutoRoomLabel(uid: string, label: string) {
+    setRooms((prev) =>
+      prev.map((r) => {
+        if (r.uid !== uid) return r;
+        const isUnset = r.label === null || r.label === TENTATIVE_ROOM_LABEL;
+        if (!isUnset) return r;
+        return { ...r, label, customLabelMode: false };
+      })
+    );
+  }
+
   function addPhotosToRoom(uid: string, files: FileList) {
     setError("");
     const room = rooms.find((r) => r.uid === uid);
@@ -402,6 +431,19 @@ export default function SubmitForm({
         setPhotoItemLowRes(uid, startIdx + i, longSide !== null && longSide < ROOM_PHOTO_MIN_LONG_SIDE);
       });
     });
+
+    // P3(部屋名Vision自動下書き): このカードにとって「始まりの1枚」が
+    // 初めて確定した瞬間(startIdx===0=このカードは呼び出し前は空だった)
+    // だけ非同期発火する。「1部屋=1判定」はstart写真基準(design.md
+    // 「UIテスト実測レポート」P3)なので、後から「+2枚目を追加」で
+    // 終わりの1枚が入る呼び出し(startIdx===1)では再分類しない — その
+    // 時点でstart写真は変わっておらず、この関数がstartIdx===0で呼ばれた
+    // 時に既に分類済みのため。手動カードUI(advancedモード)の最初の
+    // 「+ 写真を追加」呼び出しもこの関数を通るため、自動仕分け(bulk)・
+    // 手動カード(advanced)のどちらも同じ条件で1回だけ発火する。
+    if (startIdx === 0) {
+      void classifyRoomsAsync([{ uid, file: picked[0] }], applyAutoRoomLabel);
+    }
   }
 
   function addVideoToRoom(uid: string, file: File) {
@@ -502,6 +544,18 @@ export default function SubmitForm({
           });
         });
       });
+
+      // P3(部屋名Vision自動下書き): 一括投入で新規作成された部屋ごとに、
+      // 「始まりの1枚」(items[0])だけを分類する(「1部屋=1判定」・
+      // design.md「UIテスト実測レポート」P3改修)。groupsはこのハンドラ
+      // (写真タブ専用)が作るため常にkind==="photo"だが、念のためkindで
+      // 絞ってから渡す(動画部屋はスキップという要件を型に頼らず明示)。
+      void classifyRoomsAsync(
+        newRooms
+          .filter((r) => r.items[0]?.kind === "photo")
+          .map((r) => ({ uid: r.uid, file: r.items[0].file })),
+        applyAutoRoomLabel
+      );
     } catch {
       setError("写真の自動振り分けに失敗しました。「詳しく自分で整理する」から手動で整理してください");
     } finally {
