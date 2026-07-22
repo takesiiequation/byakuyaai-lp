@@ -40,7 +40,21 @@ import { Shell, MessageCard } from "../_components/Shell";
 // 替え: 白金台の実物件写真から生成した実演。モデルルームのサンプルではない)。
 // 1枚のみの投稿は引き続きサポート対象のフォールバックなので、2枚1組は
 // 「できれば」の推奨として案内する。
-
+//
+// v3.3(2026-07-23・PC幅活用・岡本FB「画面をまだまだ使えてない」対応):
+// 記事本文をこれまでの単一 prose-custom ラッパー1枚から、セクション単位の
+// 複数ブロック(各ブロックが個別に prose-custom クラスを持つ)へ分割した。
+// 理由: 実演ブロック・早見表・注意ボックスなど「非プローズ」要素はlg+で
+// 広い幅を使わせたい一方、本文段落はmax-w-prose(可読行長)を維持したい
+// ため、ブロック単位でしか幅を変えられない。
+// 分割の仕組み: globals.css の `.prose-custom > * + *` は「直接の子要素」
+// にのみ margin-top:1.2em を与える兄弟結合子ルールなので、ブロックをまたぐ
+// と自動では効かなくなる → 各ブロックに `mt-[1.2em]`(先頭ブロックを除く)
+// を明示して踏襲。見出し(h2=2.4em/h3=1.8em)やblockquote(margin:0)は
+// 要素自身により強い指定を持つため、ブロックの親子マージン相殺(margin
+// collapsing)で従来と同じ見た目になる(表・引用は個別に検証済み)。
+// `.prose-custom <tag>` の色/罫線等のスタイルは子孫セレクタなので、入れ子
+// 段数が変わっても分割の影響を受けない。
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
@@ -57,6 +71,14 @@ const SHOWCASE_VIDEOS: ReadonlyArray<{
   url: string;
   note?: string;
 }> = [];
+
+// v3.3: 「非プローズ」ブロック(実演/早見表/注意ボックス/表/作例)の幅。
+// モバイル・タブレットは従来どおり max-w-prose のまま、lg+から段階的に
+// 拡張する。本文の段落・見出し・リスト等(「プローズ」ブロック)は
+// max-w-prose 固定(NARROW_BLOCK)。
+const NARROW_BLOCK = "prose-custom mx-auto max-w-prose";
+const WIDE_BLOCK =
+  "prose-custom mx-auto max-w-prose lg:max-w-3xl xl:max-w-4xl";
 
 export default async function PortalGuidePage() {
   const clientId = await getPortalClientId();
@@ -75,11 +97,10 @@ export default async function PortalGuidePage() {
   }
 
   return (
-    // v3.2(2026-07-22・PCレイアウト対応・design.md「v3.2仕様」): 記事幅を
-    // lg+で拡大。本文自体(prose-custom)はmax-w-proseで1行の長さを抑え、
-    // 余った横幅は将来の作例グリッド(下のSHOWCASE_VIDEOS)がlg:grid-cols-2
-    // 〜3で使う想定(design.md「ガイド記事(lg+)」)。
-    <Shell maxWidthClassName="max-w-lg lg:max-w-4xl">
+    // v3.3(2026-07-23): 記事幅をxl+でさらに拡大(lg:max-w-4xl→
+    // xl:max-w-6xl)。カード自体の幅はここで決まり、本文プローズは
+    // カード内部で個別にmax-w-proseへ絞る(下のNARROW_BLOCK)。
+    <Shell maxWidthClassName="max-w-lg lg:max-w-4xl xl:max-w-6xl">
       <div className="mb-6">
         <a
           href="/portal"
@@ -96,14 +117,13 @@ export default async function PortalGuidePage() {
       </div>
 
       <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-black/5 sm:p-8">
-        {/* v3.2: 本文の可読性のためmax-w-proseで1行の長さを常に抑える
-            (モバイルではShellのmax-w-lgの方が既に狭いため見た目は不変・
-            lg+で記事幅が広がったぶんの余白は左右に均等配分=mx-auto)。 */}
-        <div className="prose-custom mx-auto max-w-prose">
+        <div className={NARROW_BLOCK}>
           <p>
             弊社の動画は、皆さまからお預かりしたお写真をそのまま活かして制作しています。同じ物件でも、お写真の撮り方ひとつで動画の完成度は大きく変わります。以下のポイントを意識していただくだけで、より魅力的な動画に仕上がります。少しだけお時間をいただき、ご協力いただけますと幸いです。
           </p>
+        </div>
 
+        <div className={`${NARROW_BLOCK} mt-[1.2em]`}>
           <h2>同じ部屋を2枚1組で撮る(基本ルール)</h2>
           <p>
             各お部屋の写真は、できるだけ<strong>2枚1組</strong>でお送りください。同じ部屋を、同じ向きのまま2〜3歩進んだ2つの位置から撮っていただくだけで、その2枚から自然なカメラ移動のある映像を作ることができます。1枚目が映像の「始まり」、2枚目が「終わり」になり、その間をなめらかにつないだ映像に仕上がります。
@@ -111,17 +131,23 @@ export default async function PortalGuidePage() {
           <p>
             ※ 1枚のみでも動画は作成できます。ただし2枚1組でお送りいただいたお部屋は、より内見に近い臨場感のある仕上がりになります。
           </p>
+        </div>
 
-          {/* 実演ブロック: 始まり/終わりの2枚 → 矢印 → 生成された映像 */}
-          <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-cream)]/60 p-4 sm:p-5">
+        {/* 実演ブロック: 始まり/終わりの2枚 → 矢印 → 生成された映像。
+            非プローズ要素なので単独でWIDE幅を使う(prose-customは内部の
+            テキストが全てTailwindユーティリティで自己完結しているため
+            不要)。v3.3: lg+では画像ペア・矢印・動画を横一列に並べる
+            (岡本FB「実演ブロックをlg+では横一列に」)。 */}
+        <div className="mt-[1.2em] mx-auto max-w-prose lg:max-w-3xl xl:max-w-4xl rounded-xl border border-[var(--brand-border)] bg-[var(--brand-cream)]/60 p-4 sm:p-5">
+          <div className="flex flex-col items-center gap-4 lg:flex-row lg:justify-center lg:gap-4">
             <div className="flex items-center justify-center gap-2 sm:gap-4">
-              <figure className="w-[36%] max-w-[160px]">
+              <figure className="w-[36%] max-w-[160px] lg:w-32 lg:max-w-none xl:w-36">
                 <Image
                   src="/guide/pair_demo_start.jpg"
                   alt="始まりの1枚(撮影例・LDKを広めに撮った1枚目)"
                   width={768}
                   height={768}
-                  sizes="160px"
+                  sizes="(min-width: 1024px) 144px, 160px"
                   className="h-auto w-full rounded-lg ring-1 ring-black/10"
                 />
                 <figcaption className="mt-1.5 text-center text-[10px] font-bold text-[var(--brand-orange-dark)]">
@@ -134,13 +160,13 @@ export default async function PortalGuidePage() {
               >
                 →
               </span>
-              <figure className="w-[36%] max-w-[160px]">
+              <figure className="w-[36%] max-w-[160px] lg:w-32 lg:max-w-none xl:w-36">
                 <Image
                   src="/guide/pair_demo_end.jpg"
                   alt="終わりの1枚(撮影例・同じ向きのまま数歩進んだ2枚目)"
                   width={768}
                   height={768}
-                  sizes="160px"
+                  sizes="(min-width: 1024px) 144px, 160px"
                   className="h-auto w-full rounded-lg ring-1 ring-black/10"
                 />
                 <figcaption className="mt-1.5 text-center text-[10px] font-bold text-[var(--brand-orange-dark)]">
@@ -148,6 +174,13 @@ export default async function PortalGuidePage() {
                 </figcaption>
               </figure>
             </div>
+            {/* lg+のみ表示する2本目の矢印(ペア→動画の生成イメージをつなぐ) */}
+            <span
+              aria-hidden
+              className="hidden text-2xl text-[var(--brand-gray-light)] lg:block"
+            >
+              →
+            </span>
             <video
               src="/guide/pair_demo_ldk.mp4"
               autoPlay
@@ -155,13 +188,16 @@ export default async function PortalGuidePage() {
               loop
               playsInline
               preload="metadata"
-              className="mx-auto mt-4 block w-full max-w-[200px] rounded-xl ring-1 ring-black/10"
+              className="mx-auto block w-full max-w-[200px] rounded-xl ring-1 ring-black/10 lg:mx-0 lg:w-32 lg:max-w-none xl:w-36"
             />
-            <p className="mt-3 text-center text-xs text-[var(--brand-gray-light)]">
-              この2枚から、このカメラ移動が生まれます(作例は実際の物件写真から生成した映像です)
-            </p>
           </div>
+          <p className="mt-3 text-center text-xs text-[var(--brand-gray-light)]">
+            この2枚から、このカメラ移動が生まれます(作例は実際の物件写真から生成した映像です)
+          </p>
+        </div>
 
+        {/* 場所別・2枚の撮り方の目安(早見表)— 非プローズ要素としてWIDE幅 */}
+        <div className={`${WIDE_BLOCK} mt-[1.2em]`}>
           <h3>場所別・2枚の撮り方の目安</h3>
           <table>
             <thead>
@@ -189,7 +225,10 @@ export default async function PortalGuidePage() {
               </tr>
             </tbody>
           </table>
+        </div>
 
+        {/* こんな2枚の撮り方はご注意ください(注意ボックス)— 非プローズ要素 */}
+        <div className={`${WIDE_BLOCK} mt-[1.2em]`}>
           <h3>こんな2枚の撮り方はご注意ください</h3>
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
             <p className="text-sm font-semibold text-amber-800">
@@ -199,7 +238,9 @@ export default async function PortalGuidePage() {
               2枚の間をつなぐ映像が作れず、不自然な仕上がりになってしまいます。必ず同じ向きのまま、前に進んだ2枚をお送りください。
             </p>
           </div>
+        </div>
 
+        <div className={`${NARROW_BLOCK} mt-[1.2em]`}>
           <h2>スマホは「縦向き」のまま撮ってください</h2>
           <p>
             横向きに構え直していただく必要はありません。スマートフォンを持ったそのままの縦向きで撮影してください。弊社の動画はすべて縦画面でご覧いただく形式のため、横向きで撮ったお写真や、不動産ポータルサイト掲載用にすでに横長で保存されているお写真をお送りいただくと、画面にうまく収まらず画質が大きく落ちてしまいます。お手数ですが、動画用には縦向きで撮影したお写真を新たにご用意ください。
@@ -274,7 +315,11 @@ export default async function PortalGuidePage() {
               いちばん見せたい瞬間が最初の数秒に来るように撮影してください(お送りいただいた動画から、いい部分を切り出して使用します)
             </li>
           </ul>
+        </div>
 
+        {/* お送りいただいた写真は、こんな動画になります(役割対応表)—
+            非プローズ要素としてWIDE幅 */}
+        <div className={`${WIDE_BLOCK} mt-[1.2em]`}>
           <h2>お送りいただいた写真は、こんな動画になります</h2>
           <p>
             動画は「実際の内見と同じ流れ」で自動的に組み立てられます。上の撮影セットが揃っていると、それぞれのお写真が次のような役割で活躍します。
@@ -323,45 +368,50 @@ export default async function PortalGuidePage() {
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <div className={`${NARROW_BLOCK} mt-[1.2em]`}>
           <p>
             つまり、<strong>撮影セットが揃っているほど、この流れがきれいに完成します</strong>。逆にどれかが欠けると、その役割を他の写真で代用することになり、少しもったいない仕上がりになることがあります。
           </p>
+        </div>
 
-          {SHOWCASE_VIDEOS.length > 0 && (
-            <>
-              <h2>実際の作例</h2>
-              <p>
-                上の流れで実際に仕上がった動画のお手本です。撮影の際のイメージづくりにぜひご覧ください。
-              </p>
-              {/* v3.2: 作例はlg+で2列グリッド(design.md「ガイド記事(lg+)」)。
-                  本文自体はmax-w-proseで幅を抑えているぶん、このグリッドの
-                  実効幅も控えめ(280px級の縦動画2列は収まる・3列は本文幅を
-                  超えるため見送り)。モバイルは現状どおり縦積み。 */}
-              <div className="space-y-6 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-6">
-                {SHOWCASE_VIDEOS.map((v) => (
-                  <div key={v.url}>
-                    <h3>{v.title}</h3>
-                    {v.note && <p>{v.note}</p>}
-                    <video
-                      controls
-                      preload="metadata"
-                      playsInline
-                      src={v.url}
-                      className="mx-auto w-full max-w-[280px] lg:max-w-full rounded-xl ring-1 ring-black/10"
-                    />
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
+        {SHOWCASE_VIDEOS.length > 0 && (
+          <div className={`${WIDE_BLOCK} mt-[1.2em]`}>
+            <h2>実際の作例</h2>
+            <p>
+              上の流れで実際に仕上がった動画のお手本です。撮影の際のイメージづくりにぜひご覧ください。
+            </p>
+            {/* v3.3: 作例はlg+で2列グリッド。ブロック自体がWIDE幅なので
+                縦動画2〜3列が余裕をもって収まる。モバイルは縦積みのまま。 */}
+            <div className="space-y-6 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-6">
+              {SHOWCASE_VIDEOS.map((v) => (
+                <div key={v.url}>
+                  <h3>{v.title}</h3>
+                  {v.note && <p>{v.note}</p>}
+                  <video
+                    controls
+                    preload="metadata"
+                    playsInline
+                    src={v.url}
+                    className="mx-auto w-full max-w-[280px] lg:max-w-full rounded-xl ring-1 ring-black/10"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
+        <div className={`${NARROW_BLOCK} mt-[1.2em]`}>
           <h2>ワンポイント</h2>
           <blockquote>
             <p>
               「その部屋に住むとしたら、朝起きてから夜眠るまでにどんな景色を目にするだろう」と想像しながら撮っていただくと、自然と撮るべきカットが揃います。玄関を開けて→廊下を通り→リビングでくつろぎ→キッチンで料理をして→お風呂で一日の疲れを癒し→バルコニーで夜景を眺める。そんな一日の流れをイメージしていただくだけで、住みたくなる動画に近づきます。
             </p>
           </blockquote>
+        </div>
 
+        <div className={`${NARROW_BLOCK} mt-[1.2em]`}>
           <p>
             ご不明な点がございましたら、いつでも担当者までお気軽にご連絡ください。いただいたお写真を最大限活かして、魅力的な動画をお届けします。
           </p>

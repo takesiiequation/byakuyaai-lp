@@ -1126,7 +1126,13 @@ export default function SubmitForm({
       // 2行目に置く=grid行の数を2つに抑えてtrack-sizingの歪みを避ける
       // 設計)。<lg では lg: 系クラスは一切効かないため現状の
       // space-y-6ブロック積みと完全に同一。
-      className="liquid-glass-white rounded-2xl shadow-2xl shadow-black/10 p-6 sm:p-8 space-y-6 lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start lg:gap-x-8 lg:gap-y-6"
+      // v3.3(2026-07-23・PC幅活用): Shellがxl:max-w-7xlまで広がる分、
+      // lgのままの比率(2fr/3fr)だとフォーム項目(短いテキスト入力中心)の
+      // 左カラムが間延びする。xl+だけ左カラムを固定幅(440px)に切り替え、
+      // 余った横幅は右カラム(部屋素材ゾーン=写真グリッドが並ぶため広い
+      // ほど活きる)に回す。gapもxlで拡大。lg帯の比率(2fr/3fr)自体は
+      // 既存のまま変更しない(検収済みレイアウトを壊さないため)。
+      className="liquid-glass-white rounded-2xl shadow-2xl shadow-black/10 p-6 sm:p-8 space-y-6 lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start lg:gap-x-8 lg:gap-y-6 xl:grid-cols-[440px_minmax(0,1fr)] xl:gap-x-12"
     >
       {/* マイソク */}
       <div className="lg:col-start-1 lg:row-start-1">
