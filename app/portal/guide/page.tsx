@@ -41,6 +41,17 @@ import { Shell, MessageCard } from "../_components/Shell";
 // 1枚のみの投稿は引き続きサポート対象のフォールバックなので、2枚1組は
 // 「できれば」の推奨として案内する。
 //
+// 「カメラの動きは4種類」セクション(2026-07-25追加)の根拠:
+// これまでの実演は「2枚1組=前へ進む(プッシュイン)」の1種類しか載せて
+// いなかったが、動きの種類ごとに2枚目の撮り方が違う(前進/その場で向きを
+// 変える/上を向く)ため、顧客が狭い部屋で前進を試みて詰まる。4本の実演
+// 動画(public/guide/motion_*.mp4 — 白金台の実物件写真から生成した実映像・
+// 720x1280 9:16・約5秒・音声なし)で動きと撮り方を対応づける。
+// 既存の「場所別」テーブルは早見表として残し、①各行の先頭に動きの名前を
+// 付けて4カードと対応づけ ②外観(見上げる)の行を追加 ③注意ボックスの
+// 「必ず同じ向きのまま前に進んだ2枚を」という一文が「向きを変える/上を
+// 向く」と矛盾するため、動き3種のいずれかを起点にする表現へ改めた。
+//
 // v3.3(2026-07-23・PC幅活用・岡本FB「画面をまだまだ使えてない」対応):
 // 記事本文をこれまでの単一 prose-custom ラッパー1枚から、セクション単位の
 // 複数ブロック(各ブロックが個別に prose-custom クラスを持つ)へ分割した。
@@ -71,6 +82,52 @@ const SHOWCASE_VIDEOS: ReadonlyArray<{
   url: string;
   note?: string;
 }> = [];
+
+// 「カメラの動きは4種類」の実演カード。動画は全て 9:16(720x1280)・約5秒・
+// 音声なし。autoPlay+loop だが preload="none" とし、ポスター画像で初期表示を
+// 賄う(4本同時ダウンロードを避ける。ブラウザは画面外の自動再生を遅延させる
+// ため、実質はスクロールで見えたものから読み込まれる)。
+const CAMERA_MOTIONS: ReadonlyArray<{
+  name: string;
+  src: string;
+  poster: string;
+  label: string;
+  how: string;
+  where: string;
+}> = [
+  {
+    name: "前へ進む",
+    src: "/guide/motion_pushin.mp4",
+    poster: "/guide/motion_pushin_poster.jpg",
+    label: "前へ進むカメラ移動の実演(廊下)",
+    how: "同じ向きのまま、2〜3歩(廊下なら5歩ほど)前に進んだ位置で2枚目を撮ります。",
+    where: "廊下・玄関・細長い部屋・広いリビング",
+  },
+  {
+    name: "左右に見わたす(室内)",
+    src: "/guide/motion_pan_lr.mp4",
+    poster: "/guide/motion_pan_lr_poster.jpg",
+    label: "左右に見わたすカメラ移動の実演(洗面)",
+    how: "足は動かさず、その場に立ったまま体の向きだけ変えて2枚目を撮ります(90°以内)。",
+    where: "洗面・浴室・キッチンなど、下がるスペースがない場所",
+  },
+  {
+    name: "左右に見わたす(屋外)",
+    src: "/guide/motion_pan_lr_outdoor.mp4",
+    poster: "/guide/motion_pan_lr_outdoor_poster.jpg",
+    label: "左右に見わたすカメラ移動の実演(バルコニー)",
+    how: "同じくその場に立ったまま、向きだけ変えて2枚。景色の広がりが伝わります。",
+    where: "バルコニー・テラス・眺望",
+  },
+  {
+    name: "見上げる",
+    src: "/guide/motion_tilt.mp4",
+    poster: "/guide/motion_tilt_poster.jpg",
+    label: "見上げるカメラ移動の実演(外観)",
+    how: "同じ場所に立ったまま、カメラを少し上に向けて2枚目を撮ります。",
+    where: "外観・吹き抜け・天井の高いお部屋",
+  },
+];
 
 // v3.3: 「非プローズ」ブロック(実演/早見表/注意ボックス/表/作例)の幅。
 // モバイル・タブレットは従来どおり max-w-prose のまま、lg+から段階的に
@@ -196,9 +253,64 @@ export default async function PortalGuidePage() {
           </p>
         </div>
 
+        <div className={`${NARROW_BLOCK} mt-[1.2em]`}>
+          <h2>カメラの動きは4種類。2枚の撮り方で決まります</h2>
+          <p>
+            上の作例は「前へ進む」動きですが、カメラの動きはこれだけではありません。<strong>2枚をどう撮ったかで、映像の動き方が決まります</strong>。同じ向きのまま前に進んで撮れば前へ進む映像に、その場で向きを変えて撮れば左右に見わたす映像になります。
+          </p>
+          <p>
+            どの動きが向いているかは、お部屋の形で決まります。たとえば洗面所のような狭い場所で前へ進もうとすると、すぐ壁にぶつかってしまい2枚目が撮れません。こうした場所は、その場に立ったまま向きを変える「左右に見わたす」が向いています。下の4つの実演を参考に、お部屋ごとに撮りやすい動きをお選びください。
+          </p>
+        </div>
+
+        {/* 4種のカメラ移動の実演カード。非プローズ要素なので実演ブロックと
+            同じWIDE幅を使う。縦積み(モバイル)→2列(lg)→4列(xl)。 */}
+        <div className="mt-[1.2em] mx-auto max-w-prose lg:max-w-3xl xl:max-w-4xl">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4 xl:gap-3">
+            {CAMERA_MOTIONS.map((m) => (
+              <figure
+                key={m.src}
+                className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-cream)]/60 p-4 xl:p-3"
+              >
+                <video
+                  src={m.src}
+                  poster={m.poster}
+                  aria-label={m.label}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  preload="none"
+                  className="mx-auto block aspect-[9/16] w-full max-w-[200px] rounded-lg object-cover ring-1 ring-black/10"
+                />
+                <figcaption className="mt-3">
+                  <p className="text-center text-sm font-bold text-[var(--brand-ink)]">
+                    {m.name}
+                  </p>
+                  <p className="mt-2 text-xs leading-relaxed text-[var(--brand-gray)]">
+                    <span className="font-bold text-[var(--brand-orange-dark)]">
+                      こう撮ります:
+                    </span>
+                    {m.how}
+                  </p>
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--brand-gray-light)]">
+                    向く場所:{m.where}
+                  </p>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+          <p className="mt-3 text-center text-xs text-[var(--brand-gray-light)]">
+            いずれも、実際の物件写真2枚から生成した映像です
+          </p>
+        </div>
+
         {/* 場所別・2枚の撮り方の目安(早見表)— 非プローズ要素としてWIDE幅 */}
         <div className={`${WIDE_BLOCK} mt-[1.2em]`}>
-          <h3>場所別・2枚の撮り方の目安</h3>
+          <h3>場所別・撮り方の早見表</h3>
+          <p>
+            上の4つの動きを、場所別にまとめました。迷ったときは、この表のとおりに撮っていただければ大丈夫です。
+          </p>
           <table>
             <thead>
               <tr>
@@ -209,19 +321,35 @@ export default async function PortalGuidePage() {
             <tbody>
               <tr>
                 <td>通常の部屋</td>
-                <td>部屋の同じ側から、向きを変えずに2〜3歩前進</td>
+                <td>
+                  前へ進む:部屋の同じ側から、向きを変えずに2〜3歩前進
+                </td>
               </tr>
               <tr>
                 <td>細長い部屋・廊下</td>
-                <td>同じ向きのまま、5歩ほど前進</td>
+                <td>前へ進む:同じ向きのまま、5歩ほど前進</td>
               </tr>
               <tr>
-                <td>狭い部屋・バルコニー</td>
-                <td>その場に立ったまま、少しだけ向きを変えて2枚(90°以内)</td>
+                <td>狭い部屋・洗面</td>
+                <td>
+                  左右に見わたす:その場に立ったまま、少しだけ向きを変えて2枚(90°以内)
+                </td>
+              </tr>
+              <tr>
+                <td>バルコニー・眺望</td>
+                <td>
+                  左右に見わたす:その場に立ったまま、景色を追うように向きを変えて2枚
+                </td>
               </tr>
               <tr>
                 <td>浴室・トイレ</td>
-                <td>入口から1枚+半歩入って1枚</td>
+                <td>前へ進む:入口から1枚+半歩入って1枚</td>
+              </tr>
+              <tr>
+                <td>外観・吹き抜け</td>
+                <td>
+                  見上げる:同じ場所から、カメラを少し上に向けて2枚目
+                </td>
               </tr>
             </tbody>
           </table>
@@ -235,7 +363,7 @@ export default async function PortalGuidePage() {
               ⚠ 部屋の反対側に回り込んで、振り返って撮った2枚(真逆の2枚)
             </p>
             <p className="mt-1 text-sm text-amber-700">
-              2枚の間をつなぐ映像が作れず、不自然な仕上がりになってしまいます。必ず同じ向きのまま、前に進んだ2枚をお送りください。
+              2枚の間をつなぐ映像が作れず、不自然な仕上がりになってしまいます。1枚目を撮った場所を起点に、上の4つの動き(前へ進む・左右に見わたす・見上げる)のいずれかで2枚目を撮ってください。
             </p>
           </div>
         </div>
