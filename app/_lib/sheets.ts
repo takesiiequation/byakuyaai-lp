@@ -6,6 +6,11 @@ const SHEET_ID = process.env.GOOGLE_SHEET_ID!;
 const TAB = process.env.GOOGLE_SHEET_TAB || "契約社リスト";
 const qt = (tab: string) => `'${tab.replace(/'/g, "''")}'`; // 日本語タブ名はA1記法でクォート必須
 const APPROVAL_TAB = process.env.GOOGLE_SHEET_APPROVAL_TAB || "承認待ち";
+// 掃除WFが完了行(approved/rejected等)を7日で退避する先。ヘッダは承認待ちと
+// 同一+末尾に backup_at 列が増えるだけ(getMonthlyApprovedSlots はヘッダ名
+// 駆動で読むので backup_at 列の有無自体は無視できる)。
+const APPROVAL_BACKUP_TAB =
+  process.env.GOOGLE_SHEET_APPROVAL_BACKUP_TAB || "承認待ち_backup";
 
 function getAuth() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
@@ -230,10 +235,21 @@ export async function getApprovalQueue(): Promise<ApprovalEntry[]> {
 }
 
 // --- Portal: 今月の投稿カレンダー ---------------------------------------
-// Reads the SAME 承認待ち tab as getApprovalQueue above, filtered to one
-// client_id + status==='approved' (= Publer への投稿が実際に成功した行、
-// see fudosan-video/docs/archive/approval_handler_design.md 「B. 非同期
-// publisher」— status=approved は投稿成功後だけ書かれる)。
+// Reads 承認待ち(現行分)+ 承認待ち_backup(掃除WFが7日で退避した完了分)
+// の2タブを、1 client_id 分だけ拾って統合する。
+//
+// 2026-07-27 判定ロジック見直し: 旧実装は status==='approved' 行だけを
+// 拾っていたが、実運用ではその条件がほぼ常に成立しない――
+//  ① 修正ロック解除(承認後の差し戻し等)で status が pending に戻った
+//     投稿済み行がある(status_visibility_package_draft.md 系の改修で
+//     approved が別値に上書きされるケース)
+//  ② 掃除WFが完了行(approved/rejected等)を7日で 承認待ち_backup タブへ
+//     移すため、承認から7日経った行はそもそも 承認待ち タブに残らない
+// のどちらか(あるいは両方)で、カレンダーが常に空になっていた
+// (「カレンダー機能してない」の真因)。my_post_slot が実際にパースできる
+// = Publer への投稿が(過去に)予約/実行されたことを意味するので、
+// rejected(却下されて投稿されなかった)行だけを除外し、それ以外は
+// slotがある限り拾う。
 //
 // 🚨 Absolute rule (mirrors portal.ts's comment on this same tab): this tab's
 // post_data column carries a plaintext Publer API key. This function NEVER
@@ -287,45 +303,105 @@ function parseJstSlot(
   };
 }
 
+/** extractSlotsFromRows の戻り値。dedupKey は「approval_id + 生のmy_post_slot
+ * 文字列」— 承認待ち/承認待ち_backup 両タブに同じ行が(掃除WFのコピー→削除
+ * 実装が完了する前の一瞬など)重複して存在するケースを潰すためだけの内部キー
+ * で、PostSlot自体(呼び出し側に返す形)には含めない。 */
+interface DedupSlot {
+  dedupKey: string;
+  slot: PostSlot;
+}
+
+// 1タブ分の rows(ヘッダ込み)から、月次カレンダーに載せてよい PostSlot を
+// 抜き出す共通ロジック。承認待ち/承認待ち_backup はヘッダが同一(backupは
+// 末尾に backup_at 列が増えるだけ)なので、この関数を両タブに使い回せる。
+// rejected(却下されて投稿されなかった)行だけを除外し、my_post_slot が
+// パースでき、かつ今月(JST)の行だけを拾う——詳しい理由は
+// getMonthlyApprovedSlots 直前のコメント参照。
+function extractSlotsFromRows(
+  rows: string[][] | null | undefined,
+  clientId: string,
+  curYear: number,
+  curMonth: number
+): DedupSlot[] {
+  if (!rows || rows.length < 2) return [];
+  const headers = rows[0] as string[];
+  const out: DedupSlot[] = [];
+  for (const r of rows.slice(1)) {
+    const obj: Record<string, string> = {};
+    headers.forEach((h, i) => {
+      obj[h] = (r as string[])[i] ?? "";
+    });
+    if (pickField(obj, ["client_id"]) !== clientId) continue;
+    if (pickField(obj, ["status", "ステータス"]) === "rejected") continue;
+    const rawSlot = pickField(obj, ["my_post_slot"]);
+    const slot = parseJstSlot(rawSlot);
+    if (!slot || slot.year !== curYear || slot.month !== curMonth) continue;
+    const approvalId = pickField(obj, ["approval_id", "id"]);
+    out.push({
+      dedupKey: `${approvalId}|${rawSlot}`,
+      slot: {
+        property_name: pickField(obj, ["物件名", "property_name", "property"]),
+        day: slot.day,
+        hour: slot.hour,
+        minute: slot.minute,
+      },
+    });
+  }
+  return out;
+}
+
 /**
- * This month's (JST) approved+scheduled posts for one client. Fail-soft
- * (mirrors getApprovalQueue/getProductionRows): any Sheets error or
- * unparseable row is just skipped, never a 500.
+ * This month's (JST) scheduled/posted slots for one client, merged from
+ * 承認待ち + 承認待ち_backup. Fail-soft (mirrors getApprovalQueue/
+ * getProductionRows): any Sheets error (either tab missing/unreadable) or
+ * unparseable row is just skipped, never a 500 — 承認待ち_backup 特有の
+ * 「タブがまだ存在しない」ケースも同じ fail-soft で無視する。
  */
 export async function getMonthlyApprovedSlots(
   clientId: string
 ): Promise<PostSlot[]> {
+  const { year: curYear, month: curMonth } = jstNow();
+
+  // 現行タブ・backupタブは別々に fail-soft(片方が読めなくてももう片方は
+  // 生かす)。
+  let liveRows: string[][] | null | undefined;
   try {
     const res = await sheets().spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range: qt(APPROVAL_TAB),
     });
-    const rows = res.data.values;
-    if (!rows || rows.length < 2) return [];
-    const headers = rows[0] as string[];
-    const { year: curYear, month: curMonth } = jstNow();
-
-    const out: PostSlot[] = [];
-    for (const r of rows.slice(1)) {
-      const obj: Record<string, string> = {};
-      headers.forEach((h, i) => {
-        obj[h] = (r as string[])[i] ?? "";
-      });
-      if (pickField(obj, ["client_id"]) !== clientId) continue;
-      if (pickField(obj, ["status", "ステータス"]) !== "approved") continue;
-      const slot = parseJstSlot(pickField(obj, ["my_post_slot"]));
-      if (!slot || slot.year !== curYear || slot.month !== curMonth) continue;
-      out.push({
-        property_name: pickField(obj, ["物件名", "property_name", "property"]),
-        day: slot.day,
-        hour: slot.hour,
-        minute: slot.minute,
-      });
-    }
-    return out.sort(
-      (a, b) => a.day - b.day || a.hour - b.hour || a.minute - b.minute
-    );
+    liveRows = res.data.values as string[][] | null | undefined;
   } catch {
-    return [];
+    liveRows = null;
   }
+
+  let backupRows: string[][] | null | undefined;
+  try {
+    const res = await sheets().spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: qt(APPROVAL_BACKUP_TAB),
+    });
+    backupRows = res.data.values as string[][] | null | undefined;
+  } catch {
+    backupRows = null;
+  }
+
+  const combined = [
+    ...extractSlotsFromRows(liveRows, clientId, curYear, curMonth),
+    ...extractSlotsFromRows(backupRows, clientId, curYear, curMonth),
+  ];
+
+  // approval_id + my_post_slot の組で重複除去。
+  const seen = new Set<string>();
+  const out: PostSlot[] = [];
+  for (const item of combined) {
+    if (seen.has(item.dedupKey)) continue;
+    seen.add(item.dedupKey);
+    out.push(item.slot);
+  }
+
+  return out.sort(
+    (a, b) => a.day - b.day || a.hour - b.hour || a.minute - b.minute
+  );
 }
