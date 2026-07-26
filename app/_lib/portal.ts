@@ -40,6 +40,11 @@ export interface ProductionRow {
   approval_id: string;
   created_at: string;
   updated_at: string;
+  /** I列(2026-07-27追加)。'true' なら顧客のマイページ一覧から除外する
+   * (岡本発案:「失敗しましたの欄が何個もあって邪魔、消せるようにできない?」
+   * — データは消さず非表示フラグだけ立てる)。書き込みは
+   * app/api/portal/status/hide/route.ts → hideProductionRow のみ。 */
+  hidden: string;
 }
 
 function rowToProduction(headers: string[], row: string[]): ProductionRow {
@@ -56,6 +61,7 @@ function rowToProduction(headers: string[], row: string[]): ProductionRow {
     approval_id: obj.approval_id ?? "",
     created_at: obj.created_at ?? "",
     updated_at: obj.updated_at ?? "",
+    hidden: obj.hidden ?? "",
   };
 }
 
@@ -167,4 +173,71 @@ export const PORTAL_STATUS_COLORS: Record<PortalStatus, string> = {
  */
 export function isTerminalStatus(status: PortalStatus): boolean {
   return status === "posted" || status === "rejected";
+}
+
+/**
+ * 岡本発案(2026-07-27):「失敗しましたの欄が何個もあって邪魔、消せるように
+ * できない?」への対応。データそのものは消さず I列(hidden)に 'true' を
+ * 立てるだけ — シート上には行が残る(監査可能)ので、n8n側や管理者が見る
+ * ビューには一切影響しない。ポータル一覧側の除外は app/portal/page.tsx で
+ * hidden==='true' をフィルタする。
+ *
+ * 呼び出し元(app/api/portal/status/hide/route.ts)は既に
+ * requirePortalClient でセッション検証済みだが、この関数自身も
+ * 「exec_id完全一致 かつ client_idがセッションのclientIdと一致 かつ
+ * ステータスが失敗系(failed/revise_failed)」を再検証してから書き込む —
+ * 他社の行や失敗系以外の行を誤って隠す経路を作らない多重防御。
+ *
+ * 行の特定は「制作状況!A:I を丸ごと読んで exec_id 完全一致行のindex+1」。
+ * 書き込みは values.update で 制作状況!{hidden列}{row} の1セルのみ —
+ * 他の列・他の行には絶対に書かない。
+ */
+export async function hideProductionRow(
+  clientId: string,
+  execId: string
+): Promise<"ok" | "not_found" | "error"> {
+  try {
+    const res = await sheets().spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: qt(PRODUCTION_TAB),
+    });
+    const rows = res.data.values;
+    if (!rows || rows.length < 2) return "not_found";
+    const headers = rows[0] as string[];
+    const execCol = headers.indexOf("exec_id");
+    const clientCol = headers.indexOf("client_id");
+    const hiddenCol = headers.indexOf("hidden");
+    if (execCol === -1 || clientCol === -1 || hiddenCol === -1) {
+      return "not_found";
+    }
+
+    const rowIdx = rows.findIndex(
+      (r, i) => i > 0 && (r as string[])[execCol] === execId
+    );
+    if (rowIdx === -1) return "not_found";
+
+    const row = rows[rowIdx] as string[];
+    // 他社の行は「見つからなかった」扱いにする(存在自体を漏らさない —
+    // 404かどうかで他クライアントのexec_idの存在を推測されないようにする)。
+    if (row[clientCol] !== clientId) return "not_found";
+
+    const status = resolveStatus(rowToProduction(headers, row));
+    if (status !== "failed" && status !== "revise_failed") {
+      return "not_found"; // 失敗系以外は非表示化の対象外
+    }
+
+    // hiddenCol は headers.indexOf 由来(列が将来増えても追従)。現状I列
+    // (index 8)想定だがシートは列数が少ないので1文字で足りる。
+    const colLetter = String.fromCharCode("A".charCodeAt(0) + hiddenCol);
+    const rowNum = rowIdx + 1;
+    await sheets().spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: `${qt(PRODUCTION_TAB)}!${colLetter}${rowNum}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [["true"]] },
+    });
+    return "ok";
+  } catch {
+    return "error";
+  }
 }

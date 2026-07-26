@@ -18,6 +18,7 @@ import { Shell, MessageCard } from "./_components/Shell";
 import LogoutButton from "./_components/LogoutButton";
 import ApprovalActions from "./_components/ApprovalActions";
 import CollapsedHistory from "./_components/CollapsedHistory";
+import HideRowButton from "./_components/HideRowButton";
 import { MonthlyReportSection } from "./_components/MonthlyReport";
 import { getLatestReport } from "@/app/_lib/report";
 
@@ -73,6 +74,10 @@ function StatusRow({ row }: { row: ProductionRow }) {
           >
             {PORTAL_STATUS_LABELS[status]}
           </span>
+          {/* 失敗系の行だけ「×(非表示)」を出す(2026-07-27岡本発案)。
+              exec_id が空の行(古いデータ等)は対象を特定できないため出さない。 */}
+          {(status === "failed" || status === "revise_failed") &&
+            row.exec_id && <HideRowButton execId={row.exec_id} />}
         </div>
         <div className="text-xs text-[var(--brand-gray-light)] mt-1">
           {formatDate(row.created_at)}
@@ -372,11 +377,15 @@ export default async function PortalPage({
   const lockAutopost = !isPremium && isTrial;
   const lockReport = !isPremium && (isTrial || client.plan === "standard");
 
-  const [rows, monthlySlots, reportRow] = await Promise.all([
+  const [allRows, monthlySlots, reportRow] = await Promise.all([
     getProductionRows(clientId),
     getMonthlyApprovedSlots(clientId),
     isPremium ? getLatestReport(clientId) : Promise.resolve(null),
   ]);
+  // hidden==='true' の行(HideRowButton経由で顧客自身が消した失敗行)は
+  // 一覧そのものから除外する — データはシート上に残る(監査可能)ので
+  // 除外はこの表示層だけの処理でよい。
+  const rows = allRows.filter((r) => r.hidden !== "true");
   const { year: currentYear, month: currentMonth } = jstNow();
 
   // Active rows (制作中/承認待ち — anything the client might still need to
