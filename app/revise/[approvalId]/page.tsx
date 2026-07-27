@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import { getReviseInfo } from "@/app/_lib/revise";
 import ReviseForm from "../_components/ReviseForm";
 
@@ -22,19 +23,22 @@ function Shell({
   return (
     <main className="min-h-screen bg-[var(--brand-cream)]">
       <header className="sticky top-0 z-30 w-full border-b border-[var(--brand-border)] bg-white/90 backdrop-blur-md">
-        <div className={`mx-auto flex h-14 items-center ${padX} ${maxWidth}`}>
-          {/* 2026-07-27 岡本要望によりリンク化を取り消し: revise訪問者は
-              ポータルセッションを持たないことがあり(承認メール経由の直リンク
-              訪問等)、編集途中にロゴを誤タップして離脱する事故を防ぐため、
-              ポータル側Shell(app/portal/_components/Shell.tsx)と違いここは
-              plainな<Image>のみ(クリックしても何も起きない)。 */}
-          <Image
-            src="/logo.png"
-            alt="ByakuyaAI"
-            width={120}
-            height={36}
-            className="h-7 w-auto"
-          />
+        {/* 2026-07-27 岡本指摘「ロゴが左上に来てない」の根治: 内側divに
+            mx-auto+maxWidth を掛けるとPC幅ではロゴが中央寄せ列の左端=画面
+            中央付近に浮く。ポータル側Shell(app/portal/_components/Shell.tsx)
+            と同じ全幅コンテナにしてロゴを常にビューポート左上へ。 */}
+        <div className="flex h-14 items-center px-4 sm:px-6">
+          {/* 2026-07-15 岡本要望: ロゴクリックでマイページへ戻れるように
+              (未ログインなら /portal が /portal/login へリダイレクトするので問題ない) */}
+          <Link href="/portal" aria-label="マイページへ戻る">
+            <Image
+              src="/logo.png"
+              alt="ByakuyaAI"
+              width={120}
+              height={36}
+              className="h-7 w-auto"
+            />
+          </Link>
         </div>
       </header>
       <div className={`mx-auto py-6 sm:py-10 ${padX} ${maxWidth}`}>

@@ -230,10 +230,13 @@ export async function hideProductionRow(
     // (index 8)想定だがシートは列数が少ないので1文字で足りる。
     const colLetter = String.fromCharCode("A".charCodeAt(0) + hiddenCol);
     const rowNum = rowIdx + 1;
+    // ⚠️ RAW必須: USER_ENTERED だと Sheets が 'true' を boolean TRUE に
+    // 強制変換し、values.get の読み戻しが 'TRUE' になって表示層の
+    // hidden==='true' 判定をすり抜ける(=消したのに消えない)。
     await sheets().spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
       range: `${qt(PRODUCTION_TAB)}!${colLetter}${rowNum}`,
-      valueInputOption: "USER_ENTERED",
+      valueInputOption: "RAW",
       requestBody: { values: [["true"]] },
     });
     return "ok";

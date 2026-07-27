@@ -385,7 +385,8 @@ export default async function PortalPage({
   // hidden==='true' の行(HideRowButton経由で顧客自身が消した失敗行)は
   // 一覧そのものから除外する — データはシート上に残る(監査可能)ので
   // 除外はこの表示層だけの処理でよい。
-  const rows = allRows.filter((r) => r.hidden !== "true");
+  // 比較は大文字小文字を吸収(手作業でシートにTRUEと入れられても効くように)。
+  const rows = allRows.filter((r) => r.hidden.toLowerCase() !== "true");
   const { year: currentYear, month: currentMonth } = jstNow();
 
   // Active rows (制作中/承認待ち — anything the client might still need to
