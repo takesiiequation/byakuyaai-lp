@@ -94,6 +94,9 @@ export interface ReviseInfo {
   property_name?: string;
   client_name?: string;
   video_url?: string;
+  /** 修正期限のISO(created_at+6日・編集情報API FINDが判定に使う値そのもの)。
+   * 旧応答には無いのでoptional — 無ければ画面は期限表示を出さないだけ。 */
+  deadline?: string;
   telops?: ReviseTelop[];
   caption?: string;
   error?: string;
@@ -171,6 +174,7 @@ export async function getReviseInfo(approvalId: string): Promise<ReviseInfo> {
         typeof rec.property_name === "string" ? rec.property_name : "",
       client_name: typeof rec.client_name === "string" ? rec.client_name : "",
       video_url: typeof rec.video_url === "string" ? rec.video_url : "",
+      deadline: typeof rec.deadline === "string" ? rec.deadline : undefined,
       telops: shapeTelops(rec.telops),
       caption: typeof rec.caption === "string" ? rec.caption : "",
     };

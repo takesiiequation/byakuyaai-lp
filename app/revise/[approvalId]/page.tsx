@@ -95,6 +95,33 @@ function MessageCard({ title, body }: { title: string; body: string }) {
   );
 }
 
+// 修正期限の赤字表示(2026-07-27 岡本要望「残り何日かを赤字で表示させてあげる」)。
+// deadline は編集情報APIが期限判定に使う値そのもの(created_at+6日)なので、
+// ここで独自計算はしない — 表示と判定がズレる事故を構造的に防ぐ。
+// 旧応答に deadline が無い場合は何も出さない(表示だけの機能なのでfail-soft)。
+function DeadlineNotice({ deadline }: { deadline?: string }) {
+  if (!deadline) return null;
+  const t = new Date(deadline).getTime();
+  if (isNaN(t)) return null;
+  const remainMs = t - Date.now();
+  if (remainMs <= 0) return null; // 期限切れはロック分岐が先に出るので通常来ない
+  const daysLeft = Math.ceil(remainMs / 86400000);
+  const dateLabel = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  }).format(new Date(deadline));
+  return (
+    <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+      修正期限: {dateLabel} まで(残り{daysLeft}日)
+      {daysLeft <= 2 && (
+        <span className="ml-1 font-semibold">— お早めにお願いいたします</span>
+      )}
+    </div>
+  );
+}
+
 export default async function RevisePage({
   params,
 }: {
@@ -127,6 +154,7 @@ export default async function RevisePage({
 
   return (
     <Shell wide>
+      <DeadlineNotice deadline={info.deadline} />
       <ReviseForm
         approvalId={approvalId}
         propertyName={info.property_name ?? ""}
