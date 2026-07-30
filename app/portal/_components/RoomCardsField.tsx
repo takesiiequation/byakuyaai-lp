@@ -21,6 +21,13 @@
 // +誤ペア第2ガード: 写真2枚が揃うたび(自動仕分け直後/手動組み替え後/
 // 2枚目追加後のいずれも)dHash(roomAutoPairing.tsの資産)で類似度を
 // 非同期チェックし、閾値超なら非ブロッキング警告を出す(PairMismatchWarning)。
+//
+// v3.3(2026-07-31・始まり/終わり入替ボタンの移設): ④で操作列に集約した
+// 「↕ 入替」は、サムネを見て直感的に押したい操作なのに下段に埋もれて
+// 発見しづらかった。2枚のサムネの間(旧: 装飾の→のみ)を⇄アイコンの
+// 実ボタンに置き換え、操作列からは撤去(PairPhotosBlock参照)。state更新
+// は既存のonSwapFrames(=SubmitForm.tsx swapRoomFrames)をそのまま流用 —
+// 新しいstateは増やしていない。
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -534,9 +541,22 @@ function PairPhotosBlock({
           onRemoveItem={onRemoveItem}
           onMoveItemToRoom={onMoveItemToRoom}
         />
-        <span className="shrink-0 pt-7 text-sm text-black/25" aria-hidden>
-          →
-        </span>
+        {/* v3.3(2026-07-31・始まり/終わり入替ボタンをサムネ間へ移設)。
+            旧「↕ 入替」は下の操作列にあり見つけづらかった — 顧客が
+            サムネを見て直感的に押せるよう、2枚の間の視覚的な区切り
+            (旧は装飾の→のみ)を実際に押せるボタンへ置き換えた。
+            44x44px(h-11 w-11)でタップ領域を確保・stateは既存の
+            onSwapFrames(=swapRoomFrames)をそのまま流用する。 */}
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onSwapFrames(room.uid)}
+          aria-label="始まりと終わりを入れ替える"
+          title="始まりと終わりを入れ替える"
+          className="flex h-11 w-11 shrink-0 items-center justify-center self-center rounded-full border border-black/10 bg-white/80 text-base text-[var(--brand-ink)]/70 transition-colors hover:border-[var(--brand-orange)]/60 hover:bg-white disabled:opacity-50"
+        >
+          ⇄
+        </button>
         <PairPhoto
           room={room}
           rooms={rooms}
@@ -565,26 +585,16 @@ function PairPhotosBlock({
       )}
       <div className="flex items-center justify-between gap-2 text-[10px] text-[var(--brand-gray-light)]">
         <span className="truncate">この順に映像が動きます</span>
-        <div className="flex shrink-0 items-center gap-1.5">
-          {onUnpairRoom && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => onUnpairRoom(room.uid)}
-              className="rounded-md border border-black/10 bg-white/70 px-1.5 py-0.5 text-[var(--brand-ink)]/70 hover:bg-white transition-colors"
-            >
-              ペア解除
-            </button>
-          )}
+        {onUnpairRoom && (
           <button
             type="button"
             disabled={busy}
-            onClick={() => onSwapFrames(room.uid)}
-            className="rounded-md border border-black/10 bg-white/70 px-1.5 py-0.5 text-[var(--brand-ink)]/70 hover:bg-white transition-colors"
+            onClick={() => onUnpairRoom(room.uid)}
+            className="shrink-0 rounded-md border border-black/10 bg-white/70 px-1.5 py-0.5 text-[var(--brand-ink)]/70 hover:bg-white transition-colors"
           >
-            ↕ 入替
+            ペア解除
           </button>
-        </div>
+        )}
       </div>
     </div>
   );
