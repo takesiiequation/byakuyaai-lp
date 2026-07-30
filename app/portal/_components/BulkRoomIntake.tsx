@@ -9,6 +9,14 @@
 // accept属性もタブごとに image/* と video/* に分離する。両タブから
 // 追加した部屋は呼び出し元の同一 rooms state に合流する(このコンポー
 // ネント自体はどちらのタブが選ばれているかのローカルUI状態のみ持つ)。
+//
+// 動画タブの説明文+ガイドリンク(2026-07-30追加): 札幌カンリセンター様が
+// 「ドアを開ける→入室→部屋を見せる」の長回し構成で自主撮影・入稿し、当時の
+// 先頭切り出し仕様のせいで部屋が映る前に切れる事故が発生。n8n側は改修済み
+// (30秒まで受け入れ・頭35%を飛ばして使う)だが、入稿の入口でも「短く区切る」
+// を案内する。リンクのスタイルは SubmitForm.tsx の写真/動画共通ガイドリンク
+// (/portal/guide への text-xs font-semibold text-[var(--brand-orange-dark)]
+// underline)を踏襲。
 
 import { useState } from "react";
 import { MAX_VIDEO_DURATION_SEC } from "@/app/_lib/portalSubmitShared";
@@ -116,8 +124,16 @@ export default function BulkRoomIntake({
             />
           </label>
           <p className="text-xs text-[var(--brand-gray-light)]">
-            1本の動画が1つの部屋になります(1本あたり{MAX_VIDEO_DURATION_SEC}秒以内・1080p設定推奨)
+            1本の動画が1つの部屋になります(1本あたり{MAX_VIDEO_DURATION_SEC}秒以内・1080p設定推奨)。1本5〜10秒がおすすめです(最大{MAX_VIDEO_DURATION_SEC}秒まで)。見せたいお部屋が映っている部分を自動で選んで使用します
           </p>
+          <a
+            href="/portal/guide/video"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block text-xs font-semibold text-[var(--brand-orange-dark)] underline decoration-[var(--brand-orange)]/40 underline-offset-2 hover:decoration-current"
+          >
+            🎥 動画で撮るときのコツはこちら
+          </a>
         </>
       )}
 

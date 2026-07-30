@@ -66,6 +66,13 @@ import { Shell, MessageCard } from "../_components/Shell";
 // collapsing)で従来と同じ見た目になる(表・引用は個別に検証済み)。
 // `.prose-custom <tag>` の色/罫線等のスタイルは子孫セレクタなので、入れ子
 // 段数が変わっても分割の影響を受けない。
+//
+// 「動画で撮影する場合」節の圧縮(2026-07-30・札幌カンリセンター様の事故
+// 対応): 顧客が自主撮影した動画8本が「ドアを開ける→入室→部屋を見せる」の
+// 11〜23秒構成で、当時のシステムは先頭から切り出す仕様だったため部屋が映る
+// 前に切れる事故が発生。n8n側は同日に改修済み(30秒まで受け入れ・頭35%を
+// 飛ばして使う)。本節はそれまでの4項目の箇条書きから3行程度に圧縮し、
+// 詳細は新設の /portal/guide/video(動画撮影ガイド)に譲る形にした。
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
@@ -453,16 +460,16 @@ export default async function PortalGuidePage() {
 
           <h2>動画で撮影する場合</h2>
           <p>
-            お写真の代わりに、動画で撮影していただいても構いません。次の点を意識してください。
+            お写真の代わりに、動画で撮影していただいても構いません。スマホは縦向きのまま、1カット5〜10秒(最大30秒)に区切って、見せたい部屋が見えるところから撮り始めてください。
           </p>
-          <ul>
-            <li>スマホは縦向きのまま撮影してください</li>
-            <li>ゆっくり歩く、またはゆっくりパン(横に振る)しながら撮影してください</li>
-            <li>1本あたり30秒以内を目安にしてください</li>
-            <li>
-              いちばん見せたい瞬間が最初の数秒に来るように撮影してください(お送りいただいた動画から、いい部分を切り出して使用します)
-            </li>
-          </ul>
+          <p>
+            <a
+              href="/portal/guide/video"
+              className="font-semibold text-[var(--brand-orange-dark)] underline decoration-[var(--brand-orange)]/40 underline-offset-2 hover:decoration-current"
+            >
+              詳しくは「動画で撮るときのコツ」をご覧ください
+            </a>
+          </p>
         </div>
 
         {/* お送りいただいた写真は、こんな動画になります(役割対応表)—
