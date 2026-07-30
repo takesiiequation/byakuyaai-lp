@@ -124,7 +124,7 @@ export default function BulkRoomIntake({
             />
           </label>
           <p className="text-xs text-[var(--brand-gray-light)]">
-            1本の動画が1つの部屋になります(1本あたり{MAX_VIDEO_DURATION_SEC}秒以内・1080p設定推奨)。1本5〜10秒がおすすめです(最大{MAX_VIDEO_DURATION_SEC}秒まで)。見せたいお部屋が映っている部分を自動で選んで使用します
+            1本の動画が1つの部屋になります(1080p設定推奨)。<strong>1本5〜10秒がおすすめ</strong>です(最大{MAX_VIDEO_DURATION_SEC}秒まで)。長い動画は、お部屋が見えている部分を自動で選んで使用します
           </p>
           <a
             href="/portal/guide/video"
