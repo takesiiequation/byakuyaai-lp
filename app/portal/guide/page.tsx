@@ -4,6 +4,9 @@ import { redirect } from "next/navigation";
 import { getPortalClientId } from "@/app/_lib/portalAuth";
 import { getClientById } from "@/app/_lib/sheets";
 import { Shell, MessageCard } from "../_components/Shell";
+import MotionDiagram, {
+  type MotionKind,
+} from "../_components/MotionDiagram";
 
 // /portal/guide — 写真撮影ガイド(顧客教育コンテンツ)。認証+portal_enabled
 // 再検証は他の /portal 配下ページと同一の流儀(getPortalClientId → シート
@@ -101,9 +104,12 @@ const CAMERA_MOTIONS: ReadonlyArray<{
   label: string;
   how: string;
   where: string;
+  /** 2026-07-31追加: 撮り方の図(MotionDiagram)。実演動画=仕上がり、図=立ち位置と向き。 */
+  diagram: MotionKind;
 }> = [
   {
     name: "前へ進む",
+    diagram: "pushin",
     src: "/guide/motion_pushin.mp4",
     poster: "/guide/motion_pushin_poster.jpg",
     label: "前へ進むカメラ移動の実演(廊下)",
@@ -112,6 +118,7 @@ const CAMERA_MOTIONS: ReadonlyArray<{
   },
   {
     name: "真横にスライド",
+    diagram: "slide",
     src: "/guide/motion_slide.mp4",
     poster: "/guide/motion_slide_poster.jpg",
     label: "真横にスライドするカメラ移動の実演(洗面)",
@@ -120,6 +127,7 @@ const CAMERA_MOTIONS: ReadonlyArray<{
   },
   {
     name: "その場で見わたす(パン)",
+    diagram: "pan",
     src: "/guide/motion_pan.mp4",
     poster: "/guide/motion_pan_poster.jpg",
     label: "その場で見わたすカメラ移動の実演(バルコニー)",
@@ -128,6 +136,7 @@ const CAMERA_MOTIONS: ReadonlyArray<{
   },
   {
     name: "回り込む(アーク)",
+    diagram: "arc",
     src: "/guide/motion_arc.mp4",
     poster: "/guide/motion_arc_poster.jpg",
     label: "回り込むカメラ移動の実演(リビング)",
@@ -136,6 +145,7 @@ const CAMERA_MOTIONS: ReadonlyArray<{
   },
   {
     name: "見上げる",
+    diagram: "tilt",
     src: "/guide/motion_tilt.mp4",
     poster: "/guide/motion_tilt_poster.jpg",
     label: "見上げるカメラ移動の実演(外観)",
@@ -298,6 +308,10 @@ export default async function PortalGuidePage() {
                   preload="none"
                   className="mx-auto block aspect-[9/16] w-full max-w-[200px] rounded-lg object-cover ring-1 ring-black/10"
                 />
+                {/* 撮り方の図(2026-07-31): 動画の下に置き「できあがる映像→どう撮るか」の順で読ませる */}
+                <div className="mt-3 rounded-lg bg-white/70 py-2">
+                  <MotionDiagram kind={m.diagram} />
+                </div>
                 <figcaption className="mt-3">
                   <p className="text-center text-sm font-bold text-[var(--brand-ink)]">
                     {m.name}
@@ -317,6 +331,18 @@ export default async function PortalGuidePage() {
           </div>
           <p className="mt-3 text-center text-xs text-[var(--brand-gray-light)]">
             いずれも、実際の物件写真2枚から生成した映像です
+          </p>
+          {/* 印刷・社内共有用の一枚まとめ(2026-07-31)。ページ内はスマホで読める図、
+              こちらは現場で紙に出したり共有したりする用途。 */}
+          <p className="mt-4 text-center">
+            <a
+              href="/guide/camera-motions.png"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-semibold text-[var(--brand-orange-dark)] underline decoration-[var(--brand-orange)]/40 underline-offset-2 hover:decoration-current"
+            >
+              🖨 5種類まとめの一枚図を開く(印刷・共有用)
+            </a>
           </p>
         </div>
 
