@@ -332,18 +332,31 @@ export default async function PortalGuidePage() {
           <p className="mt-3 text-center text-xs text-[var(--brand-gray-light)]">
             いずれも、実際の物件写真2枚から生成した映像です
           </p>
-          {/* 印刷・社内共有用の一枚まとめ(2026-07-31)。ページ内はスマホで読める図、
-              こちらは現場で紙に出したり共有したりする用途。 */}
-          <p className="mt-4 text-center">
+          {/* 5種類まとめの一枚図(2026-07-31)。1024x1536の縦長画像で文字が小さいため、
+              PC(lg以上)ではそのまま原寸近くで読め、スマホでは全体像の把握用として縮小表示し、
+              タップで原寸を開いてピンチズームできるようにする(リンクだけだと一手間かかるため
+              「そのまま見せる」ことを優先=岡本要望)。 */}
+          <div className="mt-6">
             <a
               href="/guide/camera-motions.png"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs font-semibold text-[var(--brand-orange-dark)] underline decoration-[var(--brand-orange)]/40 underline-offset-2 hover:decoration-current"
+              className="block"
+              aria-label="カメラの動き5種類のまとめ図を原寸で開く"
             >
-              🖨 5種類まとめの一枚図を開く(印刷・共有用)
+              <Image
+                src="/guide/camera-motions.png"
+                alt="カメラの動き5種類のまとめ図。前へ進む・真横にスライド・その場で見わたす・回り込む・見上げるの5つと、失敗しやすい撮り方の例"
+                width={1024}
+                height={1536}
+                sizes="(min-width: 1024px) 1024px, 100vw"
+                className="mx-auto h-auto w-full max-w-[1024px] rounded-xl ring-1 ring-black/10"
+              />
             </a>
-          </p>
+            <p className="mt-2 text-center text-xs text-[var(--brand-gray-light)]">
+              5種類のまとめ図です(タップすると大きく表示できます・印刷にもお使いいただけます)
+            </p>
+          </div>
         </div>
 
         {/* 場所別・2枚の撮り方の目安(早見表)— 非プローズ要素としてWIDE幅 */}
