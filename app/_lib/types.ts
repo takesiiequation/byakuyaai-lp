@@ -53,6 +53,7 @@ export interface Client {
   portfolio_slug: string;
   portfolio_enabled: string;
   line_staff_user_ids: string;
+  report_enabled: string; // 'true'=月次レポート配信ON(プランと独立・2026-08-01)
 }
 
 // Lets the "顧客フォルダ" field accept a pasted Google Drive folder URL

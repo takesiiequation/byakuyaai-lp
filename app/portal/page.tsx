@@ -19,6 +19,7 @@ import LogoutButton from "./_components/LogoutButton";
 import ApprovalActions from "./_components/ApprovalActions";
 import CollapsedHistory from "./_components/CollapsedHistory";
 import HideRowButton from "./_components/HideRowButton";
+import SoldButton from "./_components/SoldButton";
 import { MonthlyReportSection } from "./_components/MonthlyReport";
 import { getLatestReport } from "@/app/_lib/report";
 
@@ -94,13 +95,23 @@ function StatusRow({ row }: { row: ProductionRow }) {
             approvalId={row.approval_id}
             propertyName={row.property_name}
           />
-        ) : status === "posted" ? (
+        ) : status === "posted" || status === "delivered" ? (
           // Deliberately no video URL/link here — video_url_raw expires in
           // ~3 days and permanent hosting isn't built yet (design §7.3 /
           // P1.2). A dead link would look broken within days; the badge
           // alone stays true forever.
+          // 成約報告(2026-08-01): 投稿済み/納品済み行から顧客自身が成約を
+          // 報告できる。押すとSNS投稿の削除手配が始まる(囮広告防止)。
+          row.exec_id ? (
+            <SoldButton execId={row.exec_id} />
+          ) : (
+            <span className="text-xs text-[var(--brand-gray-light)]">
+              投稿完了
+            </span>
+          )
+        ) : status === "sold" ? (
           <span className="text-xs text-[var(--brand-gray-light)]">
-            投稿完了
+            投稿削除を手配中です
           </span>
         ) : status === "revising" ? (
           // 2026-07-15 岡本要望: 修正依頼を送った案件は「確認・修正する」

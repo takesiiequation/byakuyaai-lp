@@ -102,6 +102,7 @@ export type PortalStatus =
   | "revising"
   | "posted"
   | "delivered"
+  | "sold"
   | "rejected"
   | "failed"
   | "revise_failed"
@@ -129,6 +130,7 @@ export function resolveStatus(row: ProductionRow | null): PortalStatus {
   if (
     s === "posted" ||
     s === "delivered" ||
+    s === "sold" ||
     s === "pending_approval" ||
     s === "rejected" ||
     s === "revising" ||
@@ -146,6 +148,7 @@ export const PORTAL_STATUS_LABELS: Record<PortalStatus, string> = {
   revising: "✏️ 修正中",
   posted: "投稿済み",
   delivered: "✉️ 納品済み",
+  sold: "🎉 成約済み",
   rejected: "却下",
   failed: "⚠️ 生成に失敗しました",
   revise_failed: "⚠️ 修正に失敗しました",
@@ -158,6 +161,7 @@ export const PORTAL_STATUS_COLORS: Record<PortalStatus, string> = {
   revising: "bg-purple-50 text-purple-700 border-purple-200",
   posted: "bg-green-50 text-green-700 border-green-200",
   delivered: "bg-green-50 text-green-700 border-green-200",
+  sold: "bg-orange-50 text-orange-700 border-orange-200",
   rejected: "bg-red-50 text-red-600 border-red-200",
   failed: "bg-red-50 text-red-700 border-red-300",
   revise_failed: "bg-red-50 text-red-700 border-red-300",
@@ -176,7 +180,12 @@ export const PORTAL_STATUS_COLORS: Record<PortalStatus, string> = {
  * the client could miss a failure that needs a retry.
  */
 export function isTerminalStatus(status: PortalStatus): boolean {
-  return status === "posted" || status === "delivered" || status === "rejected";
+  return (
+    status === "posted" ||
+    status === "delivered" ||
+    status === "sold" ||
+    status === "rejected"
+  );
 }
 
 /**
@@ -246,5 +255,81 @@ export async function hideProductionRow(
     return "ok";
   } catch {
     return "error";
+  }
+}
+
+/**
+ * 成約報告(2026-08-01 岡本発案:「物件成約したときシステムに伝えるロジック
+ * なくね?」)。ポータルの投稿済み/納品済み行の「成約しました」ボタンから
+ * 呼ばれ、statusを'sold'へ更新する。杉田コンプラ要件「成約時削除」(囮広告
+ * 防止)の入口 — 実際のSNS投稿削除はDiscord通知を受けた管理者が手動で行う
+ * (Phase1。自動削除はPubler API検証後のPhase2)。
+ *
+ * 防御は hideProductionRow と同型: exec_id一致+client_id一致+対象ステータス
+ * (posted/delivered)のみ。他社の行は404扱いで存在を漏らさない。
+ * 戻り値にproperty_name/client_nameを含めるのはDiscord通知文のため。
+ */
+export async function markRowSold(
+  clientId: string,
+  execId: string
+): Promise<
+  | { result: "ok"; propertyName: string; clientName: string }
+  | { result: "not_found" }
+  | { result: "error" }
+> {
+  try {
+    const res = await sheets().spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: qt(PRODUCTION_TAB),
+    });
+    const rows = res.data.values;
+    if (!rows || rows.length < 2) return { result: "not_found" };
+    const headers = rows[0] as string[];
+    const execCol = headers.indexOf("exec_id");
+    const clientCol = headers.indexOf("client_id");
+    const statusCol = headers.indexOf("status");
+    const updatedCol = headers.indexOf("updated_at");
+    const propCol = headers.indexOf("property_name");
+    const nameCol = headers.indexOf("client_name");
+    if (execCol === -1 || clientCol === -1 || statusCol === -1) {
+      return { result: "not_found" };
+    }
+
+    const rowIdx = rows.findIndex(
+      (r, i) => i > 0 && (r as string[])[execCol] === execId
+    );
+    if (rowIdx === -1) return { result: "not_found" };
+
+    const row = rows[rowIdx] as string[];
+    if (row[clientCol] !== clientId) return { result: "not_found" };
+
+    const status = resolveStatus(rowToProduction(headers, row));
+    if (status !== "posted" && status !== "delivered") {
+      return { result: "not_found" }; // 投稿/納品済み以外は成約報告の対象外
+    }
+
+    const rowNum = rowIdx + 1;
+    const col = (i: number) => String.fromCharCode("A".charCodeAt(0) + i);
+    await sheets().spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: `${qt(PRODUCTION_TAB)}!${col(statusCol)}${rowNum}`,
+      valueInputOption: "RAW",
+      requestBody: { values: [["sold"]] },
+    });
+    if (updatedCol !== -1) {
+      await sheets().spreadsheets.values.update({
+        spreadsheetId: SHEET_ID,
+        range: `${qt(PRODUCTION_TAB)}!${col(updatedCol)}${rowNum}`,
+        valueInputOption: "RAW",
+        requestBody: { values: [[new Date().toISOString()]] },
+      });
+    }
+    return {
+      result: "ok",
+      propertyName: (propCol !== -1 && row[propCol]) || "(物件名なし)",
+      clientName: (nameCol !== -1 && row[nameCol]) || clientId,
+    };
+  } catch {
+    return { result: "error" };
   }
 }

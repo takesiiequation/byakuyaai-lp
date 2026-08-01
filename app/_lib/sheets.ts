@@ -66,6 +66,7 @@ function rowToClient(headers: string[], row: string[]): Client {
     portfolio_slug: obj.portfolio_slug ?? "",
     portfolio_enabled: obj.portfolio_enabled ?? "",
     line_staff_user_ids: obj.line_staff_user_ids ?? "",
+    report_enabled: obj.report_enabled ?? "",
   };
 }
 

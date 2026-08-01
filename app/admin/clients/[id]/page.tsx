@@ -92,6 +92,15 @@ export default async function ClientDetailPage({
         },
         { key: "approval_email", label: "承認通知先メール" },
         { key: "notify_email", label: "通知先メール" },
+        {
+          key: "report_enabled",
+          label: "月次レポート配信",
+          type: "select",
+          options: [
+            { value: "", label: "配信しない" },
+            { value: "true", label: "配信する" },
+          ],
+        },
       ],
     },
     {
