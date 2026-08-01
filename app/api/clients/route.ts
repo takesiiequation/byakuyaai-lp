@@ -81,6 +81,9 @@ export async function POST(req: NextRequest) {
       // portfolio_enabled/line_staff_user_ids: same story as portal_* above
       // — set later during /f onboarding, not part of initial creation.
       license_number: body.license_number || "",
+      // report_enabled: プランと独立の月次レポート配信フラグ(2026-08-01)。
+      // 新規作成時はプランがpremiumなら配信ON(従来挙動の踏襲)、それ以外OFF。
+      report_enabled: (body.plan || "standard") === "premium" ? "true" : "",
       transaction_type_default: body.transaction_type_default || "",
       portfolio_slug: body.portfolio_slug || "",
       portfolio_enabled: body.portfolio_enabled || "",
