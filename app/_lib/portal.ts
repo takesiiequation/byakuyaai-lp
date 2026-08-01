@@ -101,6 +101,7 @@ export type PortalStatus =
   | "pending_approval"
   | "revising"
   | "posted"
+  | "delivered"
   | "rejected"
   | "failed"
   | "revise_failed"
@@ -127,6 +128,7 @@ export function resolveStatus(row: ProductionRow | null): PortalStatus {
   const s = String(row.status || "").trim();
   if (
     s === "posted" ||
+    s === "delivered" ||
     s === "pending_approval" ||
     s === "rejected" ||
     s === "revising" ||
@@ -143,6 +145,7 @@ export const PORTAL_STATUS_LABELS: Record<PortalStatus, string> = {
   pending_approval: "承認待ち",
   revising: "✏️ 修正中",
   posted: "投稿済み",
+  delivered: "✉️ 納品済み",
   rejected: "却下",
   failed: "⚠️ 生成に失敗しました",
   revise_failed: "⚠️ 修正に失敗しました",
@@ -154,6 +157,7 @@ export const PORTAL_STATUS_COLORS: Record<PortalStatus, string> = {
   pending_approval: "bg-amber-50 text-amber-700 border-amber-200",
   revising: "bg-purple-50 text-purple-700 border-purple-200",
   posted: "bg-green-50 text-green-700 border-green-200",
+  delivered: "bg-green-50 text-green-700 border-green-200",
   rejected: "bg-red-50 text-red-600 border-red-200",
   failed: "bg-red-50 text-red-700 border-red-300",
   revise_failed: "bg-red-50 text-red-700 border-red-300",
@@ -172,7 +176,7 @@ export const PORTAL_STATUS_COLORS: Record<PortalStatus, string> = {
  * the client could miss a failure that needs a retry.
  */
 export function isTerminalStatus(status: PortalStatus): boolean {
-  return status === "posted" || status === "rejected";
+  return status === "posted" || status === "delivered" || status === "rejected";
 }
 
 /**
