@@ -4,9 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 // 投稿済み/納品済み行の「成約しました」ボタン(2026-08-01 岡本発案)。
-// 押し間違いがSNS投稿の削除手配につながるため、HideRowButtonと違い
-// 2段階確認(押す→「本当に?」を同じ場所に出す)にしている。確定すると
-// /api/portal/status/sold へPOSTし、行が「🎉 成約済み」へ変わる。
+// 成約済みにすると、LINEお問い合わせAIがその物件への内見予約等を
+// 「成約済みです」とご案内して弾くようになる(SNS投稿の削除はしない)。
+// 押し間違い防止に2段階確認。確定で行が「🎉 成約済み」へ変わる。
 export default function SoldButton({ execId }: { execId: string }) {
   const [phase, setPhase] = useState<"idle" | "confirm" | "busy">("idle");
   const router = useRouter();
@@ -33,7 +33,7 @@ export default function SoldButton({ execId }: { execId: string }) {
     return (
       <div className="text-right">
         <p className="mb-1.5 text-xs text-[var(--brand-gray)]">
-          成約済みにすると、SNS投稿の削除を手配します
+          お問い合わせがあった際に「成約済み」とご案内するようになります
         </p>
         <div className="flex justify-end gap-2">
           <button

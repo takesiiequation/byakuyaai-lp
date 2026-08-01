@@ -101,7 +101,7 @@ function StatusRow({ row }: { row: ProductionRow }) {
           // P1.2). A dead link would look broken within days; the badge
           // alone stays true forever.
           // 成約報告(2026-08-01): 投稿済み/納品済み行から顧客自身が成約を
-          // 報告できる。押すとSNS投稿の削除手配が始まる(囮広告防止)。
+          // 報告できる。LINEお問い合わせAIが「成約済み」案内で予約を弾く。
           row.exec_id ? (
             <SoldButton execId={row.exec_id} />
           ) : (
@@ -111,7 +111,7 @@ function StatusRow({ row }: { row: ProductionRow }) {
           )
         ) : status === "sold" ? (
           <span className="text-xs text-[var(--brand-gray-light)]">
-            投稿削除を手配中です
+            お問い合わせに成約済みとご案内します
           </span>
         ) : status === "revising" ? (
           // 2026-07-15 岡本要望: 修正依頼を送った案件は「確認・修正する」

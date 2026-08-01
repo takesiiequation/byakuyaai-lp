@@ -260,14 +260,14 @@ export async function hideProductionRow(
 
 /**
  * 成約報告(2026-08-01 岡本発案:「物件成約したときシステムに伝えるロジック
- * なくね?」)。ポータルの投稿済み/納品済み行の「成約しました」ボタンから
- * 呼ばれ、statusを'sold'へ更新する。杉田コンプラ要件「成約時削除」(囮広告
- * 防止)の入口 — 実際のSNS投稿削除はDiscord通知を受けた管理者が手動で行う
- * (Phase1。自動削除はPubler API検証後のPhase2)。
+ * なくね?」/ 2026-08-02 仕様確定)。ポータルの投稿済み/納品済み行の
+ * 「成約しました」ボタンから呼ばれ、statusを'sold'へ更新する。
+ * 用途はLINEお問い合わせAIの応答制御 — 成約済み物件への内見予約等を
+ * 「そちらの物件は成約済みです」と案内して弾くためのデータ。
+ * SNS投稿の削除・管理者通知はしない(岡本の手を煩わせないのが要件)。
  *
  * 防御は hideProductionRow と同型: exec_id一致+client_id一致+対象ステータス
  * (posted/delivered)のみ。他社の行は404扱いで存在を漏らさない。
- * 戻り値にproperty_name/client_nameを含めるのはDiscord通知文のため。
  */
 export async function markRowSold(
   clientId: string,
