@@ -101,6 +101,15 @@ export default async function ClientDetailPage({
             { value: "true", label: "配信する" },
           ],
         },
+        {
+          key: "invoice_enabled",
+          label: "請求書・領収書発行",
+          type: "select",
+          options: [
+            { value: "", label: "発行しない" },
+            { value: "true", label: "発行する" },
+          ],
+        },
       ],
     },
     {
