@@ -114,3 +114,92 @@ export async function classifyRoomsAsync(
   const workerCount = Math.min(CLASSIFY_CONCURRENCY, targets.length);
   await Promise.all(Array.from({ length: workerCount }, () => worker()));
 }
+
+
+/** 動画の代表フレーム(尺の40%地点・最大4秒)をcanvasで抜き、長辺256pxの
+ * JPEG base64を返す。全経路fail-soft(null)。8秒でタイムアウト。
+ * 40%地点なのは冒頭の「溜め」(ドア開け等)を避けて部屋の中身が映る
+ * 瞬間を拾うため(2026-08-03 クリップ×部屋ラベル照合)。 */
+function extractVideoFrameBase64(file: File): Promise<string | null> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement("video");
+    v.preload = "auto";
+    v.muted = true;
+    let settled = false;
+    const done = (r: string | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      URL.revokeObjectURL(url);
+      resolve(r);
+    };
+    const timer = setTimeout(() => done(null), 8000);
+    v.onloadedmetadata = () => {
+      const target = Math.min((v.duration || 2) * 0.4, 4);
+      try {
+        v.currentTime = Number.isFinite(target) && target > 0 ? target : 0.5;
+      } catch {
+        done(null);
+      }
+    };
+    v.onseeked = () => {
+      try {
+        const w = v.videoWidth;
+        const h = v.videoHeight;
+        if (!w || !h) {
+          done(null);
+          return;
+        }
+        const scale = Math.min(1, RESIZE_MAX_LONG_SIDE / Math.max(w, h));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(w * scale));
+        canvas.height = Math.max(1, Math.round(h * scale));
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          done(null);
+          return;
+        }
+        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", RESIZE_QUALITY);
+        const commaIdx = dataUrl.indexOf(",");
+        done(commaIdx !== -1 ? dataUrl.slice(commaIdx + 1) : null);
+      } catch {
+        done(null);
+      }
+    };
+    v.onerror = () => done(null);
+    v.src = url;
+  });
+}
+
+/** 動画クリップの部屋を代表フレーム1枚で分類する。写真版と同じ語彙・
+ * 同じfail-soft契約。結果はファイル実体(name|size|lastModified)で
+ * モジュール内キャッシュし、カードの開閉による再マウントで再分類しない。 */
+const _videoLabelCache = new Map<string, Promise<string | null>>();
+export function classifyRoomVideo(file: File): Promise<string | null> {
+  const key = `${file.name}|${file.size}|${file.lastModified}`;
+  const hit = _videoLabelCache.get(key);
+  if (hit) return hit;
+  const task = (async (): Promise<string | null> => {
+    try {
+      const base64 = await extractVideoFrameBase64(file);
+      if (!base64) return null;
+      const res = await fetch(CLASSIFY_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: base64 }),
+      });
+      if (res.status === 204 || !res.ok) return null;
+      const data = (await res.json().catch(() => null)) as { label?: unknown } | null;
+      const label = typeof data?.label === "string" ? data.label : null;
+      if (!label || !APPLICABLE_LABELS.has(label)) return null;
+      return label;
+    } catch (e) {
+      console.error("[roomClassify] classifyRoomVideo failed (fail-soft):", e);
+      return null;
+    }
+  })();
+  _videoLabelCache.set(key, task);
+  return task;
+}

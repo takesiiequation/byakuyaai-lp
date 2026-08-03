@@ -42,6 +42,7 @@ import {
   computePairMismatchDistance,
 } from "@/app/portal/_lib/roomAutoPairing";
 import { useRoomItemDrag, type RoomItemRef } from "@/app/portal/_lib/useRoomItemDrag";
+import VideoVisionWarning from "./VideoVisionWarning";
 
 // v3.1段2(2026-07-21・写真タイルのポインタDnD): dnd bundleの型は
 // useRoomItemDrag の戻り値からそのまま導出する(enabledだけこちらで足す)。
@@ -1054,6 +1055,12 @@ export default function RoomCardsField({
                               <span className="text-[10px] text-[var(--brand-gray-light)]">
                                 約{Math.round(it.durationSec)}秒・1080p推奨
                               </span>
+                            )}
+                            {it.kind === "video" && (
+                              <VideoVisionWarning
+                                file={it.file}
+                                label={room.customLabelMode ? null : room.label}
+                              />
                             )}
                           </div>
                         </div>
