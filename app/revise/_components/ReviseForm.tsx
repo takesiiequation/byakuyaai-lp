@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import ReportIssueBox from "./ReportIssueBox";
 import {
   MAX_CAPTION_LEN,
   MAX_TEXT_LEN,
@@ -385,6 +386,7 @@ export default function ReviseForm({
               />
             </div>
           )}
+          {videoUrl && <ReportIssueBox approvalId={approvalId} />}
         </div>
       </div>
 
