@@ -13,6 +13,7 @@ export default function Home() {
       <Hero />
       <PlanSwitcher />
       <FlowSection />
+      <WorksSection />
       <PricingSection />
       <FaqSection />
       <ContactSection />
@@ -299,6 +300,58 @@ function Hero() {
               </div>
             </div>
           </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+
+/* ============================================================
+ * Works Section (制作事例) — 2026-08-05
+ * 実際の納品動画(顧客名は「貴社名」に匿名化・掲載は事後報告方針)。
+ * 営業文面からの着地先も兼ねる(id="works")。動画は preload="none" で
+ * LCPに影響させない。免責はComplianceFooterの流儀を踏襲。
+ * ============================================================ */
+function WorksSection() {
+  return (
+    <section id="works" className="relative bg-[var(--brand-cream)] py-20 sm:py-24">
+      <div className="mx-auto max-w-6xl px-6 sm:px-8">
+        <Reveal>
+          <p className="text-center text-xs font-bold tracking-[0.25em] text-[var(--brand-orange-dark)]">
+            WORKS
+          </p>
+          <h2 className="mt-3 text-center text-2xl font-bold text-[var(--brand-ink)] sm:text-3xl">
+            制作事例 — AI が作った&quot;実物&quot;をご覧ください
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl text-center text-sm leading-relaxed text-[var(--brand-gray)]">
+            実際にお客様へ納品した動画です(お客様名の部分のみ「貴社名」に差し替えています)。
+            お客様がスマホで撮影した写真だけから、ナレーション・テロップ・BGM・効果音まで全自動で仕上がっています。
+          </p>
+        </Reveal>
+        <Reveal>
+          <div className="mx-auto mt-10 w-full max-w-[300px]">
+            <div className="overflow-hidden rounded-[2rem] border-[6px] border-[var(--brand-ink)] bg-black shadow-2xl shadow-black/20">
+              <video
+                src="/works/sample-tour.mp4"
+                poster="/works/sample-tour-poster.jpg"
+                controls
+                playsInline
+                preload="none"
+                className="block h-auto w-full"
+              />
+            </div>
+            <p className="mt-3 text-center text-[11px] leading-relaxed text-[var(--brand-gray-light)]">
+              ※ 物件情報は制作時点のものです。現況と異なる場合があります。
+              <br />
+              ※ 照明・時間帯の演出はイメージです。
+            </p>
+          </div>
+        </Reveal>
+        <Reveal>
+          <p className="mt-8 text-center text-sm font-semibold text-[var(--brand-ink)]">
+            投稿文(キャプション)とハッシュタグも、動画と同時に AI が自動作成します
+          </p>
         </Reveal>
       </div>
     </section>
