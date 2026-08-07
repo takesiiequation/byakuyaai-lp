@@ -133,6 +133,10 @@ export default async function ClientDetailPage({
           sensitive: true,
         },
         { key: "line_bot_user_id", label: "ボットユーザーID" },
+        {
+          key: "line_notify_email",
+          label: "LINE問い合わせ通知先メール",
+        },
       ],
     },
     {

@@ -18,7 +18,12 @@
 // (/portal/guide への text-xs font-semibold text-[var(--brand-orange-dark)]
 // underline)を踏襲。
 
-import { useState } from "react";
+// ドラッグ&ドロップ(2026-08-07 岡本要望): PCでフォルダから直接放り込めるように。
+// タブごとのaccept方針は維持し、投下ファイルは拡張子/MIMEで写真・動画に振り分けて
+// そのタブの受け口へ渡す(タブと違う種類が混ざっていたらその分だけ無視+一言案内)。
+// モバイルは従来どおりタップ選択(ドロップイベント自体が発火しない)。
+
+import { useRef, useState } from "react";
 import { MAX_VIDEO_DURATION_SEC } from "@/app/_lib/portalSubmitShared";
 
 const pickerButtonClass =
@@ -45,6 +50,24 @@ export interface BulkRoomIntakeProps {
   onSwitchToAdvanced: () => void;
 }
 
+const PHOTO_RE = /\.(jpe?g|png|webp)$/i;
+const VIDEO_RE = /\.(mp4|mov)$/i;
+
+function isPhoto(f: File): boolean {
+  return f.type.startsWith("image/") || PHOTO_RE.test(f.name);
+}
+function isVideo(f: File): boolean {
+  return f.type.startsWith("video/") || VIDEO_RE.test(f.name);
+}
+
+/** File[] を FileList 相当へ。既存の onXxxFilesSelected(FileList) の
+ * シグネチャを変えずにD&Dを足すためのアダプタ。 */
+function toFileList(files: File[]): FileList {
+  const dt = new DataTransfer();
+  files.forEach((f) => dt.items.add(f));
+  return dt.files;
+}
+
 export default function BulkRoomIntake({
   busy,
   analyzing,
@@ -54,10 +77,63 @@ export default function BulkRoomIntake({
   onSwitchToAdvanced,
 }: BulkRoomIntakeProps) {
   const [tab, setTab] = useState<IntakeTab>("photo");
+  const [dragOver, setDragOver] = useState(false);
+  const [dropNote, setDropNote] = useState("");
+  const depth = useRef(0); // 子要素をまたぐdragleaveでハイライトが消えるのを防ぐ
   const disabled = busy || analyzing;
 
+  function onDragEnter(e: React.DragEvent) {
+    if (disabled) return;
+    if (!Array.from(e.dataTransfer.types || []).includes("Files")) return;
+    e.preventDefault();
+    depth.current += 1;
+    setDragOver(true);
+  }
+  function onDragOver(e: React.DragEvent) {
+    if (disabled) return;
+    if (!Array.from(e.dataTransfer.types || []).includes("Files")) return;
+    e.preventDefault(); // これが無いとブラウザがファイルを開いてしまう
+    e.dataTransfer.dropEffect = "copy";
+  }
+  function onDragLeave() {
+    depth.current = Math.max(0, depth.current - 1);
+    if (depth.current === 0) setDragOver(false);
+  }
+  function onDrop(e: React.DragEvent) {
+    if (disabled) return;
+    e.preventDefault();
+    depth.current = 0;
+    setDragOver(false);
+    setDropNote("");
+    const all = Array.from(e.dataTransfer.files || []);
+    if (all.length === 0) return;
+    const wanted = tab === "photo" ? all.filter(isPhoto) : all.filter(isVideo);
+    const skipped = all.length - wanted.length;
+    if (wanted.length === 0) {
+      setDropNote(
+        tab === "photo"
+          ? "写真タブでは写真ファイル(JPEG/PNG/WebP)のみお預かりできます。動画は「動画で作る」タブへ。"
+          : "動画タブでは動画ファイル(MP4/MOV)のみお預かりできます。写真は「写真で作る」タブへ。"
+      );
+      return;
+    }
+    if (skipped > 0) {
+      setDropNote(
+        `${wanted.length}件を受け付けました(このタブで扱えない${skipped}件は取り込んでいません)。`
+      );
+    }
+    if (tab === "photo") onPhotoFilesSelected(toFileList(wanted));
+    else onVideoFilesSelected(toFileList(wanted));
+  }
+
   return (
-    <div className="space-y-2">
+    <div
+      className="space-y-2"
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
       <div className="flex gap-1 rounded-xl border border-black/10 bg-white/40 p-1">
         <button
           type="button"
@@ -79,13 +155,17 @@ export default function BulkRoomIntake({
 
       {tab === "photo" ? (
         <>
-          <label className={`${pickerButtonClass} ${disabled ? "opacity-60 pointer-events-none" : ""}`}>
+          <label
+            className={`${pickerButtonClass} ${dragOver ? "border-[var(--brand-orange)] bg-[var(--brand-orange)]/10" : ""} ${disabled ? "opacity-60 pointer-events-none" : ""}`}
+          >
             <span>
-              {analyzing
+              {dragOver
+                ? "ここに写真をドロップ"
+                : analyzing
                 ? "撮影順に部屋へ振り分けています…"
-                : hasRooms
-                  ? "+ 写真を追加で選択"
-                  : "📷 写真をまとめて選択"}
+                  : hasRooms
+                    ? "+ 写真を追加で選択"
+                    : "📷 写真をまとめて選択"}
             </span>
             <input
               type="file"
@@ -107,8 +187,16 @@ export default function BulkRoomIntake({
         </>
       ) : (
         <>
-          <label className={`${pickerButtonClass} ${disabled ? "opacity-60 pointer-events-none" : ""}`}>
-            <span>{hasRooms ? "+ 動画を追加で選択" : "🎥 動画をまとめて選択"}</span>
+          <label
+            className={`${pickerButtonClass} ${dragOver ? "border-[var(--brand-orange)] bg-[var(--brand-orange)]/10" : ""} ${disabled ? "opacity-60 pointer-events-none" : ""}`}
+          >
+            <span>
+              {dragOver
+                ? "ここに動画をドロップ"
+                : hasRooms
+                  ? "+ 動画を追加で選択"
+                  : "🎥 動画をまとめて選択"}
+            </span>
             <input
               type="file"
               accept=".mp4,.mov,video/mp4,video/quicktime"
@@ -136,6 +224,15 @@ export default function BulkRoomIntake({
           </a>
         </>
       )}
+
+      {dropNote && (
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+          {dropNote}
+        </p>
+      )}
+      <p className="hidden text-[11px] text-[var(--brand-gray-light)] sm:block">
+        ※ パソコンからは、フォルダのファイルをこの枠にドラッグ&ドロップでも追加できます
+      </p>
 
       <button
         type="button"

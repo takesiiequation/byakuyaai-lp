@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
       // 新規作成時はプランがpremiumなら配信ON(従来挙動の踏襲)、それ以外OFF。
       report_enabled: (body.plan || "standard") === "premium" ? "true" : "",
       invoice_enabled: "",
+      line_notify_email: "",
       transaction_type_default: body.transaction_type_default || "",
       portfolio_slug: body.portfolio_slug || "",
       portfolio_enabled: body.portfolio_enabled || "",

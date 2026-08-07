@@ -68,6 +68,7 @@ function rowToClient(headers: string[], row: string[]): Client {
     line_staff_user_ids: obj.line_staff_user_ids ?? "",
     report_enabled: obj.report_enabled ?? "",
     invoice_enabled: obj.invoice_enabled ?? "",
+    line_notify_email: obj.line_notify_email ?? "",
   };
 }
 

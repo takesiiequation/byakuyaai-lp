@@ -262,8 +262,13 @@ export default function SubmitForm({
         next.push(file);
       }
     }
-    if (next.length > MAX_PHOTOS) {
-      setError(`写真は最大${MAX_PHOTOS}枚までです(現在${next.length}枚選択されています)`);
+    // 2026-08-07 岡本指摘: 「2枚1組×10部屋=20枚のはずなのに10枚で弾かれる」。
+    // MAX_PHOTOS(=10)は1部屋1枚時代の遺物で、2枚1組の現行仕様と矛盾していた。
+    // 上限は部屋カードの容量(MAX_ROOMS×MAX_ROOM_PHOTOS_PER_CARD)に一致させる
+    // — 自動仕分け側(bulk)の photoCapacity と同じ式。
+    const bulkPhotoCap = MAX_ROOMS * MAX_ROOM_PHOTOS_PER_CARD;
+    if (next.length > bulkPhotoCap) {
+      setError(`写真は最大${bulkPhotoCap}枚までです(現在${next.length}枚選択されています)`);
       return;
     }
     setPhotos(next);
@@ -1288,7 +1293,7 @@ export default function SubmitForm({
           </label>
           <p className="text-xs text-[var(--brand-gray-light)] mb-2">
             そのまま動画に使用する写真({RECOMMENDED_PHOTOS}推奨・最大
-            {MAX_PHOTOS}枚)。JPEG / PNG / WebP
+            {MAX_ROOMS * MAX_ROOM_PHOTOS_PER_CARD}枚)。JPEG / PNG / WebP
           </p>
           <a
             href="/portal/guide"

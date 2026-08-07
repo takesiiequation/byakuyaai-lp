@@ -51,12 +51,11 @@ function formatDate(iso: string): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("ja-JP", {
+  // 2026-08-07 岡本: 時刻は顧客にとって意味が無く、日付だけで十分
+  return d.toLocaleDateString("ja-JP", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
   });
 }
 

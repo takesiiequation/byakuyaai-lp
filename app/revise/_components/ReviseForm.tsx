@@ -394,7 +394,7 @@ export default function ReviseForm({
       <div className="mt-5 space-y-5 lg:mt-0">
         {locked && (
           <div className="rounded-2xl bg-amber-50 p-4 text-sm font-bold leading-relaxed text-amber-800 ring-1 ring-amber-200 sm:p-5">
-            動画の修正は1回までとなっております。内容をご確認のうえ、メールから承認または却下をお願いします。キャプションの修正のみ引き続き可能です。その他のご要望はご担当までご連絡ください。
+            動画の修正は3回までとなっております。内容をご確認のうえ、メールから承認または却下をお願いします。キャプションの修正のみ引き続き可能です。その他のご要望はご担当までご連絡ください。
           </div>
         )}
         <div
