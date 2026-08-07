@@ -397,6 +397,15 @@ export default function SubmitForm({
     );
   }
 
+  // 🔗 直前の部屋とのつながりトグル(2026-08-07 岡本発案)。
+  function toggleLinkPrev(uid: string) {
+    setRooms((prev) =>
+      prev.map((r, i) =>
+        r.uid === uid && i > 0 ? { ...r, linkPrev: !r.linkPrev } : r
+      )
+    );
+  }
+
   function addPhotosToRoom(uid: string, files: FileList) {
     setError("");
     const room = rooms.find((r) => r.uid === uid);
@@ -996,6 +1005,8 @@ export default function SubmitForm({
       const roomsPayload: RoomPayload[] = rooms.map((r, ri) => ({
         order: ri + 1,
         label: r.label,
+        // 🔗 先頭カードは常に連結なし(前が存在しないため)
+        link_prev: ri > 0 && r.linkPrev === true,
         items: r.items.map((it, ii) => {
           const driveId = driveIdByKey.get(`${r.uid}:${ii}`) ?? "";
           if (it.kind === "photo") {
@@ -1280,6 +1291,7 @@ export default function SubmitForm({
                     onSwapItems={swapRoomItems}
                     mutedPairKeys={mutedPairKeys}
                     onMutePair={mutePairMismatch}
+                    onToggleLinkPrev={toggleLinkPrev}
                   />
                 </>
               )}

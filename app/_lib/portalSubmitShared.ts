@@ -162,6 +162,12 @@ export interface RoomPayload {
   order: number;
   label: string | null;
   items: RoomPayloadItem[];
+  /** 🔗 直前の部屋と物理的につながっているか(2026-08-07 岡本発案)。
+   * true の部屋は「玄関を開けて入る→その横の部屋」「キッチンから奥のリビング」
+   * のように動線が連続している。構成AIはこの連結を1つの塊として扱い、
+   * 塊の中の順序を保ったまま全体の並びを決める(緩い指定=塊をどこに置くかは
+   * AIが決めてよい)。false/未指定なら従来どおり内見導線で自由に並べ替える。 */
+  link_prev?: boolean;
 }
 
 export function checkPhotoFile(name: string, mime: string, size: number): FileCheck {

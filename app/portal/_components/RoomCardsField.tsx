@@ -104,6 +104,8 @@ export interface RoomCardState {
   label: string | null;
   customLabelMode: boolean;
   items: RoomLocalItem[];
+  /** 🔗 直前の部屋とつながっているか(先頭カードは常に false)。 */
+  linkPrev?: boolean;
 }
 
 function formatBytes(n: number): string {
@@ -705,11 +707,14 @@ export interface RoomCardsFieldProps {
   // 内 dnd.enabled 分岐参照)。
   mutedPairKeys?: Set<string>;
   onMutePair?: (key: string) => void;
+  /** 🔗 直前の部屋との連結トグル(2026-08-07)。未指定なら🔗UIを描画しない。 */
+  onToggleLinkPrev?: (uid: string) => void;
 }
 
 export default function RoomCardsField({
   rooms,
   busy,
+  onToggleLinkPrev,
   onAddRoom,
   onRemoveRoom,
   onMoveRoom,
@@ -850,6 +855,33 @@ export default function RoomCardsField({
           dnd.enabled && dropTarget?.kind === "move" && dropTarget.uid === room.uid;
 
         return (
+          <div key={`wrap-${room.uid}`}>
+          {/* 🔗 直前の部屋とのつながり(2026-08-07 岡本発案)。カード間に置く
+              ことで「玄関→その横の部屋」「キッチン→奥のリビング」のような
+              動線の連続を顧客が緩く指定できる。連結された部屋は構成AIが
+              1つの塊として扱い、塊の中の順序を保つ。先頭カードには出さない。 */}
+          {onToggleLinkPrev && idx > 0 && (
+            <div className="flex justify-center py-1">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onToggleLinkPrev(room.uid)}
+                aria-pressed={room.linkPrev === true}
+                title={
+                  room.linkPrev
+                    ? "つながりを解除する"
+                    : "上の部屋から続けて歩いた場合はつなげてください"
+                }
+                className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors ${
+                  room.linkPrev
+                    ? "border-[var(--brand-orange)] bg-[var(--brand-orange)]/10 text-[var(--brand-orange-dark)]"
+                    : "border-black/10 bg-white/60 text-[var(--brand-gray-light)] hover:bg-white/90"
+                } disabled:opacity-50`}
+              >
+                {room.linkPrev ? "🔗 上の部屋から続く" : "🔗 つなげる"}
+              </button>
+            </div>
+          )}
           <div
             key={room.uid}
             data-drop-room={dnd.enabled ? room.uid : undefined}
@@ -1120,6 +1152,7 @@ export default function RoomCardsField({
             )}
               </>
             )}
+          </div>
           </div>
         );
       })}
