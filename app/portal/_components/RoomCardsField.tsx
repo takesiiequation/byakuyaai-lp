@@ -1088,6 +1088,17 @@ export default function RoomCardsField({
                                 約{Math.round(it.durationSec)}秒・1080p推奨
                               </span>
                             )}
+                            {/* 短すぎるクリップの警告(2026-08-07 岡本「短すぎるのも悪」)。
+                                ナレーションの尺に足りないクリップは映像側をスロー再生して
+                                埋めるため、極端に短いと不自然になる。撮り直しは強制せず
+                                注意喚起のみ(送信は妨げない)。 */}
+                            {it.kind === "video" &&
+                              it.durationSec !== null &&
+                              it.durationSec < 4 && (
+                                <span className="text-[10px] font-semibold text-amber-600">
+                                  ⚠ 短めです。5〜10秒だと自然に仕上がります
+                                </span>
+                              )}
                             {it.kind === "video" && (
                               <VideoVisionWarning
                                 file={it.file}
