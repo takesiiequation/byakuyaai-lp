@@ -8,6 +8,7 @@ import {
 } from "@/app/_lib/portalSubmit";
 import {
   MAX_ROOMS,
+  MAX_TOTAL_PHOTOS,
   MAX_ROOM_PHOTOS_PER_CARD,
   MAX_VIDEOS,
   checkMaisokuFile,
@@ -15,16 +16,6 @@ import {
   checkVideoFile,
 } from "@/app/_lib/portalSubmitShared";
 
-// FIX-3b/c(最小濫用キャップ・KV不要): 1バンドルから発行できる
-// アップロードセッションの総数を Drive 列挙による簡易カウントで縛る
-// (写真10+マイソク1=11)。本格的なレート制限(Vercel KV/Upstash等)は
-// 実弾後ハードニング課題。
-// 2026-07-21 部屋カードUI(Phase A): 動画(target="video")も同じ original
-// フォルダへフラット格納するため、この上限にも動画枠を足す。フラグOFF
-// (現行UI)は target="video" を送らないため実質不変。
-// 2026-08-08 監査: 部屋カードUIは2枚1組×最大10部屋=20枚。MAX_PHOTOS(=10)は
-// 旧UIの定数で、11枚目のアップロードURL発行が400で拒否されていた。
-const MAX_TOTAL_PHOTOS = MAX_ROOMS * MAX_ROOM_PHOTOS_PER_CARD;
 const MAX_BUNDLE_UPLOADS = MAX_TOTAL_PHOTOS + MAX_VIDEOS + 1;
 
 // /portal/submit ステップ2: ファイル1件ごとに Drive resumable upload

@@ -100,6 +100,12 @@ export const ROOM_LABEL_OTHER = "その他";
 
 export const MAX_ROOMS = 10; // 部屋カードの上限(写真上限MAX_PHOTOSと同水準)
 export const MAX_ROOM_PHOTOS_PER_CARD = 2; // 1カードの写真は「始まり/終わり」の最大2枚
+
+/** 写真の総枚数上限(2026-08-08 監査)。部屋カードUI=2枚1組×最大10部屋=20枚。
+ * MAX_PHOTOS(=10)は1部屋1枚時代の遺物で、UI・アップロードURL発行・送信入口・
+ * payload不変条件の4箇所がバラバラの上限を持ち、11枚以上が「全アップロード後に
+ * 500」で落ちていた。上限はこの1本だけを参照すること。 */
+export const MAX_TOTAL_PHOTOS = MAX_ROOMS * MAX_ROOM_PHOTOS_PER_CARD;
 // 動画は1カード1本まで。全体上限は写真と別枠(1部屋1本クリップの想定本数は
 // 少数のため、写真ほど大きくしない)。
 export const MAX_VIDEOS = 10;

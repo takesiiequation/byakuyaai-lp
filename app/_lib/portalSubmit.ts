@@ -5,7 +5,7 @@ import { effectiveUsed } from "./quota";
 import {
   ASPECT_RATIOS,
   DEAL_TYPES,
-  MAX_PHOTOS,
+  MAX_TOTAL_PHOTOS,
   type AspectRatio,
   type DealType,
   type RoomPayload,
@@ -463,7 +463,7 @@ export function payloadViolations(p: SubmitPayload): string[] {
   if (!p.nostaging_folder_id) v.push("nostaging_folder_id is empty (写真0枚throw即死)");
   if (!p.nostaging_file_ids) v.push("nostaging_file_ids is empty");
   const ids = p.nostaging_file_ids.split(",").filter(Boolean);
-  if (ids.length < 1 || ids.length > MAX_PHOTOS) {
+  if (ids.length < 1 || ids.length > MAX_TOTAL_PHOTOS) {
     v.push(`nostaging_file_ids count out of range: ${ids.length}`);
   }
   if (!(ASPECT_RATIOS as readonly string[]).includes(p.aspect_ratio)) {

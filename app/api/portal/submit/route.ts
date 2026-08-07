@@ -15,6 +15,7 @@ import {
   DEAL_TYPES,
   MAX_APPEAL_NOTE_LENGTH,
   MAX_ROOMS,
+  MAX_TOTAL_PHOTOS,
   MAX_ROOM_PHOTOS_PER_CARD,
   type AspectRatio,
   type DealType,
@@ -79,10 +80,6 @@ function validateRoomsShape(raw: unknown): { rooms: RoomPayload[] } | { error: s
   return { rooms };
 }
 
-// 写真の総枚数上限(2026-08-08 監査): 部屋カードUI(2枚1組×最大10部屋)では
-// 20枚まで受け付ける。MAX_PHOTOS(=10)は旧UI(1枚ずつ)時代の定数で、
-// クライアント側だけ20に上げてサーバが10で弾く不整合になっていた。
-const MAX_TOTAL_PHOTOS = MAX_ROOMS * MAX_ROOM_PHOTOS_PER_CARD;
 
 // /portal/submit ステップ3(最終): ペイロード組み立て→送信ゲート。
 //

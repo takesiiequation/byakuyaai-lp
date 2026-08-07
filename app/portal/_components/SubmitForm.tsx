@@ -7,6 +7,7 @@ import {
   DEAL_TYPES,
   MAX_APPEAL_NOTE_LENGTH,
   MAX_PHOTOS,
+  MAX_TOTAL_PHOTOS,
   MAX_ROOMS,
   MAX_ROOM_PHOTOS_PER_CARD,
   MAX_VIDEO_DURATION_SEC,
@@ -57,6 +58,13 @@ interface UploadItem {
   pct: number;
   state: UploadState;
 }
+
+// 🔗 部屋の動線つながり指定は β として凍結(2026-08-08 岡本判断)。
+// 2回の監査で8件のバグを出し、うち1件は🔗未使用の全顧客のプロンプトを汚染して
+// いた。顧客からの要望も無いため、UIだけ伏せて配線は温存する
+// (link_prev は常に false → n8n側の _linkHint は常に '' → 導入前と同一挙動)。
+// 再開するときはこの定数を true にするだけ。
+const LINK_ROOMS_BETA = false;
 
 type Phase = "idle" | "working" | "done_dry" | "ambiguous";
 
@@ -266,7 +274,7 @@ export default function SubmitForm({
     // MAX_PHOTOS(=10)は1部屋1枚時代の遺物で、2枚1組の現行仕様と矛盾していた。
     // 上限は部屋カードの容量(MAX_ROOMS×MAX_ROOM_PHOTOS_PER_CARD)に一致させる
     // — 自動仕分け側(bulk)の photoCapacity と同じ式。
-    const bulkPhotoCap = MAX_ROOMS * MAX_ROOM_PHOTOS_PER_CARD;
+    const bulkPhotoCap = MAX_TOTAL_PHOTOS;
     if (next.length > bulkPhotoCap) {
       setError(`写真は最大${bulkPhotoCap}枚までです(現在${next.length}枚選択されています)`);
       return;
@@ -1315,7 +1323,7 @@ export default function SubmitForm({
                 <>
                   <div className="mt-4 mb-3 flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs text-[var(--brand-gray-light)]">
-                      部屋ごとの一覧です。違っていたら下で自由に直してください(部屋名の変更・写真の入れ替え・別の部屋への移動ができます)。玄関から続けて歩いた・キッチンから奥のリビングへ移動した など、実際に歩いた流れがある部屋どうしは「🔗 上の部屋から続けて撮った」を押すと、その順番のまま動画になります
+                      部屋ごとの一覧です。違っていたら下で自由に直してください(部屋名の変更・写真の入れ替え・別の部屋への移動ができます)
                       {/* DnDヒントはタッチ端末向け(lg未満)のみ。PCはマウス即ドラッグ+全ボタン操作可のため不要 */}
                       <span className="lg:hidden block mt-0.5">
                         👆 写真を<strong>長押し</strong>すると、つまんで別の部屋へ動かせます
@@ -1347,7 +1355,7 @@ export default function SubmitForm({
                     onSwapItems={swapRoomItems}
                     mutedPairKeys={mutedPairKeys}
                     onMutePair={mutePairMismatch}
-                    onToggleLinkPrev={toggleLinkPrev}
+                    onToggleLinkPrev={LINK_ROOMS_BETA ? toggleLinkPrev : undefined}
                   />
                 </>
               )}
@@ -1361,7 +1369,7 @@ export default function SubmitForm({
           </label>
           <p className="text-xs text-[var(--brand-gray-light)] mb-2">
             そのまま動画に使用する写真({RECOMMENDED_PHOTOS}推奨・最大
-            {MAX_ROOMS * MAX_ROOM_PHOTOS_PER_CARD}枚)。JPEG / PNG / WebP
+            {MAX_TOTAL_PHOTOS}枚)。JPEG / PNG / WebP
           </p>
           <a
             href="/portal/guide"
@@ -1412,14 +1420,14 @@ export default function SubmitForm({
               ))}
             </ul>
           )}
-          {photos.length < MAX_PHOTOS && (
+          {photos.length < MAX_TOTAL_PHOTOS && (
             <button
               type="button"
               className={pickerButtonClass}
               disabled={busy}
               onClick={() => photosInputRef.current?.click()}
             >
-              + 写真を追加({photos.length}/{MAX_PHOTOS})
+              + 写真を追加({photos.length}/{MAX_TOTAL_PHOTOS})
             </button>
           )}
         </div>
