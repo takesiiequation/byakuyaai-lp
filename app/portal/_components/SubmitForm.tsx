@@ -58,13 +58,6 @@ interface UploadItem {
   state: UploadState;
 }
 
-// 🔗 部屋の動線つながり指定は β として凍結(2026-08-08 岡本判断)。
-// 2回の監査で8件のバグを出し、うち1件は🔗未使用の全顧客のプロンプトを汚染して
-// いた。顧客からの要望も無いため、UIだけ伏せて配線は温存する
-// (link_prev は常に false → n8n側の _linkHint は常に '' → 導入前と同一挙動)。
-// 再開するときはこの定数を true にするだけ。
-const LINK_ROOMS_BETA = false;
-
 type Phase = "idle" | "working" | "done_dry" | "ambiguous";
 
 interface DryRunResult {
@@ -315,27 +308,8 @@ export default function SubmitForm({
     };
   }, []);
 
-  // 🔗 の不変条件(2026-08-07 監査): linkPrev は「1つ前の部屋との関係」であって
-  // 部屋自身の属性ではない。構造が変わった(削除・並べ替え)のに flag だけ残ると
-  // 顧客が指定していない相手と繋がってしまうため、影響を受けた位置の flag を落とす。
-  // 先頭は前が存在しないので常に非連結。
-  function withLinkInvariants(list: RoomCardState[]): RoomCardState[] {
-    return list.map((r, i) =>
-      i === 0 && r.linkPrev ? { ...r, linkPrev: false } : r
-    );
-  }
-
   function removeRoom(uid: string) {
-    setRooms((prev) => {
-      const idx = prev.findIndex((r) => r.uid === uid);
-      if (idx < 0) return prev;
-      const next = prev.filter((r) => r.uid !== uid);
-      // 消えた部屋を指していた🔗は無効化(繰り上がった別の部屋と勝手に繋がない)
-      if (idx < next.length && next[idx].linkPrev) {
-        next[idx] = { ...next[idx], linkPrev: false };
-      }
-      return withLinkInvariants(next);
-    });
+    setRooms((prev) => prev.filter((r) => r.uid !== uid));
   }
 
   function moveRoom(uid: string, dir: -1 | 1) {
@@ -345,11 +319,7 @@ export default function SubmitForm({
       if (idx < 0 || swapIdx < 0 || swapIdx >= prev.length) return prev;
       const next = [...prev];
       [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
-      // 入れ替えで隣接が変わる位置(当事者2つ+その次)の🔗を落とす
-      const touched = new Set([idx, swapIdx, Math.max(idx, swapIdx) + 1]);
-      return withLinkInvariants(
-        next.map((r, i) => (touched.has(i) && r.linkPrev ? { ...r, linkPrev: false } : r))
-      );
+      return next;
     });
   }
 
@@ -444,15 +414,6 @@ export default function SubmitForm({
         if (!isUnset) return r;
         return { ...r, label, customLabelMode: false };
       })
-    );
-  }
-
-  // 🔗 直前の部屋とのつながりトグル(2026-08-07 岡本発案)。
-  function toggleLinkPrev(uid: string) {
-    setRooms((prev) =>
-      prev.map((r, i) =>
-        r.uid === uid && i > 0 ? { ...r, linkPrev: !r.linkPrev } : r
-      )
     );
   }
 
@@ -706,18 +667,7 @@ export default function SubmitForm({
           return r;
         })
         .filter((r) => r.items.length > 0 || r.uid === toUid);
-      // 🔗(2026-08-08 監査): 空になった部屋が配列から消えると、その直後だった
-      // 部屋の linkPrev は「もう存在しない相手」を指す。removeRoom と同じ流儀で
-      // 前の部屋が変わった要素の flag を落とす(顧客未指定の連結を作らない)。
-      const prevUidAt = new Map<string, string | null>();
-      prev.forEach((r, i) => prevUidAt.set(r.uid, i > 0 ? prev[i - 1].uid : null));
-      const repaired = next.map((r, i) => {
-        const before = i > 0 ? next[i - 1].uid : null;
-        return r.linkPrev && prevUidAt.get(r.uid) !== before
-          ? { ...r, linkPrev: false }
-          : r;
-      });
-      return withLinkInvariants(repaired);
+      return next;
     });
   }
 
@@ -773,8 +723,6 @@ export default function SubmitForm({
         label: room.label,
         customLabelMode: room.customLabelMode,
         items: [room.items[1]],
-        // 分割前は1つの部屋=物理的に連続しているので🔗を引き継ぐ(2026-08-07監査)
-        linkPrev: true,
       };
       const next = [...prev];
       next.splice(idx, 1, roomA, roomB);
@@ -1068,8 +1016,6 @@ export default function SubmitForm({
       const roomsPayload: RoomPayload[] = rooms.map((r, ri) => ({
         order: ri + 1,
         label: r.label,
-        // 🔗 先頭カードは常に連結なし(前が存在しないため)
-        link_prev: ri > 0 && r.linkPrev === true,
         items: r.items.map((it, ii) => {
           const driveId = driveIdByKey.get(`${r.uid}:${ii}`) ?? "";
           if (it.kind === "photo") {
@@ -1354,7 +1300,6 @@ export default function SubmitForm({
                     onSwapItems={swapRoomItems}
                     mutedPairKeys={mutedPairKeys}
                     onMutePair={mutePairMismatch}
-                    onToggleLinkPrev={LINK_ROOMS_BETA ? toggleLinkPrev : undefined}
                   />
                 </>
               )}

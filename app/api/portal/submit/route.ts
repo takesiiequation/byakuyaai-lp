@@ -72,10 +72,7 @@ function validateRoomsShape(raw: unknown): { rooms: RoomPayload[] } | { error: s
     if (videoCount > 0 && items.length > 1) {
       return { error: "動画のカードは1本のみです(写真との併用不可)" };
     }
-    // 🔗 link_prev(2026-08-08 監査で欠落を発見): クライアントが送っても
-    // ここで新しいオブジェクトを作り直していたため落ちており、🔗機能が
-    // エンドツーエンドで無効だった。unknown由来なので === true で正規化。
-    rooms.push({ order, label, items, link_prev: rec.link_prev === true });
+    rooms.push({ order, label, items });
   }
   return { rooms };
 }
