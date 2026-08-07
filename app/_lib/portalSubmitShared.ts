@@ -198,3 +198,18 @@ export function checkMaisokuFile(name: string, mime: string, size: number): File
   }
   return { ok: true };
 }
+
+
+/**
+ * シートの真偽値フラグ判定(2026-08-07)。
+ *
+ * 事故: adminからの保存は USER_ENTERED のため Sheets が "true" を boolean へ
+ * 昇格させ、読み戻すと "TRUE" になる。判定側は === "true" の完全一致だったので
+ * 小濱様がポータルにログインできなくなった(portal_enabled)。
+ * 書き込み側(RAW化)と合わせた二重防御として、読み取り側も大小・空白・
+ * 全角/日本語表記("はい"/"有効")を許容する。
+ */
+export function isFlagOn(v: unknown): boolean {
+  const s = String(v ?? "").trim().toLowerCase();
+  return s === "true" || s === "1" || s === "yes" || s === "on" || s === "はい" || s === "有効";
+}

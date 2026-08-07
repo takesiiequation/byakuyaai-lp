@@ -1,6 +1,7 @@
 import { getPortalClientId } from "./portalAuth";
 import { getClientById } from "./sheets";
 import type { Client } from "./types";
+import { isFlagOn } from "@/app/_lib/portalSubmitShared";
 
 // /api/portal/submit 系ルート共通の認証ガード。
 // /portal ページと同じ二段構え: (1) 署名付きセッションcookie検証
@@ -22,7 +23,7 @@ export async function requirePortalClient(): Promise<PortalGuard> {
   } catch {
     return { ok: false, status: 500, error: "顧客情報の取得に失敗しました。時間をおいて再度お試しください" };
   }
-  if (!client || client.portal_enabled !== "true") {
+  if (!client || !isFlagOn(client.portal_enabled)) {
     return { ok: false, status: 403, error: "マイページをご利用いただけません。担当者までご連絡ください" };
   }
   return { ok: true, client };

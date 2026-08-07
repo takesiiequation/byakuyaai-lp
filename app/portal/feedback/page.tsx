@@ -4,6 +4,7 @@ import { getPortalClientId } from "@/app/_lib/portalAuth";
 import { getClientById } from "@/app/_lib/sheets";
 import { Shell, MessageCard } from "../_components/Shell";
 import FeedbackForm from "../_components/FeedbackForm";
+import { isFlagOn } from "@/app/_lib/portalSubmitShared";
 
 // /portal/feedback — 岡本発案「ご意見・ご要望」画面。目的は2つ:
 // ①不満の早期検知(解約前に拾う) ②好評の声の収集(営業・LP転用の証言資産)。
@@ -22,7 +23,7 @@ export default async function PortalFeedbackPage() {
   if (!clientId) redirect("/portal/login");
 
   const client = await getClientById(clientId);
-  if (!client || client.portal_enabled !== "true") {
+  if (!client || !isFlagOn(client.portal_enabled)) {
     return (
       <Shell>
         <MessageCard

@@ -122,7 +122,10 @@ export async function updateClient(
   await sheets().spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
     range: `${qt(TAB)}!A${rowNum}`,
-    valueInputOption: "USER_ENTERED",
+    // 2026-08-07: RAW必須。USER_ENTERED だと Sheets が "true" を boolean TRUE に
+    // 昇格させ、読み戻しが "TRUE" になってフラグ判定をすり抜ける(小濱様の
+    // ポータルログイン不能事故)。portal.ts の hideProductionRow と同じ流儀。
+    valueInputOption: "RAW",
     requestBody: { values: [existing] },
   });
 }
@@ -143,7 +146,10 @@ export async function addClient(data: Client): Promise<void> {
   await sheets().spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
     range: `${qt(TAB)}!A:A`,
-    valueInputOption: "USER_ENTERED",
+    // 2026-08-07: RAW必須。USER_ENTERED だと Sheets が "true" を boolean TRUE に
+    // 昇格させ、読み戻しが "TRUE" になってフラグ判定をすり抜ける(小濱様の
+    // ポータルログイン不能事故)。portal.ts の hideProductionRow と同じ流儀。
+    valueInputOption: "RAW",
     requestBody: { values: [row] },
   });
 }
@@ -171,7 +177,10 @@ export async function appendFeedback(entry: FeedbackEntry): Promise<void> {
   await sheets().spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
     range: `${qt(FEEDBACK_TAB)}!A:A`,
-    valueInputOption: "USER_ENTERED",
+    // 2026-08-07: RAW必須。USER_ENTERED だと Sheets が "true" を boolean TRUE に
+    // 昇格させ、読み戻しが "TRUE" になってフラグ判定をすり抜ける(小濱様の
+    // ポータルログイン不能事故)。portal.ts の hideProductionRow と同じ流儀。
+    valueInputOption: "RAW",
     requestBody: {
       values: [
         [

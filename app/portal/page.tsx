@@ -22,6 +22,7 @@ import HideRowButton from "./_components/HideRowButton";
 import SoldButton from "./_components/SoldButton";
 import { MonthlyReportSection } from "./_components/MonthlyReport";
 import { getLatestReport } from "@/app/_lib/report";
+import { isFlagOn } from "@/app/_lib/portalSubmitShared";
 
 // Terminal rows (投稿済み/却下) beyond this count collapse behind the
 // "過去の動画をすべて表示" toggle — active rows (制作中/承認待ち) are never
@@ -361,7 +362,7 @@ export default async function PortalPage({
   const client = await getClientById(clientId);
   // Re-verify portal_enabled straight from the sheet on every request
   // (not just at login) — see getSessionClientId's comment.
-  if (!client || client.portal_enabled !== "true") {
+  if (!client || !isFlagOn(client.portal_enabled)) {
     return (
       <Shell>
         <MessageCard

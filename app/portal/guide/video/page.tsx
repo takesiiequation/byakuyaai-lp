@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getPortalClientId } from "@/app/_lib/portalAuth";
 import { getClientById } from "@/app/_lib/sheets";
 import { Shell, MessageCard } from "@/app/portal/_components/Shell";
+import { isFlagOn } from "@/app/_lib/portalSubmitShared";
 
 // /portal/guide/video — 動画撮影ガイド(顧客教育コンテンツ)。2026-07-30新設。
 // 認証+portal_enabledの再検証は ../page.tsx(写真ガイド)と全く同一の流儀
@@ -33,7 +34,7 @@ export default async function PortalGuideVideoPage() {
   if (!clientId) redirect("/portal/login");
 
   const client = await getClientById(clientId);
-  if (!client || client.portal_enabled !== "true") {
+  if (!client || !isFlagOn(client.portal_enabled)) {
     return (
       <Shell>
         <MessageCard

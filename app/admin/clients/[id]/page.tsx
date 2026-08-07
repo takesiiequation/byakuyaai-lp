@@ -137,6 +137,59 @@ export default async function ClientDetailPage({
           key: "line_notify_email",
           label: "LINE問い合わせ通知先メール",
         },
+        { key: "line_data_sheet_id", label: "LINEデータシートID" },
+        { key: "line_staff_user_ids", label: "スタッフのLINEユーザーID(カンマ区切り)" },
+      ],
+    },
+    {
+      title: "ポータル(顧客マイページ)",
+      fields: [
+        {
+          key: "portal_enabled",
+          label: "ポータル利用",
+          type: "select",
+          options: [
+            { value: "", label: "無効" },
+            { value: "true", label: "有効" },
+          ],
+        },
+        { key: "portal_password", label: "ポータルパスワード", sensitive: true },
+        {
+          key: "quota_no_reset",
+          label: "月次クォータの自動リセット",
+          type: "select",
+          options: [
+            { value: "", label: "する(毎月1日に付与)" },
+            { value: "true", label: "しない(使い切り型・trial等)" },
+          ],
+        },
+      ],
+    },
+    {
+      title: "ポートフォリオページ(/f)",
+      fields: [
+        {
+          key: "portfolio_enabled",
+          label: "ポートフォリオ公開",
+          type: "select",
+          options: [
+            { value: "", label: "非公開" },
+            { value: "true", label: "公開" },
+          ],
+        },
+        { key: "portfolio_slug", label: "公開URLのスラッグ(/f/◯◯)" },
+        { key: "license_number", label: "宅建業免許番号" },
+        {
+          key: "transaction_type_default",
+          label: "取引態様(既定)",
+          type: "select",
+          options: [
+            { value: "", label: "未設定" },
+            { value: "仲介", label: "仲介" },
+            { value: "貸主", label: "貸主" },
+            { value: "代理", label: "代理" },
+          ],
+        },
       ],
     },
     {

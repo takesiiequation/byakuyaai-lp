@@ -4,6 +4,7 @@ import { getAllClients } from "@/app/_lib/sheets";
 import { getProperties, isPropertyVisible, type PropertyRow } from "@/app/_lib/properties";
 import { PortfolioView } from "../_components/PortfolioView";
 import { toCustomerData, toViewProperty, type ViewProperty } from "../_lib/viewModel";
+import { isFlagOn } from "@/app/_lib/portalSubmitShared";
 
 // force-dynamic per design §0/§7.1: "掲載中" と読める場所は書き込み側の状態に
 // 一切依存せず、読み取りのたびに可視性を独立再計算する。SSG+deploy-hook方式
@@ -20,7 +21,7 @@ async function resolveClient(slug: string) {
   const clients = await getAllClients();
   return (
     clients.find(
-      (c) => c.portfolio_slug === slug && c.portfolio_enabled === "true"
+      (c) => c.portfolio_slug === slug && isFlagOn(c.portfolio_enabled)
     ) ?? null
   );
 }

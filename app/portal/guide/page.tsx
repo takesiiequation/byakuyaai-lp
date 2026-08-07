@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getPortalClientId } from "@/app/_lib/portalAuth";
 import { getClientById } from "@/app/_lib/sheets";
 import { Shell, MessageCard } from "../_components/Shell";
+import { isFlagOn } from "@/app/_lib/portalSubmitShared";
 import MotionDiagram, {
   type MotionKind,
 } from "../_components/MotionDiagram";
@@ -167,7 +168,7 @@ export default async function PortalGuidePage() {
   if (!clientId) redirect("/portal/login");
 
   const client = await getClientById(clientId);
-  if (!client || client.portal_enabled !== "true") {
+  if (!client || !isFlagOn(client.portal_enabled)) {
     return (
       <Shell>
         <MessageCard

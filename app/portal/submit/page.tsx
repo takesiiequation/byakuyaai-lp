@@ -6,6 +6,7 @@ import { quotaState } from "@/app/_lib/portalSubmit";
 import { quotaSummary } from "@/app/_lib/quota";
 import { Shell, MessageCard } from "../_components/Shell";
 import SubmitForm from "../_components/SubmitForm";
+import { isFlagOn } from "@/app/_lib/portalSubmitShared";
 
 // /portal/submit — 動画生成依頼フォーム(Googleフォーム卒業の入口)。
 // 認証+portal_enabled 再検証は /portal ダッシュボードと同一の流儀。
@@ -24,7 +25,7 @@ export default async function PortalSubmitPage() {
   if (!clientId) redirect("/portal/login");
 
   const client = await getClientById(clientId);
-  if (!client || client.portal_enabled !== "true") {
+  if (!client || !isFlagOn(client.portal_enabled)) {
     return (
       <Shell>
         <MessageCard
