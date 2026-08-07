@@ -12,6 +12,8 @@
 //    現行GAS標準フォームは PDF 可なので互換のため PDF も受ける(既知の
 //    潜在リスクとして仕様書(3)に記載済み・新規リスクではない)
 
+/** @deprecated 1部屋1枚時代の上限。写真の総枚数は MAX_TOTAL_PHOTOS を使うこと
+ *  (2026-08-08 監査: この定数が4箇所に散らばり11枚以上が500で落ちていた)。 */
 export const MAX_PHOTOS = 10;
 export const MIN_PHOTOS = 1; // n8nは写真0枚だと「写真が見つかりません」throw=即死
 export const RECOMMENDED_PHOTOS = "5〜10枚";
