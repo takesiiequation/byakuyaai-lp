@@ -288,8 +288,27 @@ export default function SubmitForm({
     setRooms((prev) => [...prev, { uid, label: null, customLabelMode: false, items: [] }]);
   }
 
+  // 🔗 の不変条件(2026-08-07 監査): linkPrev は「1つ前の部屋との関係」であって
+  // 部屋自身の属性ではない。構造が変わった(削除・並べ替え)のに flag だけ残ると
+  // 顧客が指定していない相手と繋がってしまうため、影響を受けた位置の flag を落とす。
+  // 先頭は前が存在しないので常に非連結。
+  function withLinkInvariants(list: RoomCardState[]): RoomCardState[] {
+    return list.map((r, i) =>
+      i === 0 && r.linkPrev ? { ...r, linkPrev: false } : r
+    );
+  }
+
   function removeRoom(uid: string) {
-    setRooms((prev) => prev.filter((r) => r.uid !== uid));
+    setRooms((prev) => {
+      const idx = prev.findIndex((r) => r.uid === uid);
+      if (idx < 0) return prev;
+      const next = prev.filter((r) => r.uid !== uid);
+      // 消えた部屋を指していた🔗は無効化(繰り上がった別の部屋と勝手に繋がない)
+      if (idx < next.length && next[idx].linkPrev) {
+        next[idx] = { ...next[idx], linkPrev: false };
+      }
+      return withLinkInvariants(next);
+    });
   }
 
   function moveRoom(uid: string, dir: -1 | 1) {
@@ -299,7 +318,11 @@ export default function SubmitForm({
       if (idx < 0 || swapIdx < 0 || swapIdx >= prev.length) return prev;
       const next = [...prev];
       [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
-      return next;
+      // 入れ替えで隣接が変わる位置(当事者2つ+その次)の🔗を落とす
+      const touched = new Set([idx, swapIdx, Math.max(idx, swapIdx) + 1]);
+      return withLinkInvariants(
+        next.map((r, i) => (touched.has(i) && r.linkPrev ? { ...r, linkPrev: false } : r))
+      );
     });
   }
 
@@ -712,6 +735,8 @@ export default function SubmitForm({
         label: room.label,
         customLabelMode: room.customLabelMode,
         items: [room.items[1]],
+        // 分割前は1つの部屋=物理的に連続しているので🔗を引き継ぐ(2026-08-07監査)
+        linkPrev: true,
       };
       const next = [...prev];
       next.splice(idx, 1, roomA, roomB);
@@ -1259,7 +1284,7 @@ export default function SubmitForm({
                 <>
                   <div className="mt-4 mb-3 flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs text-[var(--brand-gray-light)]">
-                      部屋ごとの一覧です。違っていたら下で自由に直してください(部屋名の変更・写真の入れ替え・別の部屋への移動ができます)
+                      部屋ごとの一覧です。違っていたら下で自由に直してください(部屋名の変更・写真の入れ替え・別の部屋への移動ができます)。玄関から続けて歩いた・キッチンから奥のリビングへ移動した など、実際に歩いた流れがある部屋どうしは「🔗 上の部屋から続けて撮った」を押すと、その順番のまま動画になります
                       {/* DnDヒントはタッチ端末向け(lg未満)のみ。PCはマウス即ドラッグ+全ボタン操作可のため不要 */}
                       <span className="lg:hidden block mt-0.5">
                         👆 写真を<strong>長押し</strong>すると、つまんで別の部屋へ動かせます

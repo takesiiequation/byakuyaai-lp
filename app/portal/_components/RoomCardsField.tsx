@@ -869,8 +869,8 @@ export default function RoomCardsField({
                 aria-pressed={room.linkPrev === true}
                 title={
                   room.linkPrev
-                    ? "つながりを解除する"
-                    : "上の部屋から続けて歩いた場合はつなげてください"
+                    ? "この順番の指定を解除します(部屋は統合されません)"
+                    : "上の部屋から続けて歩いて撮った場合に押してください。動画でもこの順番で並びます(部屋は統合されません)"
                 }
                 className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors ${
                   room.linkPrev
@@ -878,7 +878,9 @@ export default function RoomCardsField({
                     : "border-black/10 bg-white/60 text-[var(--brand-gray-light)] hover:bg-white/90"
                 } disabled:opacity-50`}
               >
-                {room.linkPrev ? "🔗 上の部屋から続く" : "🔗 つなげる"}
+                {room.linkPrev
+                  ? "🔗 上の部屋から続けて流れます"
+                  : "🔗 上の部屋から続けて撮った"}
               </button>
             </div>
           )}
