@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { getAllClients } from "@/app/_lib/sheets";
 import { createPortalSession } from "@/app/_lib/portalAuth";
+import { isFlagOn } from "@/app/_lib/portalSubmitShared";
 
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as {
@@ -28,7 +29,8 @@ export async function POST(req: NextRequest) {
   // AND gate (mirrors portfolio_enabled): both the explicit opt-in flag AND
   // a matching, non-empty password must hold. An empty portal_password
   // column must never "match" an empty submitted password.
-  const enabled = client?.portal_enabled === "true";
+  // 2026-08-07: 大小文字非依存(TRUE/true事故の本丸=ログイン経路)
+  const enabled = isFlagOn(client?.portal_enabled);
   const passwordOk =
     !!client?.portal_password && password === client.portal_password;
   if (!client || !enabled || !passwordOk) {
