@@ -869,8 +869,8 @@ export default function RoomCardsField({
                 aria-pressed={room.linkPrev === true}
                 title={
                   room.linkPrev
-                    ? "この順番の指定を解除します(部屋は統合されません)"
-                    : "上の部屋から続けて歩いて撮った場合に押してください。動画でもこの順番で並びます(部屋は統合されません)"
+                    ? `部屋${idx} → 部屋${idx + 1} の順番指定を解除します(部屋は統合されません)`
+                    : `部屋${idx} から続けて歩いて撮った場合に押してください。動画でも 部屋${idx} → 部屋${idx + 1} の順で並びます(部屋は統合されません)`
                 }
                 className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors ${
                   room.linkPrev
@@ -878,9 +878,11 @@ export default function RoomCardsField({
                     : "border-black/10 bg-white/60 text-[var(--brand-gray-light)] hover:bg-white/90"
                 } disabled:opacity-50`}
               >
+                {/* 部屋番号を明示(2026-08-08 監査): PCの2列表示では「上の部屋」が
+                    視覚的に上とは限らないため、どの部屋と繋がるかを番号で示す。 */}
                 {room.linkPrev
-                  ? "🔗 上の部屋から続けて流れます"
-                  : "🔗 上の部屋から続けて撮った"}
+                  ? `🔗 部屋${idx} から続けて流れます`
+                  : `🔗 部屋${idx} から続けて撮った`}
               </button>
             </div>
           )}

@@ -69,6 +69,7 @@ function rowToClient(headers: string[], row: string[]): Client {
     report_enabled: obj.report_enabled ?? "",
     invoice_enabled: obj.invoice_enabled ?? "",
     line_notify_email: obj.line_notify_email ?? "",
+    quota_no_reset: obj.quota_no_reset ?? "",
   };
 }
 

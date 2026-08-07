@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ASPECT_RATIOS,
@@ -287,6 +287,26 @@ export default function SubmitForm({
     const uid = `room-${roomUidCounter.current}`;
     setRooms((prev) => [...prev, { uid, label: null, customLabelMode: false, items: [] }]);
   }
+
+  // ファイルの誤ドロップでブラウザがそのファイルへ遷移し、入力中のフォームが
+  // 丸ごと消える事故を防ぐ(2026-08-08 監査)。ドロップ枠の外に落とされた場合だけ
+  // 既定動作を止める — 枠内のハンドラは stopPropagation せずとも先に処理されるため
+  // 通常の投入は妨げない。
+  useEffect(() => {
+    const swallow = (e: DragEvent) => {
+      if (e.defaultPrevented) return; // 枠内で処理済みなら触らない
+      const types = e.dataTransfer ? Array.from(e.dataTransfer.types) : [];
+      if (!types.includes("Files")) return;
+      e.preventDefault();
+      if (e.type === "drop" && e.dataTransfer) e.dataTransfer.dropEffect = "none";
+    };
+    window.addEventListener("dragover", swallow);
+    window.addEventListener("drop", swallow);
+    return () => {
+      window.removeEventListener("dragover", swallow);
+      window.removeEventListener("drop", swallow);
+    };
+  }, []);
 
   // 🔗 の不変条件(2026-08-07 監査): linkPrev は「1つ前の部屋との関係」であって
   // 部屋自身の属性ではない。構造が変わった(削除・並べ替え)のに flag だけ残ると
@@ -679,7 +699,18 @@ export default function SubmitForm({
           return r;
         })
         .filter((r) => r.items.length > 0 || r.uid === toUid);
-      return next;
+      // 🔗(2026-08-08 監査): 空になった部屋が配列から消えると、その直後だった
+      // 部屋の linkPrev は「もう存在しない相手」を指す。removeRoom と同じ流儀で
+      // 前の部屋が変わった要素の flag を落とす(顧客未指定の連結を作らない)。
+      const prevUidAt = new Map<string, string | null>();
+      prev.forEach((r, i) => prevUidAt.set(r.uid, i > 0 ? prev[i - 1].uid : null));
+      const repaired = next.map((r, i) => {
+        const before = i > 0 ? next[i - 1].uid : null;
+        return r.linkPrev && prevUidAt.get(r.uid) !== before
+          ? { ...r, linkPrev: false }
+          : r;
+      });
+      return withLinkInvariants(repaired);
     });
   }
 

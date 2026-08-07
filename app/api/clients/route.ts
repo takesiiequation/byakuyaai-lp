@@ -86,6 +86,7 @@ export async function POST(req: NextRequest) {
       report_enabled: (body.plan || "standard") === "premium" ? "true" : "",
       invoice_enabled: "",
       line_notify_email: "",
+      quota_no_reset: "",
       transaction_type_default: body.transaction_type_default || "",
       portfolio_slug: body.portfolio_slug || "",
       portfolio_enabled: body.portfolio_enabled || "",

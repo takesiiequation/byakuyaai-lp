@@ -14,7 +14,6 @@ import {
   ASPECT_RATIOS,
   DEAL_TYPES,
   MAX_APPEAL_NOTE_LENGTH,
-  MAX_PHOTOS,
   MAX_ROOMS,
   MAX_ROOM_PHOTOS_PER_CARD,
   type AspectRatio,
@@ -72,10 +71,18 @@ function validateRoomsShape(raw: unknown): { rooms: RoomPayload[] } | { error: s
     if (videoCount > 0 && items.length > 1) {
       return { error: "動画のカードは1本のみです(写真との併用不可)" };
     }
-    rooms.push({ order, label, items });
+    // 🔗 link_prev(2026-08-08 監査で欠落を発見): クライアントが送っても
+    // ここで新しいオブジェクトを作り直していたため落ちており、🔗機能が
+    // エンドツーエンドで無効だった。unknown由来なので === true で正規化。
+    rooms.push({ order, label, items, link_prev: rec.link_prev === true });
   }
   return { rooms };
 }
+
+// 写真の総枚数上限(2026-08-08 監査): 部屋カードUI(2枚1組×最大10部屋)では
+// 20枚まで受け付ける。MAX_PHOTOS(=10)は旧UI(1枚ずつ)時代の定数で、
+// クライアント側だけ20に上げてサーバが10で弾く不整合になっていた。
+const MAX_TOTAL_PHOTOS = MAX_ROOMS * MAX_ROOM_PHOTOS_PER_CARD;
 
 // /portal/submit ステップ3(最終): ペイロード組み立て→送信ゲート。
 //
@@ -153,12 +160,12 @@ export async function POST(req: NextRequest) {
   if (
     !photoIdsRaw ||
     photoFileIds.length < 1 ||
-    photoFileIds.length > MAX_PHOTOS ||
+    photoFileIds.length > MAX_TOTAL_PHOTOS ||
     photoFileIds.some((id) => !FILE_ID_RE.test(id)) ||
     new Set(photoFileIds).size !== photoFileIds.length
   ) {
     return NextResponse.json(
-      { ok: false, error: `写真は1〜${MAX_PHOTOS}枚でアップロードしてください` },
+      { ok: false, error: `写真は1〜${MAX_TOTAL_PHOTOS}枚でアップロードしてください` },
       { status: 400 }
     );
   }

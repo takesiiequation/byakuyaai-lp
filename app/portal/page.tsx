@@ -53,7 +53,10 @@ function formatDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   // 2026-08-07 岡本: 時刻は顧客にとって意味が無く、日付だけで十分
+  // timeZone必須(2026-08-08 監査): VercelはUTC実行のため未指定だと
+  // 日本時間の朝9時前の実行が前日として表示される。
   return d.toLocaleDateString("ja-JP", {
+    timeZone: "Asia/Tokyo",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

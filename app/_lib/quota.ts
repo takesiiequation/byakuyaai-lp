@@ -1,5 +1,6 @@
 import type { Client } from "./types";
 import { todayJstDateString } from "./jst";
+import { isFlagOn } from "./portalSubmitShared";
 
 // Single source of truth for "今月の利用数" on the client portal — mirrors
 // the n8n-side reset check byte-for-byte (scripts/build_v14_drip_scheduling.py,
@@ -17,6 +18,11 @@ import { todayJstDateString } from "./jst";
 // never disagree with each other or with n8n about whether today's quota is
 // already reset.
 export function effectiveUsed(client: Client): number {
+  // 2026-08-08 監査: n8n側(認証+回数制限)は quota_no_reset === 'true' のとき
+  // 月次リセットを行わない(使い切り型・trial等)。ここが未対応だと、リセット日を
+  // 過ぎた瞬間からポータルの残数表示と送信ゲートだけが「満タン」になり、
+  // 実際にはn8nが従来の消化数で弾く恒久的な食い違いになる。
+  if (isFlagOn(client.quota_no_reset)) return client.used_this_month;
   const reset = (client.quota_reset || "").toString().slice(0, 10);
   if (reset && todayJstDateString() >= reset) return 0;
   return client.used_this_month;

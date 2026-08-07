@@ -7,7 +7,8 @@ import {
   type DriveFileLite,
 } from "@/app/_lib/portalSubmit";
 import {
-  MAX_PHOTOS,
+  MAX_ROOMS,
+  MAX_ROOM_PHOTOS_PER_CARD,
   MAX_VIDEOS,
   checkMaisokuFile,
   checkPhotoFile,
@@ -21,7 +22,10 @@ import {
 // 2026-07-21 部屋カードUI(Phase A): 動画(target="video")も同じ original
 // フォルダへフラット格納するため、この上限にも動画枠を足す。フラグOFF
 // (現行UI)は target="video" を送らないため実質不変。
-const MAX_BUNDLE_UPLOADS = MAX_PHOTOS + MAX_VIDEOS + 1;
+// 2026-08-08 監査: 部屋カードUIは2枚1組×最大10部屋=20枚。MAX_PHOTOS(=10)は
+// 旧UIの定数で、11枚目のアップロードURL発行が400で拒否されていた。
+const MAX_TOTAL_PHOTOS = MAX_ROOMS * MAX_ROOM_PHOTOS_PER_CARD;
+const MAX_BUNDLE_UPLOADS = MAX_TOTAL_PHOTOS + MAX_VIDEOS + 1;
 
 // /portal/submit ステップ2: ファイル1件ごとに Drive resumable upload
 // session を発行して返す。ファイル本体はブラウザが session URL へ直接
@@ -99,9 +103,9 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  if (target === "photo" && (index < 0 || index >= MAX_PHOTOS)) {
+  if (target === "photo" && (index < 0 || index >= MAX_TOTAL_PHOTOS)) {
     return NextResponse.json(
-      { ok: false, error: `写真は最大${MAX_PHOTOS}枚までです` },
+      { ok: false, error: `写真は最大${MAX_TOTAL_PHOTOS}枚までです` },
       { status: 400 }
     );
   }
