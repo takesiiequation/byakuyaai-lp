@@ -75,6 +75,11 @@ export interface ReviseTelop {
    * klingVideos entry in a prior revision). Swap is one-way — once true,
    * the form shows "差し替え済み" instead of a toggle. */
   swapped: boolean;
+  /** True when this scene's visual is a customer-shot video clip (実写クリップ).
+   * Clip scenes have no source photo, so the still-image swap is physically
+   * impossible — the form shows an explanatory note instead of the toggle
+   * (checking it used to silently do nothing, which misled customers). */
+  is_clip: boolean;
 }
 
 export interface ReviseInfo {
@@ -128,6 +133,7 @@ function shapeTelops(raw: unknown): ReviseTelop[] {
             ? rec.thumbnail
             : null,
         swapped: rec.swapped === true,
+        is_clip: rec.is_clip === true,
       });
     }
   }

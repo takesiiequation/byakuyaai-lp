@@ -167,7 +167,10 @@ export default function ReviseForm({
         telops
           .filter(
             (t) =>
-              t.scene_index !== null && !t.swapped && (swapOn[t.role] ?? false)
+              t.scene_index !== null &&
+              !t.swapped &&
+              !t.is_clip &&
+              (swapOn[t.role] ?? false)
           )
           .map((t) => t.scene_index as number)
       )
@@ -210,7 +213,12 @@ export default function ReviseForm({
       };
     });
     for (const t of telops) {
-      if (t.scene_index === null || t.swapped || !(swapOn[t.role] ?? false)) {
+      if (
+        t.scene_index === null ||
+        t.swapped ||
+        t.is_clip ||
+        !(swapOn[t.role] ?? false)
+      ) {
         continue;
       }
       items.push({
@@ -513,7 +521,16 @@ export default function ReviseForm({
                 )}
 
                 {t.scene_index !== null &&
-                  (t.swapped ? (
+                  (t.is_clip ? (
+                    <div className="mt-3 flex items-start gap-2 border-t border-[var(--brand-border)] pt-3 text-[11px] text-[var(--brand-gray-light)]">
+                      <span className="shrink-0 rounded-full bg-[var(--brand-cream-2)] px-2 py-0.5 font-bold text-[var(--brand-gray)]">
+                        実写動画
+                      </span>
+                      <span>
+                        この場面はご提供いただいた動画素材のため、写真への差し替えはできません。素材の変更をご希望の場合はご担当までご連絡ください
+                      </span>
+                    </div>
+                  ) : t.swapped ? (
                     <div className="mt-3 flex items-start gap-2 border-t border-[var(--brand-border)] pt-3 text-[11px] text-[var(--brand-gray-light)]">
                       <span className="shrink-0 rounded-full bg-[var(--brand-cream-2)] px-2 py-0.5 font-bold text-[var(--brand-orange-dark)]">
                         差し替え済み
