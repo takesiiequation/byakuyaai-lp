@@ -346,7 +346,10 @@ function extractSlotsFromRows(
       obj[h] = (r as string[])[i] ?? "";
     });
     if (pickField(obj, ["client_id"]) !== clientId) continue;
-    if (pickField(obj, ["status", "ステータス"]) === "rejected") continue;
+    // 許可リスト方式(2026-08-12): 以前は rejected だけ除外していたが、運用の内部行
+    // (IG復旧の archived_internal 等)が顧客の投稿予定・実績に漏れた。表示してよいのは
+    // 「Publerへの登録が成功した行」= approved のみ。
+    if (pickField(obj, ["status", "ステータス"]) !== "approved") continue;
     const rawSlot = pickField(obj, ["my_post_slot"]);
     const slot = parseJstSlot(rawSlot);
     if (!slot || slot.year !== curYear || slot.month !== curMonth) continue;
