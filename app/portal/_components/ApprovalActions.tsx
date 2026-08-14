@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-// pending_approval行の「✅ 投稿を承認」「却下」「確認・修正する」クラスタ。
+// pending_approval行の「✅ 投稿を承認」「却下」「確認・編集する」クラスタ。
 // 承認/却下は押下時に window.confirm で意思確認してから
 // /api/portal/approval/action を叩く(実体は承認メールの<form>と同じ n8n
 // webhookを叩いているだけ — app/_lib/approvalAction.ts参照)。
@@ -93,7 +93,7 @@ export default function ApprovalActions({
             busy ? "pointer-events-none opacity-50" : "hover:shadow-lg"
           }`}
         >
-          確認・修正する
+          確認・編集する
         </a>
       </div>
       {status === "error" && (

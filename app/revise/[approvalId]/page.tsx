@@ -7,7 +7,7 @@ import ReviseForm from "../_components/ReviseForm";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "動画テロップの修正",
+  title: "動画テロップの確認・編集",
   robots: { index: false, follow: false },
 };
 
@@ -65,8 +65,8 @@ function lockedMessage(status: string | undefined): {
 } {
   if (status === "pending") {
     return {
-      title: "修正期限を過ぎています",
-      body: "この動画の修正期限(6日間)を過ぎたため編集できません。修正をご希望の場合は、お手数ですがご担当者までご連絡ください。",
+      title: "編集期限を過ぎています",
+      body: "この動画の編集期限(6日間)を過ぎたため編集できません。編集をご希望の場合は、お手数ですがご担当者までご連絡ください。",
     };
   }
   if (status === "rejected") {
@@ -114,7 +114,7 @@ function DeadlineNotice({ deadline }: { deadline?: string }) {
   }).format(new Date(deadline));
   return (
     <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
-      修正期限: {dateLabel} まで(残り{daysLeft}日)
+      編集期限: {dateLabel} まで(残り{daysLeft}日)
       {daysLeft <= 2 && (
         <span className="ml-1 font-semibold">— お早めにお願いいたします</span>
       )}

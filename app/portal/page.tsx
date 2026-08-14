@@ -144,14 +144,14 @@ function StatusRow({ row }: { row: ProductionRow }) {
           // されないため、再送信で1回までの権利は正当に消費できる)。
           <div className="text-right">
             <p className="mb-1.5 max-w-[220px] text-xs font-semibold text-red-600 sm:max-w-none">
-              もう一度修正内容をお送りください
+              もう一度編集内容をお送りください
             </p>
             {row.approval_id && (
               <a
                 href={`/revise/${row.approval_id}`}
                 className="inline-block rounded-xl bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] px-4 py-2 text-xs font-semibold text-white transition-all hover:shadow-lg active:scale-[0.98] sm:text-sm"
               >
-                修正ページを開く
+                編集ページを開く
               </a>
             )}
           </div>

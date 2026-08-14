@@ -145,13 +145,13 @@ export function resolveStatus(row: ProductionRow | null): PortalStatus {
 export const PORTAL_STATUS_LABELS: Record<PortalStatus, string> = {
   processing: "制作中",
   pending_approval: "承認待ち",
-  revising: "✏️ 修正中",
+  revising: "✏️ 編集を反映中",
   posted: "投稿済み",
   delivered: "✉️ 納品済み",
   sold: "🎉 成約済み",
   rejected: "却下",
   failed: "⚠️ 生成に失敗しました",
-  revise_failed: "⚠️ 修正に失敗しました",
+  revise_failed: "⚠️ 編集の反映に失敗しました",
   unknown: "不明",
 };
 

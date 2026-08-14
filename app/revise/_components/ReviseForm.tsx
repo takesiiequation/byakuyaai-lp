@@ -341,7 +341,7 @@ export default function ReviseForm({
         <h1 className="text-lg font-black text-[var(--brand-ink)] sm:text-xl">
           {doneKind === "caption"
             ? "キャプションを更新しました"
-            : "修正を受け付けました"}
+            : "編集を受け付けました"}
         </h1>
         <p className="mt-3 text-sm leading-relaxed text-[var(--brand-gray)]">
           {doneKind === "caption"
@@ -371,7 +371,7 @@ export default function ReviseForm({
         <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5 sm:p-6 lg:flex lg:h-full lg:flex-col">
           <div className="brand-accent-bar mb-4 h-1 w-16 rounded-full" />
           <h1 className="text-lg font-black text-[var(--brand-ink)] sm:text-xl">
-            動画テロップの修正
+            動画テロップの確認・編集
           </h1>
           {propertyName && (
             <p className="mt-1.5 text-sm font-bold text-[var(--brand-gray)]">
@@ -402,7 +402,7 @@ export default function ReviseForm({
       <div className="mt-5 space-y-5 lg:mt-0">
         {locked && (
           <div className="rounded-2xl bg-amber-50 p-4 text-sm font-bold leading-relaxed text-amber-800 ring-1 ring-amber-200 sm:p-5">
-            動画の修正は3回までとなっております。内容をご確認のうえ、メールから承認または却下をお願いします。キャプションの修正のみ引き続き可能です。その他のご要望はご担当までご連絡ください。
+            動画の編集は3回までとなっております。内容をご確認のうえ、メールから承認または却下をお願いします。キャプションの編集のみ引き続き可能です。その他のご要望はご担当までご連絡ください。
           </div>
         )}
         <div
@@ -606,7 +606,7 @@ export default function ReviseForm({
               </span>
             </div>
             <p className="mt-2 text-[11px] text-[var(--brand-gray-light)]">
-              ※キャプションのみの修正は動画を作り直さず、投稿時にそのまま反映されます
+              ※キャプションのみの編集は動画を作り直さず、投稿時にそのまま反映されます
             </p>
           </div>
         )}
@@ -619,13 +619,13 @@ export default function ReviseForm({
             ※動画内の読み上げは基本的に自動で調整されます。読み間違いがある時だけ「読み間違いを直す」を開いてください
           </p>
           <p className="mt-1.5">
-            ※家賃・間取りなどの数値は資料(マイソク)にもとづいています。数値そのものに誤りがある場合は、テロップ修正ではなく資料の再送をお願いします
+            ※家賃・間取りなどの数値は資料(マイソク)にもとづいています。数値そのものに誤りがある場合は、テロップの編集ではなく資料の再送をお願いします
           </p>
           <div className="mt-2.5 border-t border-[var(--brand-border)] pt-2.5 text-[10px] leading-relaxed text-[var(--brand-gray-light)]">
             <p>
-              修正内容はお客様の入力に基づき動画へ反映されます。物件の事実に基づく表現をお願いします(事実と異なる表示は景品表示法違反となるおそれがあります)。
+              編集内容はお客様の入力に基づき動画へ反映されます。物件の事実に基づく表現をお願いします(事実と異なる表示は景品表示法違反となるおそれがあります)。
             </p>
-            <p className="mt-1">修正内容の法的責任はお客様に帰属します。</p>
+            <p className="mt-1">編集内容の法的責任はお客様に帰属します。</p>
           </div>
         </div>
 

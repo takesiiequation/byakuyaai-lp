@@ -16,7 +16,7 @@ const SCORE_OPTIONS: { value: number; emoji: string; label: string }[] = [
   { value: 5, emoji: "😍", label: "とても満足" },
 ];
 
-const CATEGORIES = ["使いやすさ", "動画の仕上がり", "修正のしやすさ", "その他"];
+const CATEGORIES = ["使いやすさ", "動画の仕上がり", "編集のしやすさ", "その他"];
 
 const MAX_BODY_LENGTH = 1000;
 
