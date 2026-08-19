@@ -26,9 +26,9 @@ const LOG_URL = "https://aiboost-takeshi.app.n8n.cloud/webhook/link-click";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "制作事例 — 30秒でご覧いただけます",
+  title: "制作事例 — 50秒でご覧いただけます",
   description:
-    "AIが物件写真から自動制作したSNSショート動画の実例(30秒)。撮影・編集は不要です。",
+    "AIが物件写真から自動制作したSNSショート動画の実例(50秒)。撮影・編集は不要です。",
   robots: { index: false, follow: false },
   alternates: { canonical: "https://byakuyaai.com/demo" },
 };
@@ -69,7 +69,7 @@ export default async function DemoPage({
         <h1 className="mt-5 text-center text-xl font-bold leading-snug text-[var(--brand-ink)] sm:text-2xl">
           AIが作った&quot;実物&quot;を
           <br className="sm:hidden" />
-          30秒でご覧ください
+          50秒でご覧ください
         </h1>
         <p className="mt-2 text-center text-xs leading-relaxed text-[var(--brand-gray)]">
           実際にお客様へ納品した動画です(お客様名のみ「貴社名」に差し替え)
