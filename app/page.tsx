@@ -326,7 +326,7 @@ function WorksSection() {
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-center text-sm leading-relaxed text-[var(--brand-gray)]">
             実際にお客様へ納品した動画です(お客様名の部分のみ「貴社名」に差し替えています)。
-            お客様がスマホで撮影した写真だけから、ナレーション・テロップ・BGM・効果音まで全自動で仕上がっています。
+            お客様がスマホで撮影した写真・動画とマイソクから、ナレーション・テロップ・BGM・効果音まで全自動で仕上がっています。
           </p>
         </Reveal>
         <Reveal>
