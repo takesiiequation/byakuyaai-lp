@@ -488,12 +488,9 @@ function PricingSection() {
 
         {/* Plan cards */}
         <RevealStagger className="grid gap-6 lg:grid-cols-2">
-          {/* Standard (recommended) */}
+          {/* Standard */}
           <RevealItem className="grid">
-            <div className="relative flex flex-col rounded-3xl border-2 border-[var(--brand-orange)] bg-white p-8 shadow-2xl lg:-translate-y-3">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[var(--brand-orange)] px-4 py-1 text-xs font-bold text-white shadow-md">
-                おすすめ
-              </div>
+            <div className="relative flex flex-col rounded-3xl border-2 border-[var(--brand-border)] bg-white p-8 shadow-lg">
               <div className="mb-1 text-sm font-bold tracking-widest text-[var(--brand-orange-dark)]">
                 STANDARD
               </div>
@@ -537,6 +534,9 @@ function PricingSection() {
             <div className="relative flex flex-col rounded-3xl border border-[var(--brand-ink)] bg-gradient-to-br from-[var(--brand-ink)] to-gray-800 p-8 text-white shadow-lg">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-gradient-to-r from-[var(--brand-orange)] to-[var(--brand-orange-light)] px-4 py-1 text-xs font-bold text-white shadow-md">
                 WEBマーケ全部入り
+              </div>
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[var(--brand-orange)] px-4 py-1 text-xs font-bold text-white shadow-md">
+                おすすめ
               </div>
               <div className="mb-1 text-sm font-bold tracking-widest text-[var(--brand-orange-light)]">
                 PREMIUM
