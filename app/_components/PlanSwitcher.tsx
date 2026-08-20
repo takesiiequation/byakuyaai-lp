@@ -222,7 +222,7 @@ function CycleSection() {
         </div>
 
         <p className="mt-6 text-center text-xs leading-relaxed text-white/60 sm:text-sm">
-          ※ お客様の作業は「月初の物件情報登録」のみ。あとはすべて ByakuyaAI が自動で実行します。
+          ※ お客様の作業は「物件ごとに写真とマイソクを送る」だけ。あとはすべて ByakuyaAI が自動で実行します。
         </p>
       </div>
     </section>

@@ -80,7 +80,9 @@ function Hero() {
           </RevealItem>
 
           <RevealItem as="h1" className="text-[2.25rem] font-black leading-[1.2] tracking-tight text-[var(--brand-ink)] sm:text-5xl lg:text-[3.5rem]">
-            写真を送るだけ。
+            写真とマイソクを
+            <br className="sm:hidden" />
+            送るだけ。
             <br />
             あとは
             <span className="relative mx-1 inline-block text-[var(--brand-orange)]">
@@ -93,9 +95,9 @@ function Hero() {
           </RevealItem>
 
           <RevealItem as="p" className="mt-6 text-base leading-relaxed text-[var(--brand-gray)] sm:text-lg">
-            マイソクと物件写真をアップロードするだけで、
+            プロ品質のショート動画をAIが自動で生成し、
             <br className="hidden sm:block" />
-            プロ品質のショート動画を毎日自動で生成・配信。
+            SNSへの投稿まで実行。撮影も編集も要りません。
           </RevealItem>
 
           <RevealItem className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
