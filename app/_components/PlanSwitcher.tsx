@@ -24,7 +24,7 @@ const STANDARD_PAINS = [
 const PREMIUM_WANTS = [
   {
     title: "WEB施策がバラバラで管理しきれない",
-    desc: "動画・SNS・LINE・HP・SEO・分析。会社が違うとデータも分断、PDCAが回らない。全部まとめて一元管理したい。",
+    desc: "動画・SNS・LINE・AI検索・分析。会社が違うとデータも分断、PDCAが回らない。全部まとめて一元管理したい。",
   },
   {
     title: "Google・SNSのアルゴリズムを賢く攻略したい",
@@ -83,11 +83,10 @@ const PREMIUM_COSTS = {
     label: "ByakuyaAI プレミアム",
     sub: "AIに、まるごとお任せ",
     rows: [
-      { label: "動画月20本+ステージング", cost: "込み" },
+      { label: "動画月20本(スタンダードの2倍)", cost: "込み" },
       { label: "SNS自動投稿+最適化", cost: "込み" },
       { label: "LINE公式AI自動応答", cost: "込み" },
-      { label: "SEO対策(地域KW・物件ページ)", cost: "込み" },
-      { label: "専用動画サイト無料構築", cost: "込み" },
+      { label: "AI検索対策(SEO・AEO/毎月自動更新)", cost: "込み" },
       { label: "月次効果分析レポート", cost: "込み" },
     ],
     totalLabel: "月額(プレミアムプラン)",
@@ -205,7 +204,7 @@ function CycleSection() {
             物件を登録するだけで、AIが全部回す。
           </h2>
           <p className="mt-4 text-sm leading-relaxed text-white/70 sm:text-base">
-            動画生成・SNS投稿・SEO・HP埋め込み・LINE応答まで自動化。
+            動画生成・SNS投稿・AI検索対策・LINE応答まで自動化。
             <br className="hidden sm:block" />
             月次レポートで AI が学習し、毎月さらに賢くなります。
           </p>
@@ -313,7 +312,7 @@ function BannerByPlan({ plan }: { plan: Plan }) {
     ? {
         badge: "PREMIUM",
         title: "月30万円で、WEBマーケティングチームを雇う。",
-        sub: "動画・SNS・LINE・HP・SEO・分析レポートまで。不動産マーケの全部、AIに丸投げ。",
+        sub: "動画・SNS・LINE・AI検索・分析レポートまで。不動産マーケの全部、AIに丸投げ。",
         image: "/banner-premium.png",
         alt: "月30万円で、WEBマーケティングチームを雇う ByakuyaAI",
         spec: "月20本 / WEBマーケ全部入り",

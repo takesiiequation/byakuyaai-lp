@@ -50,7 +50,7 @@ function SiteHeader() {
             href="#contact"
             className="inline-flex items-center rounded-full bg-[var(--brand-orange)] px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[var(--brand-orange-dark)] sm:text-sm"
           >
-            14日間 無料で試す
+             無料お試しパック
             <span className="ml-1">→</span>
           </a>
         </div>
@@ -103,7 +103,7 @@ function Hero() {
               href="#contact"
               className="inline-flex items-center justify-center rounded-full bg-[var(--brand-orange)] px-7 py-3.5 text-base font-bold text-white shadow-lg shadow-orange-200 transition hover:translate-y-[-1px] hover:bg-[var(--brand-orange-dark)] hover:shadow-xl"
             >
-              14日間 無料で試す
+               無料お試しパック
               <span className="ml-2 text-lg">→</span>
             </a>
             <a
@@ -379,13 +379,13 @@ function FlowSection() {
     {
       num: "03",
       title: "AI が動画を生成",
-      desc: "バーチャルステージング（空室に家具合成）、ナレーション、BGM、テロップまで AI が自動制作。",
+      desc: "台本・ナレーション・BGM・テロップまで AI が自動制作。映像と言葉が一致した動画に仕上げます。",
       detail: "生成時間: 約15〜30分",
     },
     {
       num: "04",
       title: "SNS に自動投稿",
-      desc: "Instagram・TikTok・YouTube Shorts に最適な時間帯で自動投稿。ハッシュタグも AI が最適化。",
+      desc: "Instagram・TikTok に最適な時間帯で自動投稿。ハッシュタグも AI が最適化。",
       detail: "手動投稿も可能",
     },
   ];
@@ -443,16 +443,14 @@ function FlowSection() {
 function PricingSection() {
   const features = [
     { label: "動画本数", standard: "月10本", premium: "月20本" },
-    { label: "バーチャルステージング(空室に家具合成)", standard: true, premium: true },
     {
-      label: "SNS自動投稿(Instagram/TikTok/YouTube Shorts)",
+      label: "SNS自動投稿(Instagram・TikTok)",
       standard: true,
       premium: true,
     },
     { label: "ハッシュタグ・投稿時間の最適化", standard: true, premium: true },
-    { label: "LINE公式アカウントのAI自動応答(24時間)", standard: false, premium: true },
-    { label: "専用動画サイト無料構築(サブドメイン)", standard: false, premium: true },
-    { label: "SEO対策(地域KW・物件詳細ページ最適化)", standard: false, premium: true },
+    { label: "公式LINEの内見予約AI自動対応(24時間)", standard: false, premium: true },
+    { label: "AI検索対策(SEO・AEO／毎月AIが自動更新)", standard: false, premium: true },
     { label: "月次効果分析レポート(再生数・問い合わせ・成約推移)", standard: false, premium: true },
     { label: "専属担当(LINE直通・優先対応)", standard: false, premium: true },
   ];
@@ -481,7 +479,7 @@ function PricingSection() {
               シンプルな2プラン。
             </h2>
             <p className="mt-4 text-sm text-[var(--brand-gray)] sm:text-base">
-              まずは14日間、無料でお試しください。契約期間の縛りはありません。
+              まずは無料お試しパック(動画5本)から。自動継続なし・契約期間の縛りもありません。
             </p>
           </div>
         </Reveal>
@@ -514,10 +512,10 @@ function PricingSection() {
                   <Check /> 動画月10本の制作・納品
                 </li>
                 <li className="flex items-start gap-2">
-                  <Check /> バーチャルステージング込み
+                  <Check /> 台本・ナレーション・テロップ自動制作
                 </li>
                 <li className="flex items-start gap-2">
-                  <Check /> SNS自動投稿(Instagram/TikTok/YouTube)
+                  <Check /> SNS自動投稿(Instagram・TikTok)
                 </li>
                 <li className="flex items-start gap-2">
                   <Check /> ハッシュタグ・投稿時間の最適化
@@ -543,7 +541,7 @@ function PricingSection() {
               </div>
               <h3 className="text-2xl font-black">プレミアム</h3>
               <p className="mt-1 text-xs leading-relaxed text-white/70">
-                動画 × SNS × LINE × HP × SEO × 分析。
+                動画 × SNS × LINE × AI検索 × 分析。
                 <br />
                 WEBマーケティング部門ごと、AIに丸投げ。
               </p>
@@ -559,7 +557,7 @@ function PricingSection() {
               <ul className="mt-6 flex-1 space-y-2.5 text-sm text-white/85">
                 <li className="flex items-start gap-2">
                   <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
-                  動画月20本+バーチャルステージング
+                  動画月20本(スタンダードの2倍)
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
@@ -567,15 +565,11 @@ function PricingSection() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
-                  LINE公式AI自動応答(24時間対応)
+                  公式LINEの内見予約AI自動対応(24時間)
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
-                  専用動画サイト無料構築(サブドメイン)
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
-                  SEO対策(地域KW・物件ページ最適化)
+                  AI検索対策(SEO・AEO／毎月AIが自動更新)
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
@@ -664,7 +658,7 @@ function PricingSection() {
         </div>
 
         <p className="mt-6 text-center text-xs text-[var(--brand-gray-light)]">
-          ※ 14日間の無料トライアルあり／契約期間の縛りなし／いつでも解約OK
+          ※ 無料お試しパックあり(動画5本・自動継続なし)／契約期間の縛りなし／いつでも解約OK
           <br />
           ※ フランチャイズ・複数店舗運営は別途ご相談ください
         </p>
@@ -761,7 +755,7 @@ function ContactSection() {
               CONTACT
             </p>
             <h2 className="text-3xl font-black text-white sm:text-4xl">
-              まずは14日間、無料でお試しください。
+              まずは無料お試しパックから。
             </h2>
             <p className="mt-4 text-sm text-white/70 sm:text-base">
               以下のフォームよりお問い合わせください。通常1〜2営業日以内にご返信いたします。
@@ -880,7 +874,7 @@ function ContactSection() {
               type="submit"
               className="mt-8 flex w-full items-center justify-center rounded-full bg-[var(--brand-orange)] px-8 py-4 text-base font-bold text-white shadow-lg shadow-orange-200 transition hover:translate-y-[-1px] hover:bg-[var(--brand-orange-dark)] hover:shadow-xl"
             >
-              無料トライアルを申し込む
+              無料お試しパックを申し込む
               <span className="ml-2 text-lg">→</span>
             </button>
 
