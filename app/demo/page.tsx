@@ -96,9 +96,10 @@ export default async function DemoPage({
         {/* オファー再掲 — 文面Bと同じ言葉で受ける */}
         <div className="mt-8 rounded-2xl border border-[var(--brand-border)] bg-white p-5 text-center shadow-sm">
           <p className="text-sm font-bold text-[var(--brand-ink)]">
-            貴社の物件も1件、無料でこの形にいたします
+            今月は先着5社様限定・無料お試し期間をご案内中です
           </p>
           <p className="mt-2 text-xs leading-relaxed text-[var(--brand-gray)]">
+            期間中は貴社の物件で、動画の仕上がりと反響を費用ゼロでお確かめいただけます。
             お送りしたメッセージに「見てみたい」と一言ご返信いただくか、
             下記までご連絡ください。撮影・出演・打ち合わせは不要です。
           </p>
@@ -113,13 +114,25 @@ export default async function DemoPage({
           </p>
         </div>
 
-        {/* サービス全体へ(任意導線) */}
+        {/* 提案資料(1枚PDF)— 料金・お試しパックの中身はここで開示する */}
         <p className="mt-6 text-center">
+          <a
+            href="/proposal.pdf"
+            target="_blank"
+            rel="noopener"
+            className="inline-block rounded-full border border-[var(--brand-orange-dark)] px-5 py-2.5 text-xs font-bold text-[var(--brand-orange-dark)] transition hover:bg-[var(--brand-orange)] hover:text-white"
+          >
+            料金とサービス資料を見る(PDF・1枚)
+          </a>
+        </p>
+
+        {/* サービス全体へ(任意導線) */}
+        <p className="mt-4 text-center">
           <Link
             href="/"
             className="text-xs font-semibold text-[var(--brand-orange-dark)] underline underline-offset-2"
           >
-            サービスの詳細・料金を見る →
+            サービスの詳細を見る →
           </Link>
         </p>
 
