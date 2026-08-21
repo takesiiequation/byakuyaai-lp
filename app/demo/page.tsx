@@ -96,7 +96,7 @@ export default async function DemoPage({
         {/* オファー再掲 — 文面Bと同じ言葉で受ける */}
         <div className="mt-8 rounded-2xl border border-[var(--brand-border)] bg-white p-5 text-center shadow-sm">
           <p className="text-sm font-bold text-[var(--brand-ink)]">
-            今月は先着5社様限定・無料お試し期間をご案内中です
+            限定3社様・無料お試し期間をご案内中です
           </p>
           <p className="mt-2 text-xs leading-relaxed text-[var(--brand-gray)]">
             期間中は貴社の物件で、動画の仕上がりと反響を費用ゼロでお確かめいただけます。
