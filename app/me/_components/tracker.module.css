@@ -1,3 +1,10 @@
+/* /me 配下だけで読まれるので :global で地の色を敷いてよい。
+   これが無いと .wrap(max-width 660px) の外側に LP の地色が覗く。 */
+:global(html),:global(body){background:#16181B;}
+@media (prefers-color-scheme:light){
+  :global(html),:global(body){background:#F6F7F6;}
+}
+
 .wrap{
   --bg:#F6F7F6; --card:#FFFFFF; --sunk:#EEF0EE;
   --ink:#17191C; --dim:#5F6570; --faint:#9AA0A8;
@@ -23,7 +30,9 @@
   }
 }
 .wrap *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-.wrap button{font:inherit;color:inherit;cursor:pointer;border:none;background:none;}
+/* :where() で要素部分の詳細度を 0 にする。素の `.wrap button` は (0,1,1) で
+   `.chip` `.dbtn` (0,1,0) に勝ってしまい、border/background を潰していた。 */
+.wrap :where(button){font:inherit;color:inherit;cursor:pointer;border:none;background:none;}
 .boot{padding:60px 20px;text-align:center;color:#8A9184;font-size:13px;}
 
 .hdr{position:sticky;top:0;z-index:30;background:var(--bg);

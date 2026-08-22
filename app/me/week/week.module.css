@@ -1,3 +1,8 @@
+:global(html),:global(body){background:#16181B;}
+@media (prefers-color-scheme:light){
+  :global(html),:global(body){background:#F6F7F6;}
+}
+
 
 .wrap{
   max-width:680px;margin:0 auto;padding:26px 15px 70px;min-height:100dvh;
@@ -21,6 +26,7 @@
   }
 }
 .wrap *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+.wrap :where(button){font:inherit;color:inherit;cursor:pointer;}
 
 
 .mono{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;}
