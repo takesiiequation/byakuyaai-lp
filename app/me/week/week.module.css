@@ -5,7 +5,10 @@
 
 
 .wrap{
-  max-width:680px;margin:0 auto;padding:26px 15px 70px;min-height:100dvh;
+  /* ルートの <body> が flex-col のため、交差軸(横)の auto マージンが
+     優先されてアイテムが content 幅に縮む。width:100% で親いっぱいに
+     広げたうえで max-width を効かせる。 */
+  width:100%;max-width:680px;margin:0 auto;padding:26px 15px 70px;min-height:100dvh;
   background:var(--bg);color:var(--ink);
   font-family:"Zen Kaku Gothic New",-apple-system,"Hiragino Sans",sans-serif;
   font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased;

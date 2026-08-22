@@ -13,7 +13,10 @@
   --warm:#C2760F; --bad:#C0453A; --on:#FFFFFF;
   --c1:#1E9E5A; --c2:#3B7DD8; --c3:#C2760F; --c4:#9A5BC4;
   --r:10px;
-  max-width:660px;margin:0 auto;
+  /* ルートの <body> が flex-col のため、交差軸(横)の auto マージンが
+     優先されてアイテムが content 幅に縮む。width:100% で親いっぱいに
+     広げたうえで max-width を効かせる。 */
+  width:100%;max-width:660px;margin:0 auto;
   padding:0 14px calc(28px + env(safe-area-inset-bottom));
   background:var(--bg);color:var(--ink);min-height:100dvh;
   font-family:"Zen Kaku Gothic New",-apple-system,"Hiragino Sans",sans-serif;
