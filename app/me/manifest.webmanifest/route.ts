@@ -15,9 +15,10 @@ export function GET() {
       orientation: "portrait",
       background_color: "#16181B",
       theme_color: "#1E9E5A",
+      // purpose は "any" のみ。リングが端まで伸びる全面デザインなので、
+      // maskable の安全域（中央80%の円）に収める前提の絵ではない。
       icons: [
         { src: "/me-icon.png", sizes: "512x512", type: "image/png", purpose: "any" },
-        { src: "/me-icon.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
       ],
     },
     { headers: { "Content-Type": "application/manifest+json" } }
