@@ -155,6 +155,15 @@ function StatusRow({ row }: { row: ProductionRow }) {
               </a>
             )}
           </div>
+        ) : status === "quota_exceeded" ? (
+          // 2026-08-23: 「今月の生成上限に達しました」の顧客メールを廃止し
+          // マイページ表示へ一本化した分の受け皿。通常は /portal/submit 側の
+          // ゲートで送信前に止まるので、ここに出るのは旧経路からの送信や
+          // 残数ギリギリの同時送信で弾かれたレアケース。再依頼しても同じく
+          // 弾かれるので、あえて導線は出さず事実と見通しだけを伝える。
+          <span className="max-w-[220px] text-right text-xs text-[var(--brand-gray-light)] sm:max-w-none">
+            翌月になると再びご依頼いただけます
+          </span>
         ) : null}
       </div>
     </div>

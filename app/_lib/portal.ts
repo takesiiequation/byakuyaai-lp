@@ -106,6 +106,7 @@ export type PortalStatus =
   | "rejected"
   | "failed"
   | "revise_failed"
+  | "quota_exceeded"
   | "unknown";
 
 /**
@@ -123,6 +124,13 @@ export type PortalStatus =
  * 戻しWF側でこれらの値を書く改修は別便(status_visibility_package_draft.md)。
  * n8n側が未着手の間はシートにこの値がまだ現れないだけで、フロントは
  * fail-soft に壊れず従来通り "processing" に丸め込まれる。
+ *
+ * "quota_exceeded"(今月の本数を使い切った)は 2026-08-23 追加 — 岡本判断で
+ * 「今月の生成上限に達しました」の顧客メールを廃止し、マイページ表示に一本化
+ * したもの(以前これがメールで届いて小濱さんを驚かせた)。認証系の他の拒否理由
+ * (quota_not_configured / 秘密鍵エラー)は顧客側で対処できないため、あえて
+ * マイページには出さずDiscord通知のみに留める。"failed" に寄せてしまうと
+ * 「もう一度ご依頼ください」と再依頼を促す導線が出てしまい誤案内になる。
  */
 export function resolveStatus(row: ProductionRow | null): PortalStatus {
   if (!row) return "unknown";
@@ -135,7 +143,8 @@ export function resolveStatus(row: ProductionRow | null): PortalStatus {
     s === "rejected" ||
     s === "revising" ||
     s === "failed" ||
-    s === "revise_failed"
+    s === "revise_failed" ||
+    s === "quota_exceeded"
   ) {
     return s;
   }
@@ -152,6 +161,7 @@ export const PORTAL_STATUS_LABELS: Record<PortalStatus, string> = {
   rejected: "却下",
   failed: "⚠️ 生成に失敗しました",
   revise_failed: "⚠️ 編集の反映に失敗しました",
+  quota_exceeded: "今月の本数を使い切りました",
   unknown: "不明",
 };
 
@@ -165,6 +175,9 @@ export const PORTAL_STATUS_COLORS: Record<PortalStatus, string> = {
   rejected: "bg-red-50 text-red-600 border-red-200",
   failed: "bg-red-50 text-red-700 border-red-300",
   revise_failed: "bg-red-50 text-red-700 border-red-300",
+  // 上限到達は「異常」ではなく正常な残数ゼロなので、障害系の赤ではなく
+  // 落ち着いた色にする(顧客を不安にさせないための意図的な色分け)。
+  quota_exceeded: "bg-slate-100 text-slate-600 border-slate-300",
   unknown: "bg-gray-100 text-gray-400 border-gray-200",
 };
 
