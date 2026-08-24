@@ -685,6 +685,11 @@ export interface RoomCardsFieldProps {
   onSetLabelCustomText: (uid: string, text: string) => void;
   onAddPhotos: (uid: string, files: FileList) => void;
   onAddVideo: (uid: string, file: File) => void;
+  /** モニタープラン(2026-08-24): 動画素材だけで作る契約。写真の投入口を
+   * 閉じる。BulkRoomIntake 側の写真タブ封鎖と同じ判断で、こちらは手動で
+   * 部屋を作るモードの投入口を塞ぐ(両方閉じて初めて「写真を入れられない
+   * UI」になる)。 */
+  videoOnly?: boolean;
   onRemoveItem: (uid: string, itemIdx: number) => void;
   onSwapFrames: (uid: string) => void;
   // 自動ペアリング確認画面(SubmitFormのbulk確認モード)専用の追加操作。
@@ -724,6 +729,7 @@ export default function RoomCardsField({
   onSwapItems,
   mutedPairKeys = EMPTY_MUTED_PAIR_KEYS,
   onMutePair,
+  videoOnly = false,
 }: RoomCardsFieldProps) {
   // v3.1段2: DnDはonMoveItemToRoomと同じ場面(bulk確認モード)でのみ有効
   // (design.md方針=段1以前の「移動セレクトが使える場面」を1行も広げない)。
@@ -929,22 +935,33 @@ export default function RoomCardsField({
             {/* 投入口: 写真1〜2枚 or 動画1本(排他) */}
             {room.items.length === 0 && (
               <div className="flex flex-wrap gap-2">
-                <label className={pickerButtonClass}>
-                  + 写真を追加(1〜2枚)
-                  <input
-                    type="file"
-                    accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-                    multiple
-                    disabled={busy}
-                    className="hidden"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files.length > 0) {
-                        onAddPhotos(room.uid, e.target.files);
-                      }
-                      e.target.value = "";
-                    }}
-                  />
-                </label>
+                {videoOnly ? (
+                  // モニタープラン: 写真の投入口は開かない。押せないボタンを
+                  // 残すより、なぜ使えないかを示すほうが問い合わせが減る。
+                  <span
+                    className={`${pickerButtonClass} cursor-not-allowed opacity-45`}
+                    title="写真から作る機能は、スタンダードプラン以上でご利用いただけます"
+                  >
+                    🔒 写真はスタンダードプラン以上
+                  </span>
+                ) : (
+                  <label className={pickerButtonClass}>
+                    + 写真を追加(1〜2枚)
+                    <input
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                      multiple
+                      disabled={busy}
+                      className="hidden"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                          onAddPhotos(room.uid, e.target.files);
+                        }
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                )}
                 <label className={pickerButtonClass}>
                   + 動画を追加(1本)
                   <input

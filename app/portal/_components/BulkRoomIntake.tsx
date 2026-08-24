@@ -48,6 +48,11 @@ export interface BulkRoomIntakeProps {
   onPhotoFilesSelected: (files: FileList) => void;
   onVideoFilesSelected: (files: FileList) => void;
   onSwitchToAdvanced: () => void;
+  /** モニタープラン(2026-08-24): 動画素材だけで作る契約なので写真タブを閉じる。
+   * 写真からのAI動画生成は原価が約12倍(実測 約200円/本 ⇔ 約2,450円/本)で、
+   * 「写真でも送れてしまう」状態を残すとプランの前提が崩れる。送信後に弾く
+   * のではなく最初から開かない設計にして、同時にアップセルの導線にもする。 */
+  videoOnly?: boolean;
 }
 
 const PHOTO_RE = /\.(jpe?g|png|webp)$/i;
@@ -75,8 +80,9 @@ export default function BulkRoomIntake({
   onPhotoFilesSelected,
   onVideoFilesSelected,
   onSwitchToAdvanced,
+  videoOnly = false,
 }: BulkRoomIntakeProps) {
-  const [tab, setTab] = useState<IntakeTab>("photo");
+  const [tab, setTab] = useState<IntakeTab>(videoOnly ? "video" : "photo");
   const [dragOver, setDragOver] = useState(false);
   const [dropNote, setDropNote] = useState("");
   const depth = useRef(0); // 子要素をまたぐdragleaveでハイライトが消えるのを防ぐ
@@ -137,11 +143,16 @@ export default function BulkRoomIntake({
       <div className="flex gap-1 rounded-xl border border-black/10 bg-white/40 p-1">
         <button
           type="button"
-          disabled={disabled}
+          disabled={disabled || videoOnly}
           onClick={() => setTab("photo")}
-          className={tabButtonClass(tab === "photo")}
+          className={`${tabButtonClass(tab === "photo")} ${videoOnly ? "cursor-not-allowed opacity-45" : ""}`}
+          title={
+            videoOnly
+              ? "写真から作る機能は、スタンダードプラン以上でご利用いただけます"
+              : undefined
+          }
         >
-          📷 写真で作る(2枚1組)
+          {videoOnly ? "🔒 写真で作る" : "📷 写真で作る(2枚1組)"}
         </button>
         <button
           type="button"
@@ -152,6 +163,16 @@ export default function BulkRoomIntake({
           🎥 動画で作る
         </button>
       </div>
+
+      {videoOnly && (
+        // モニタープラン向けの説明。「使えない」で終わらせず、何ができて
+        // 何が上位プランなのかを1行で示す(問い合わせを減らすため)。
+        <p className="rounded-lg border border-black/5 bg-white/50 px-3 py-2 text-[11px] leading-relaxed text-[var(--brand-gray-light)]">
+          モニタープランは<b className="text-[var(--brand-ink)]">お撮りいただいた動画から</b>制作します。
+          <br />
+          写真からの制作は、スタンダードプラン以上でご利用いただけます。
+        </p>
+      )}
 
       {tab === "photo" ? (
         <>

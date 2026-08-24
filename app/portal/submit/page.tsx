@@ -48,6 +48,10 @@ export default async function PortalSubmitPage() {
   // ズレが起き得る(quota_reset を過ぎたがシートの used_this_month が
   // まだ n8n の月初cronで物理リセットされていない期間)。
   const qsummary = quotaSummary(client);
+  // モニタープラン(2026-08-24 岡本決定): 動画素材だけで作る契約。写真の
+  // 投入口を閉じるので、冒頭の説明文も「写真」ではなく「動画」で揃える
+  // (写真がロックされているのに「写真をアップロード」と書いてある矛盾を作らない)。
+  const isVideoOnlyPlan = String(client.plan || "").toLowerCase().trim() === "monitor";
 
   return (
     <Shell maxWidthClassName="max-w-lg lg:max-w-5xl xl:max-w-7xl">
@@ -62,7 +66,9 @@ export default async function PortalSubmitPage() {
           新しい動画を作る
         </h1>
         <p className="text-xs text-[var(--brand-gray-light)] mt-0.5">
-          マイソクと写真をアップロードするだけで、AIがショート動画を自動生成します
+          {isVideoOnlyPlan
+            ? "マイソクと、お撮りいただいたお部屋の動画をアップロードするだけで、AIがショート動画を自動生成します"
+            : "マイソクと写真をアップロードするだけで、AIがショート動画を自動生成します"}
         </p>
       </div>
 
@@ -84,6 +90,9 @@ export default async function PortalSubmitPage() {
           <SubmitForm
             defaultEmail={client.notify_email || client.approval_email || ""}
             roomsUiEnabled={process.env.PORTAL_ROOMS_UI === "true"}
+            // モニタープラン(2026-08-24): 動画素材だけで作る契約なので
+            // 写真の投入口を閉じる。プラン名は契約社リストの plan 列が正。
+            videoOnly={isVideoOnlyPlan}
           />
         </>
       )}

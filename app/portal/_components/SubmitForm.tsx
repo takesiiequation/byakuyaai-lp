@@ -180,8 +180,14 @@ function readVideoDurationSec(file: File): Promise<number | null> {
 export default function SubmitForm({
   defaultEmail,
   roomsUiEnabled = false,
+  videoOnly = false,
 }: {
   defaultEmail: string;
+  /** モニタープラン(2026-08-24 岡本決定)のとき true。動画素材だけで作る
+   * 契約なので、写真の投入口(一括投入の写真タブ・手動カードの写真追加)を
+   * どちらも閉じる。送信後にn8n側で弾く二重の防御も入っているが、UIで最初
+   * から開かないことが本線 — 送ってから断られる体験を作らないため。 */
+  videoOnly?: boolean;
   /** env PORTAL_ROOMS_UI が "true" のときだけ true(サーバーコンポーネント
    * の /portal/submit/page.tsx から渡される)。未指定/false は現行UIを
    * 1行も変えずに維持する(design.md §2のフィーチャーフラグ方針)。 */
@@ -1214,12 +1220,17 @@ export default function SubmitForm({
       {roomsUiEnabled ? (
         <div className="lg:col-start-2 lg:row-start-1 lg:row-span-2">
           <label className="block text-sm font-bold text-[var(--brand-ink)] mb-1">
-            部屋ごとの写真・動画 <span className="text-red-500">*</span>
+            {videoOnly ? "部屋ごとの動画" : "部屋ごとの写真・動画"}{" "}
+            <span className="text-red-500">*</span>
           </label>
           <p className="text-xs text-[var(--brand-gray-light)] mb-2">
-            {roomsMode === "bulk"
-              ? "同じ部屋を2枚1組(始まり→終わり)で撮ってアップロードしてください"
-              : "部屋を追加して、それぞれに写真(1〜2枚)または動画(1本)を入れてください"}
+            {/* モニタープランは写真の投入口を閉じているので、案内文も動画で
+                揃える(写真の撮り方を説明しても入れる場所がない)。 */}
+            {videoOnly
+              ? "お部屋ごとに動画を1本ずつ撮ってアップロードしてください"
+              : roomsMode === "bulk"
+                ? "同じ部屋を2枚1組(始まり→終わり)で撮ってアップロードしてください"
+                : "部屋を追加して、それぞれに写真(1〜2枚)または動画(1本)を入れてください"}
           </p>
           <a
             href="/portal/guide"
@@ -1252,6 +1263,7 @@ export default function SubmitForm({
                 onAddVideo={addVideoToRoom}
                 onRemoveItem={removeRoomItem}
                 onSwapFrames={swapRoomFrames}
+                videoOnly={videoOnly}
               />
             </>
           ) : (
@@ -1263,6 +1275,7 @@ export default function SubmitForm({
                 onPhotoFilesSelected={handleBulkPhotosSelected}
                 onVideoFilesSelected={handleBulkVideoSelected}
                 onSwitchToAdvanced={() => setRoomsMode("advanced")}
+                videoOnly={videoOnly}
               />
               {rooms.length > 0 && (
                 <>
@@ -1300,6 +1313,7 @@ export default function SubmitForm({
                     onSwapItems={swapRoomItems}
                     mutedPairKeys={mutedPairKeys}
                     onMutePair={mutePairMismatch}
+                    videoOnly={videoOnly}
                   />
                 </>
               )}
