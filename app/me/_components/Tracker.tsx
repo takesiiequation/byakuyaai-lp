@@ -59,7 +59,9 @@ export default function Tracker() {
 
   const score = useCallback((k: string) => {
     const o = S.days[k]; if (!o) return 0;
-    let s = Math.min(50, Math.round((protein(k) / TGT) * 50));
+    const p = protein(k);
+    let s = Math.min(50, Math.round((p / TGT) * 50));
+    if (p >= TGT) s += 5;            // 目標到達ボーナス
     for (const c of CHECKS) if (o.c?.[c.id]) s += c.pt;
     if (o.g) s += 15;
     return Math.max(0, Math.min(100, s));
@@ -353,7 +355,7 @@ function MealTab({ o, p, cur, touch, S }: {
             <b style={{ left: `${(TGT / MAX) * 100}%` }} />
           </div>
           <div className={styles.mnote}>
-            {p === 0 ? "まだ記録なし" : TGT - p > 0 ? `目標まであと ${TGT - p} g` : `目標達成 +${p - TGT} g`}
+            {p === 0 ? "まだ記録なし" : TGT - p > 0 ? `目標まであと ${TGT - p} g` : `目標達成 +${p - TGT} g ／ ボーナス +5点`}
           </div>
         </div>
         <div className={styles.foods}>
