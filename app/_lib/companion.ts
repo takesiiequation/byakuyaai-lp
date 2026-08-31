@@ -9,7 +9,7 @@ import {
 } from "@/app/_lib/revise";
 
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
-const DISCORD_URL = process.env.DISCORD_WEBHOOK_URL;
+const DISCORD_URL = process.env.DISCORD_WEBHOOK_URL || process.env.DISCORD_FEEDBACK_WEBHOOK;
 const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 // エージェント既定モデル(OpenRouter)。環境変数で差し替え可。
 const MODEL = process.env.COMPANION_MODEL || "anthropic/claude-sonnet-5";
