@@ -20,7 +20,7 @@ function getSheets() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
   if (!raw) return null;
   const auth = new google.auth.GoogleAuth({
-    credentials: JSON.parse(raw),
+    credentials: JSON.parse(Buffer.from(raw, "base64").toString("utf-8")),
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
   });
   return google.sheets({ version: "v4", auth });
