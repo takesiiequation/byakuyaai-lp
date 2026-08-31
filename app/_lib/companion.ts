@@ -14,7 +14,7 @@ const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 // エージェント既定モデル(OpenRouter)。環境変数で差し替え可。
 const MODEL = process.env.COMPANION_MODEL || "anthropic/claude-sonnet-5";
 
-export const AGENT_NAME = "オーロラ";
+export const AGENT_NAME = "ユキ";
 
 function getSheets() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;

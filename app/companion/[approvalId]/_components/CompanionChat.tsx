@@ -10,7 +10,7 @@ interface Msg {
 function greeting(clientName: string, propertyName: string): string {
   const who = clientName ? `${clientName}さま専任の` : "";
   const what = propertyName ? `「${propertyName}」の動画について、` : "この動画について、";
-  return `こんにちは、ByakuyaAIの${who}AI編集担当 オーロラです😊\n${what}テロップやナレーションの文言修正・ご質問を承ります。\n「◯◯のテロップを△△に直したい」のように、お気軽にお送りください。`;
+  return `こんにちは、ByakuyaAIの${who}AI編集担当 ユキです😊\n${what}テロップやナレーションの文言修正・ご質問を承ります。\n「◯◯のテロップを△△に直したい」のように、お気軽にお送りください。`;
 }
 
 export default function CompanionChat({
@@ -77,11 +77,11 @@ export default function CompanionChat({
     <div className="flex min-h-0 flex-1 flex-col rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
       <header className="flex items-center gap-3 border-b border-black/5 px-4 py-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-amber-300 text-lg font-black text-white">
-          オ
+          ユ
         </div>
         <div>
           <p className="text-sm font-black text-[#222]">
-            {clientName ? `${clientName}さま専任 ` : ""}AI編集担当 オーロラ
+            {clientName ? `${clientName}さま専任 ` : ""}AI編集担当 ユキ
           </p>
           <p className="text-xs text-[#888]">この動画の修正・ご質問を承ります</p>
         </div>
@@ -107,7 +107,7 @@ export default function CompanionChat({
         {busy && (
           <div className="flex justify-start">
             <div className="rounded-2xl rounded-bl-md bg-[#f4f2ee] px-4 py-2.5 text-sm text-[#888]">
-              オーロラが確認しています…
+              ユキが確認しています…
             </div>
           </div>
         )}
