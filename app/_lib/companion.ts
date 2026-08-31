@@ -44,6 +44,37 @@ async function loadProfile(clientName: string): Promise<string> {
   return "";
 }
 
+// 顧客の記憶に追記(追記のみ・上書き不可=安全)
+async function appendClientMemory(clientName: string, note: string): Promise<boolean> {
+  try {
+    const sheets = getSheets();
+    if (!sheets || !SHEET_ID || !clientName) return false;
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: "'AIプロファイル'!A:C",
+    });
+    const rows = res.data.values ?? [];
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i][1] === clientName || rows[i][0] === clientName) {
+        const stamp = new Date().toISOString().slice(0, 10);
+        const cur = String(rows[i][2] ?? "");
+        const updated = cur + "
+- [" + stamp + " ユキ記録] " + note.slice(0, 100);
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: SHEET_ID,
+          range: "'AIプロファイル'!C" + (i + 1),
+          valueInputOption: "RAW",
+          requestBody: { values: [[updated]] },
+        });
+        return true;
+      }
+    }
+  } catch {
+    /* 記憶失敗は会話を止めない */
+  }
+  return false;
+}
+
 // 監査ログ(fire-and-forget)
 function auditLog(approvalId: string, role: string, text: string): void {
   try {
@@ -106,6 +137,21 @@ const TOOLS = [
   {
     type: "function",
     function: {
+      name: "update_client_memory",
+      description:
+        "お客様が明示的に伝えた好み・方針・ルール(例: 強調テロップは水色が好み、語尾は柔らかく等)を、この会社の記憶として恒久的に記録する。以後の全動画・全会話に引き継がれる。お客様が好みを明言した時のみ使い、推測では使わない。記録したら「覚えておきますね」と伝える。",
+      parameters: {
+        type: "object",
+        properties: {
+          note: { type: "string", description: "記憶する内容(100字以内の短文・事実のみ)" },
+        },
+        required: ["note"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "request_human_support",
       description:
         "文言修正では解決できない依頼(映像そのものの変更・作り直し・契約や料金の相談・クレーム等)や、自分で判断できない事項を人間の担当者(岡本)へ引き継ぐ。呼んだ後は「担当者に申し送りしました。追ってご連絡いたします」と伝える。",
@@ -145,6 +191,10 @@ function buildSystemPrompt(profile: string, propertyName: string, clientName: st
 - **提出前に必ず最終文面を箇条書きで提示し、お客様の明確な同意(「OK」等)を得てから提出する**。同意なしに submit_text_edits を呼ぶことは禁止
 - 動画の修正回数には上限(3回)があるため、直したい箇所は**できるだけ1回にまとめて**提出するようご案内する
 - 映像そのもの(カメラの動き・写真・明るさ)の変更は文言修正では対応できない → request_human_support
+
+## お客様の好みの記憶
+- お客様が好み・方針・ルールを明言したら(例:「強調は水色がいい」「語尾は柔らかく」)、update_client_memory で記録し「覚えておきますね」と伝える。記録は会社単位で、以後の全動画に引き継がれる
+- 「◯◯を覚えてる?」と聞かれたら「お客様について」欄の記載を根拠に答える
 
 ## 事実の取り扱い
 - 修正の残り回数など数値は、必ず get_video_info の結果(revisions_remaining)を根拠に答える。推測で答えない
@@ -256,6 +306,13 @@ export async function runCompanion(
           ? { ok: true, message: "提出されました。数分で修正版の確認メールが届きます" }
           : { ok: false, error: sub.error };
         auditLog(approvalId, "tool:submit", JSON.stringify(rawEdits).slice(0, 1000));
+      } else if (name === "update_client_memory") {
+        const note = String(args.note ?? "").trim();
+        const saved = note ? await appendClientMemory(clientName, note) : false;
+        auditLog(approvalId, "tool:memory", note);
+        result = saved
+          ? { ok: true, message: "記録しました。以後の動画・会話に反映されます" }
+          : { ok: false, error: "記録できませんでした" };
       } else if (name === "request_human_support") {
         const summary = String(args.summary ?? "").slice(0, 900);
         if (DISCORD_URL) {
