@@ -58,8 +58,7 @@ async function appendClientMemory(clientName: string, note: string): Promise<boo
       if (rows[i][1] === clientName || rows[i][0] === clientName) {
         const stamp = new Date().toISOString().slice(0, 10);
         const cur = String(rows[i][2] ?? "");
-        const updated = cur + "
-- [" + stamp + " ユキ記録] " + note.slice(0, 100);
+        const updated = cur + "\n- [" + stamp + " ユキ記録] " + note.slice(0, 100);
         await sheets.spreadsheets.values.update({
           spreadsheetId: SHEET_ID,
           range: "'AIプロファイル'!C" + (i + 1),
