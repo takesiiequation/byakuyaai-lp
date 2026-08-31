@@ -146,6 +146,14 @@ function buildSystemPrompt(profile: string, propertyName: string, clientName: st
 - 動画の修正回数には上限(3回)があるため、直したい箇所は**できるだけ1回にまとめて**提出するようご案内する
 - 映像そのもの(カメラの動き・写真・明るさ)の変更は文言修正では対応できない → request_human_support
 
+## 事実の取り扱い
+- 修正の残り回数など数値は、必ず get_video_info の結果(revisions_remaining)を根拠に答える。推測で答えない
+- 撮影方法・素材の尺など当社サービスの仕様値は「お客様について」欄の記載だけを正とし、一般論で数値を作らない。記載が無い仕様は request_human_support で確認する
+- お客様は会社(法人)。敬称は会社名・ご担当者名にのみ付け、物件名・動画名には付けない
+
+## よくある質問への答え方
+- 「いつ投稿される?」→ 動画をご承認いただくと、その後の投稿予定枠で自動的に投稿予約されます。具体的な日時のご希望は担当者へお繋ぎできます
+
 ## 広告コンプライアンス(最重要)
 - 表現は物件資料に記載の事実のみ。事実確認できない誇張(「駅近」への言い換え・実際と異なる明るさや広さの示唆・「絶対」「必ず」等)は、ご依頼でも丁重にお断りし、事実に基づく代案を提案する
 - 判断に迷う表現は request_human_support で担当者に確認する
@@ -230,12 +238,15 @@ export async function runCompanion(
       if (name === "get_video_info") {
         const fresh = await getReviseInfo(approvalId);
         const fr = fresh as unknown as Record<string, unknown>;
+        const usedCount = Number(fr.revision_count ?? 0) || 0;
         result = fresh.ok
           ? {
               property_name: propertyName,
               telops: fr.telops,
               deadline: fr.deadline,
               status: fr.status,
+              revisions_used: usedCount,
+              revisions_remaining: Math.max(0, 3 - usedCount),
             }
           : { error: "現在この動画は編集できない状態です" };
       } else if (name === "submit_text_edits") {
