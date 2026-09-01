@@ -74,6 +74,38 @@ async function appendClientMemory(clientName: string, note: string): Promise<boo
   return false;
 }
 
+// ナレーション速度の恒久設定(契約社リスト vo_speed列)。0.8〜1.4のみ許可=極端な値で動画を壊さない。
+async function setClientVoSpeed(clientName: string, speed: number): Promise<boolean> {
+  if (!(speed >= 0.8 && speed <= 1.4)) return false;
+  try {
+    const sheets = getSheets();
+    if (!sheets || !SHEET_ID || !clientName) return false;
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: "'契約社リスト'!A:AH",
+    });
+    const rows = res.data.values ?? [];
+    const header = rows[0] ?? [];
+    const nameCol = header.indexOf("client_name");
+    const speedCol = header.indexOf("vo_speed");
+    if (nameCol < 0 || speedCol < 0) return false;
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][nameCol] === clientName) {
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: SHEET_ID,
+          range: "'契約社リスト'!AH" + (i + 1),
+          valueInputOption: "RAW",
+          requestBody: { values: [[String(speed)]] },
+        });
+        return true;
+      }
+    }
+  } catch {
+    /* 失敗は会話を止めない */
+  }
+  return false;
+}
+
 // この動画の会話履歴(画面復元用)
 export async function loadHistory(approvalId: string): Promise<Array<{ role: string; content: string }>> {
   try {
@@ -174,6 +206,21 @@ const TOOLS = [
       description:
         "動画の設計内容(ナレーションの読み上げ速度・各シーンのナレーション秒数・使用している映像素材の長さ・シーン数)を取得する。【お客様が「読み上げが早い/遅い」「このシーンが短い/長い」「この素材をもっと長く使って」など尺・速度に関する話をされたら、推測で答えず必ずこれを呼んで現状の数値を確認してから答えること】",
       parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "set_narration_speed",
+      description:
+        "ナレーションの読み上げ速度を恒久的に変更する(以後この会社の全動画に適用)。【必ず先にget_video_detailsで現在の速度を確認し、提案した速度をお客様が同意してから呼ぶこと】。指定できるのは0.8〜1.4(1.0が等速)。呼んだ後は『次回作成分から反映されます。この動画にも反映しますか?』と伝え、この動画への適用を希望される場合はrequest_human_supportで担当者に申し送りする(既存動画の作り直しは担当者の確認が必要なため)。",
+      parameters: {
+        type: "object",
+        properties: {
+          speed: { type: "number", description: "0.8〜1.4(1.0が等速・現在の既定は1.3)" },
+        },
+        required: ["speed"],
+      },
     },
   },
   {
@@ -385,6 +432,13 @@ export async function runCompanion(
               note: "vo_speedはナレーションの再生速度(1.0が等速)。vo_secは各シーンのナレーション秒数、clip_secは映像素材の長さ(秒)。",
             }
           : { error: "この動画の設計情報は取得できませんでした(古い動画の可能性があります)" };
+      } else if (name === "set_narration_speed") {
+        const sp = Number(args.speed);
+        const done = await setClientVoSpeed(clientName, sp);
+        auditLog(approvalId, "tool:vo_speed", String(sp));
+        result = done
+          ? { ok: true, speed: sp, message: "ナレーション速度を" + sp + "倍に設定しました。次回作成分から反映されます" }
+          : { ok: false, error: "設定できませんでした(0.8〜1.4の範囲で指定してください)" };
       } else if (name === "update_client_memory") {
         const note = String(args.note ?? "").trim();
         const saved = note ? await appendClientMemory(clientName, note) : false;
