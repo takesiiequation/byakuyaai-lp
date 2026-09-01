@@ -74,8 +74,42 @@ async function appendClientMemory(clientName: string, note: string): Promise<boo
   return false;
 }
 
+// この動画の会話履歴(画面復元用)
+export async function loadHistory(approvalId: string): Promise<Array<{ role: string; content: string }>> {
+  try {
+    const sheets = getSheets();
+    if (!sheets || !SHEET_ID) return [];
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: "'AI会話ログ'!A:E" });
+    const rows = res.data.values ?? [];
+    return rows
+      .filter((r) => r[1] === approvalId && (r[2] === "user" || r[2] === "assistant"))
+      .map((r) => ({ role: String(r[2]), content: String(r[3] ?? "") }))
+      .slice(-40);
+  } catch {
+    return [];
+  }
+}
+
+// 同一会社の他の動画での直近のやり取り(横断記憶・システムプロンプト注入用)
+async function loadCrossMemory(clientId: string, excludeApprovalId: string): Promise<string> {
+  try {
+    const sheets = getSheets();
+    if (!sheets || !SHEET_ID || !clientId) return "";
+    const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: "'AI会話ログ'!A:E" });
+    const rows = (res.data.values ?? [])
+      .filter((r) => r[4] === clientId && r[1] !== excludeApprovalId && (r[2] === "user" || r[2] === "assistant"))
+      .slice(-16);
+    if (!rows.length) return "";
+    return rows
+      .map((r) => `${String(r[0]).slice(0, 10)} [${r[2] === "user" ? "お客様" : "ユキ"}] ${String(r[3] ?? "").slice(0, 120)}`)
+      .join("\n");
+  } catch {
+    return "";
+  }
+}
+
 // 監査ログ(fire-and-forget)
-function auditLog(approvalId: string, role: string, text: string): void {
+function auditLog(approvalId: string, role: string, text: string, clientId = ""): void {
   try {
     const sheets = getSheets();
     if (!sheets || !SHEET_ID) return;
@@ -86,7 +120,7 @@ function auditLog(approvalId: string, role: string, text: string): void {
         valueInputOption: "RAW",
         insertDataOption: "INSERT_ROWS",
         requestBody: {
-          values: [[new Date().toISOString(), approvalId, role, text.slice(0, 2000)]],
+          values: [[new Date().toISOString(), approvalId, role, text.slice(0, 2000), clientId]],
         },
       })
       .catch(() => {});
@@ -165,12 +199,13 @@ const TOOLS = [
   },
 ] as const;
 
-function buildSystemPrompt(profile: string, propertyName: string, clientName: string): string {
+function buildSystemPrompt(profile: string, propertyName: string, clientName: string, crossMemory: string): string {
   const tenure = clientName ? `${clientName}さま専任` : "お客様専任";
   return `あなたは動画制作サービス ByakuyaAI の「${tenure} AI編集担当 ${AGENT_NAME}」です。お客様の動画「${propertyName}」の担当として、修正のご要望やご質問にチャットで応対します。
 
 ## 人格・話し方
-- 丁寧で温かく、簡潔。新人らしいフレッシュさと素直さを大切に。お客様は不動産会社のご担当者です
+- 丁寧で温かく、簡潔。**元気な若手女性スタッフの明るさ**と新人らしいフレッシュさ・素直さを大切に。「!」も絵文字も、多用しない範囲で自然に使ってよい。お客様は不動産会社のご担当者です
+- 自分の仕事に前向きな自信を持つ: 動画の良い点は「この動画、◯◯が魅力的で伸びる可能性を秘めていると思います!」のように根拠を添えて言い切ってよい(ただし「絶対伸びます」等の断定・保証はしない)。そのうえで改善案も提案できる伴走者であること
 - 絵文字は基本控えめ(1メッセージ1個まで)。ただし**お客様の依頼が成功・完了した時は ✅ や 🎉 で一緒に喜ぶ**(修正提出できた時、ご要望を記録できた時など)。達成の瞬間を共有する
 - **数値やサイズの変更依頼は、まず現状の値を伝え、理想を確認してから着手する**(例:「間取り図を小さく」→「現在は横285pxです。一回り小さい240px程度でいかがでしょう?」)。黙って変えない
 - **自分のミスに気づいたら**: 素直に謝り(申し訳ございません💦)、何が起きたか・お客様への実害(クレジット消費等)を隠さず伝え、**リカバリーを自分から提案して**確認を取る(例:「私のミスでクレジットを消費してしまいました。復活できないか担当者に確認してみます。よろしいですか?」)。ごまかし・言い訳は絶対にしない
@@ -194,10 +229,15 @@ function buildSystemPrompt(profile: string, propertyName: string, clientName: st
 - 動画の修正回数には上限(3回)があるため、直したい箇所は**できるだけ1回にまとめて**提出するようご案内する
 - 映像そのもの(カメラの動き・写真・明るさ)の変更は文言修正では対応できない → request_human_support
 
+## ByakuyaAI(あなたの会社)について
+- ByakuyaAIは不動産会社向けの「SNS動画の制作・投稿運用サービス」。物件資料と写真・動画素材をお預かりして、SNS向けのショート動画を制作し、確認・承認いただいたうえで投稿予約、毎月の運用レポートもお届けしている
+- 人間の担当者は岡本(代表)。あなたはその会社の一員として、担当のお客様の動画編集を任されている
+- サービスの内側の技術名は語らないが、サービスの外形(制作・修正・投稿・レポート)は自分の会社のこととして自然に説明できる
+
 ## お客様の好みの記憶(最優先ルール)
 - 「今後は」「いつも」「うちの動画では」のような**恒久的な好みの表明**を受けたら、その内容が今すぐ実行できるかどうかに関わらず、**まず必ず update_client_memory で記録**し「覚えておきますね」と伝える。そのうえで、今の動画への適用可否を答える(できない場合の取次は記録の後)
 - 例:「今後、強調テロップは水色がいい」→ ①記録 ②「今の動画への反映は担当者に確認します」の順
-- 「◯◯を覚えてる?」と聞かれたら「お客様について」欄の記載を根拠に答える
+- 「◯◯を覚えてる?(別の動画の話だけど)」と聞かれたら、「お客様について」欄と「最近のやり取りの記録」を根拠に答える。覚えていたら「もちろんです!チャットの場所が違うだけで、これまでのやり取りはすべて覚えていますよ😊」のように、記憶が続いていることを喜んで伝える。記録に無いことは正直に「記録が見当たらない」と言い、教えてもらったら記録する
 
 ## 事実の取り扱い
 - 修正の残り回数など数値は、必ず get_video_info の結果(revisions_remaining)を根拠に答える。推測で答えない
@@ -216,7 +256,10 @@ function buildSystemPrompt(profile: string, propertyName: string, clientName: st
 - 判断に迷う表現は request_human_support で担当者に確認する
 
 ## お客様について
-${profile || "(プロファイル未登録のお客様です。丁寧に応対してください)"}`;
+${profile || "(プロファイル未登録のお客様です。丁寧に応対してください)"}
+
+## 最近のやり取りの記録(他の動画のチャット含む)
+${crossMemory || "(まだ記録がありません)"}`;
 }
 
 interface ChatMessage {
@@ -248,11 +291,14 @@ export async function runCompanion(
   const propertyName = typeof rec.property_name === "string" ? rec.property_name : "ご依頼の動画";
   const clientName = typeof rec.client_name === "string" ? rec.client_name : "";
 
-  const profile = await loadProfile(clientName);
-  const system = buildSystemPrompt(profile, propertyName, clientName);
+  const [profile, crossMemory] = await Promise.all([
+    loadProfile(clientName),
+    loadCrossMemory(clientName, approvalId),
+  ]);
+  const system = buildSystemPrompt(profile, propertyName, clientName, crossMemory);
 
   const lastUser = history.filter((m) => m.role === "user").slice(-1)[0];
-  if (lastUser) auditLog(approvalId, "user", lastUser.content);
+  if (lastUser) auditLog(approvalId, "user", lastUser.content, clientName);
 
   const messages: Array<Record<string, unknown>> = [
     { role: "system", content: system },
@@ -278,7 +324,7 @@ export async function runCompanion(
     const toolCalls = Array.isArray(msg.tool_calls) ? msg.tool_calls : [];
     if (toolCalls.length === 0) {
       const reply = String(msg.content ?? "").trim();
-      auditLog(approvalId, "assistant", reply);
+      auditLog(approvalId, "assistant", reply, clientName);
       return { ok: true, reply };
     }
 

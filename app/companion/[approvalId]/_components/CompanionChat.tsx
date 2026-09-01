@@ -25,6 +25,23 @@ export default function CompanionChat({
   const [messages, setMessages] = useState<Msg[]>([
     { role: "assistant", content: greeting(clientName, propertyName) },
   ]);
+  // 過去の会話を復元(チャットを離れても続きから話せる)
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/companion/history?approvalId=${encodeURIComponent(approvalId)}`)
+      .then((r) => r.json())
+      .then((d: { ok?: boolean; messages?: Msg[] }) => {
+        if (alive && d.ok && d.messages && d.messages.length > 0) {
+          setMessages([
+            { role: "assistant", content: greeting(clientName, propertyName) },
+            ...d.messages,
+          ]);
+        }
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [approvalId]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
