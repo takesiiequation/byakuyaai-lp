@@ -104,6 +104,13 @@ export interface ReviseInfo {
   deadline?: string;
   telops?: ReviseTelop[];
   caption?: string;
+  /** 設計情報(2026-09-01): VO速度・各シーンの実尺・素材の長さ。ユキが推測でなく数値で答えるための素材。 */
+  design?: {
+    vo_speed?: number | null;
+    scene_count?: number;
+    total_vo_sec?: number;
+    scenes?: { role: string; scene_index: number; vo_sec: number | null; clip_sec: number | null; is_clip: boolean }[];
+  } | null;
   error?: string;
 }
 
@@ -183,6 +190,10 @@ export async function getReviseInfo(approvalId: string): Promise<ReviseInfo> {
       deadline: typeof rec.deadline === "string" ? rec.deadline : undefined,
       telops: shapeTelops(rec.telops),
       caption: typeof rec.caption === "string" ? rec.caption : "",
+      design:
+        rec.design && typeof rec.design === "object"
+          ? (rec.design as ReviseInfo["design"])
+          : null,
     };
   } catch {
     return { ok: false, error: "upstream_unreachable" };
