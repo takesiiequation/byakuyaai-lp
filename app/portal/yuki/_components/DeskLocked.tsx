@@ -24,7 +24,7 @@ export default function DeskLocked({ clientName }: { clientName: string }) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-xl space-y-4">
+    <div className="mx-auto w-full max-w-xl space-y-4 lg:max-w-2xl">
       <div className="rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-black/5">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-amber-300 text-2xl font-black text-white">
           ユ

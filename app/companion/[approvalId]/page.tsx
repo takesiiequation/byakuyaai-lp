@@ -28,7 +28,7 @@ export default async function CompanionPage({
   }
   return (
     <main className="min-h-dvh bg-[#f5f3ef]">
-      <div className="mx-auto flex min-h-dvh w-full max-w-xl flex-col px-3 py-4 sm:px-4">
+      <div className="mx-auto flex min-h-dvh w-full max-w-xl flex-col px-3 py-4 sm:px-4 lg:max-w-5xl lg:px-8 lg:py-6">
         <CompanionChat
           approvalId={approvalId}
           clientName={clientName}

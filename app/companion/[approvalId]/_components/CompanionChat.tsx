@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { pickSpinner, nextInterval, FIRST_LABEL, FIRST_HOLD_MS } from "@/app/_lib/spinner";
+import LiteMd from "@/app/_lib/lite_md";
 
 interface Msg {
   role: "user" | "assistant";
@@ -170,7 +171,7 @@ export default function CompanionChat({
         </div>
       </header>
 
-      <div className="flex-1 space-y-3 overflow-y-auto px-3 py-4">
+      <div className="flex-1 space-y-3 overflow-y-auto px-3 py-4 lg:space-y-4 lg:px-6 lg:py-6">
         {messages.map((m, i) => (
           <div
             key={i}
@@ -179,11 +180,11 @@ export default function CompanionChat({
             <div
               className={
                 m.role === "user"
-                  ? "max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-orange-500 px-4 py-2.5 text-sm leading-relaxed text-white"
-                  : "max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-bl-md bg-[#f4f2ee] px-4 py-2.5 text-sm leading-relaxed text-[#222]"
+                  ? "max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-orange-500 px-4 py-2.5 text-sm leading-relaxed text-white lg:max-w-[70%] lg:text-[15px]"
+                  : "max-w-[90%] rounded-2xl rounded-bl-md bg-[#f4f2ee] px-4 py-3 text-sm text-[#222] lg:max-w-[88%] lg:px-6 lg:py-4 lg:text-[15.5px]"
               }
             >
-              {m.content}
+              {m.role === "user" ? m.content : <LiteMd text={m.content} />}
             </div>
           </div>
         ))}
@@ -214,7 +215,7 @@ export default function CompanionChat({
           rows={2}
           maxLength={4000}
           placeholder="修正のご希望・ご質問を入力"
-          className="min-h-[44px] flex-1 resize-none rounded-xl border border-black/10 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+          className="min-h-[44px] flex-1 resize-none rounded-xl border border-black/10 px-3 py-2.5 text-sm outline-none focus:border-orange-400 lg:min-h-[72px] lg:text-[15px]"
         />
         <button
           onClick={() => void send()}

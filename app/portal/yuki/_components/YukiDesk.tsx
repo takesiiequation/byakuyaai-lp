@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { pickSpinner, nextInterval, FIRST_LABEL, FIRST_HOLD_MS } from "@/app/_lib/spinner";
+import LiteMd from "@/app/_lib/lite_md";
 
 interface Msg {
   role: "user" | "assistant";
@@ -146,7 +147,7 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
   const fresh = messages.length <= 1;
 
   return (
-    <div className="mx-auto flex min-h-[70vh] w-full max-w-xl flex-col rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
+    <div className="mx-auto flex h-[calc(100dvh-8.5rem)] min-h-[520px] w-full flex-col rounded-2xl bg-white shadow-sm ring-1 ring-black/5 sm:h-[calc(100dvh-10.5rem)]">
       <header className="flex items-center gap-3 border-b border-black/5 px-4 py-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-amber-300 text-lg font-black text-white">
           ユ
@@ -162,17 +163,17 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
         </a>
       </header>
 
-      <div className="flex-1 space-y-3 overflow-y-auto px-3 py-4">
+      <div className="flex-1 space-y-3 overflow-y-auto px-3 py-4 lg:space-y-4 lg:px-6 lg:py-6">
         {messages.map((m, i) => (
           <div key={i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
             <div
               className={
                 m.role === "user"
-                  ? "max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-orange-500 px-4 py-2.5 text-sm leading-relaxed text-white"
-                  : "max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-bl-md bg-[#f4f2ee] px-4 py-2.5 text-sm leading-relaxed text-[#222]"
+                  ? "max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-orange-500 px-4 py-2.5 text-sm leading-relaxed text-white lg:max-w-[70%] lg:text-[15px]"
+                  : "max-w-[90%] rounded-2xl rounded-bl-md bg-[#f4f2ee] px-4 py-3 text-sm text-[#222] lg:max-w-[88%] lg:px-6 lg:py-4 lg:text-[15.5px]"
               }
             >
-              {m.content}
+              {m.role === "user" ? m.content : <LiteMd text={m.content} />}
             </div>
           </div>
         ))}
@@ -217,7 +218,7 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
           rows={2}
           maxLength={4000}
           placeholder="ご相談・ご依頼を入力"
-          className="min-h-[44px] flex-1 resize-none rounded-xl border border-black/10 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+          className="min-h-[44px] flex-1 resize-none rounded-xl border border-black/10 px-3 py-2.5 text-sm outline-none focus:border-orange-400 lg:min-h-[72px] lg:text-[15px]"
         />
         <button
           onClick={() => void send(input)}
