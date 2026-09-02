@@ -410,6 +410,17 @@ const TOOLS = [
   },
 ] as const;
 
+/** 人格・作法の共通部(動画/デスクで一字も変えずに共有する)。
+ *  役割の説明と「できること」だけを呼び出し側が差し替える。 */
+export function personaCore(clientName: string): string {
+  const NL = String.fromCharCode(10);
+  const full = buildSystemPrompt("", "", clientName, "");
+  // 「## 人格・話し方」以降〜「## お客様について」直前 までが共通部
+  const from = full.indexOf("## 人格・話し方");
+  const to = full.indexOf("## お客様について");
+  return from >= 0 ? full.slice(from, to > from ? to : undefined).trim() : "";
+}
+
 function buildSystemPrompt(profile: string, propertyName: string, clientName: string, crossMemory: string): string {
   const tenure = clientName ? `${clientName}さま専任` : "お客様専任";
   return `あなたは動画制作サービス ByakuyaAI の「${tenure} AI編集担当 ${AGENT_NAME}」です。お客様の動画「${propertyName}」の担当として、修正のご要望やご質問にチャットで応対します。

@@ -467,6 +467,31 @@ export default async function PortalPage({
         ＋ 新しい動画を作る
       </a>
 
+      {/* ユキのデスクへの導線(2026-09-02)。プレミアム限定機能だが導線は全員に見せ、
+          未開放の顧客には案内画面で価値を伝える(グレーアウトはしない)。 */}
+      <a
+        href="/portal/yuki"
+        className="mb-3 flex items-center gap-3 rounded-2xl border-l-4 border-[var(--brand-orange)] bg-white px-5 py-4 shadow-sm ring-1 ring-black/5 transition-all hover:shadow-md active:scale-[0.99]"
+      >
+        <span
+          aria-hidden
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-amber-300 text-base font-black text-white"
+        >
+          ユ
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold text-[var(--brand-ink)]">
+            ユキのデスク
+          </span>
+          <span className="mt-0.5 block text-xs text-[var(--brand-gray-light)]">
+            専任AI担当に相談・依頼
+          </span>
+        </span>
+        <span aria-hidden className="shrink-0 text-[var(--brand-orange)]">
+          →
+        </span>
+      </a>
+
       {/* 写真撮影ガイドへの導線 — trial顧客の素材品質(設備ドアップ・引き不足)
           が動画の魅力を下げていた実例を受けた顧客教育コンテンツ(2026-07-16)。
           「+新しい動画を作る」の直下=最上部に置き、目に入りやすくする。 */}
