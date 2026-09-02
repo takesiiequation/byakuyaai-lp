@@ -492,6 +492,12 @@ export async function runCompanion(
     }
     if (toolCalls.length === 0) {
       const reply = String(msg.content ?? "").trim();
+      // 診断(2026-09-02): 応答が途中で切れる事象の原因を事実で掴む。
+      // finish_reason=length なら max_tokens、stop なら生成側の判断。
+      const fr = String(data?.choices?.[0]?.finish_reason ?? "?");
+      if (fr !== "stop") {
+        auditLog(approvalId, "diag:finish", `turn=${turn} reason=${fr} len=${reply.length}`, memKey);
+      }
       auditLog(approvalId, "assistant", reply, memKey);
       return { ok: true, reply };
     }
