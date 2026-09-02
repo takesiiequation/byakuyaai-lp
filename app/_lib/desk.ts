@@ -25,11 +25,12 @@ function getSheets() {
 
 /** 監査ログ。動画チャットと同じシートに相乗りし、approval_id列は ws:{client_id} とする
  *  (横断記憶のclient_idキーがそのまま効く=デスクと動画チャットの記憶が繋がる) */
-function auditLog(clientId: string, role: string, text: string): void {
+function auditLog(clientId: string, role: string, text: string): Promise<void> {
+  // 最終返答は await する(companion.ts と同じ理由: 応答直後の関数停止で書き込みが落ちる)
   try {
     const sheets = getSheets();
-    if (!sheets || !SHEET_ID) return;
-    void sheets.spreadsheets.values
+    if (!sheets || !SHEET_ID) return Promise.resolve();
+    return sheets.spreadsheets.values
       .append({
         spreadsheetId: SHEET_ID,
         range: "'AI会話ログ'!A1",
@@ -39,9 +40,10 @@ function auditLog(clientId: string, role: string, text: string): void {
           values: [[new Date().toISOString(), `ws:${clientId}`, role, text.slice(0, 2000), clientId]],
         },
       })
+      .then(() => undefined)
       .catch(() => {});
   } catch {
-    /* noop */
+    return Promise.resolve();
   }
 }
 
@@ -211,10 +213,11 @@ export async function runDesk(
           ? "以上です!他にも気になる点があればお聞かせください😊"
           : "申し訳ございません、確認に手間取っております。少しだけお時間をいただけますか?";
         if (onMessage) onMessage(fb);
+        await auditLog(clientId, "assistant", fb);
         return { ok: true, reply: fb };
       }
       if (onMessage) onMessage(reply);
-      auditLog(clientId, "assistant", reply);
+      await auditLog(clientId, "assistant", reply); // 応答を閉じる前に書き切る
       return { ok: true, reply };
     }
 
@@ -287,6 +290,6 @@ export async function runDesk(
 
   const exhausted = "申し訳ございません、確認に時間がかかっております。担当者に確認のうえ改めてご連絡いたします。";
   if (onMessage) onMessage(exhausted);
-  auditLog(clientId, "assistant", exhausted);
+  await auditLog(clientId, "assistant", exhausted);
   return { ok: true, reply: exhausted };
 }

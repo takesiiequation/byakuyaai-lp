@@ -178,12 +178,14 @@ async function loadCrossMemory(clientKey: string, excludeApprovalId: string): Pr
   }
 }
 
-// 監査ログ(fire-and-forget)
-function auditLog(approvalId: string, role: string, text: string, clientId = ""): void {
+// 監査ログ。原則は投げっぱなしだが、**応答を閉じる直前の最終返答は必ず await する**。
+// Vercelは応答完了直後に関数を止めるため、末尾のfire-and-forgetは書き込み前に落ちることがある
+// (2026-09-02 実測: ストリームで届いた返答が履歴に残らず、開き直すと「質問だけで返事が無い」状態になった)。
+function auditLog(approvalId: string, role: string, text: string, clientId = ""): Promise<void> {
   try {
     const sheets = getSheets();
-    if (!sheets || !SHEET_ID) return;
-    void sheets.spreadsheets.values
+    if (!sheets || !SHEET_ID) return Promise.resolve();
+    return sheets.spreadsheets.values
       .append({
         spreadsheetId: SHEET_ID,
         range: "'AI会話ログ'!A1",
@@ -193,9 +195,10 @@ function auditLog(approvalId: string, role: string, text: string, clientId = "")
           values: [[new Date().toISOString(), approvalId, role, text.slice(0, 2000), clientId]],
         },
       })
+      .then(() => undefined)
       .catch(() => {});
   } catch {
-    /* noop */
+    return Promise.resolve();
   }
 }
 
@@ -672,10 +675,11 @@ export async function runCompanion(
           ? "以上です!他にも気になる点があればお聞かせください😊"
           : "申し訳ございません、確認に手間取っております。少しだけお時間をいただけますか?";
         if (onMessage) onMessage(fallback);
+        await auditLog(approvalId, "assistant", fallback, memKey);
         return { ok: true, reply: fallback, messages: [...emitted, fallback] };
       }
       if (onMessage) onMessage(reply);
-      auditLog(approvalId, "assistant", reply, memKey);
+      await auditLog(approvalId, "assistant", reply, memKey); // 応答を閉じる前に書き切る
       emitted.push(reply);
       return { ok: true, reply, messages: emitted };
     }
@@ -892,6 +896,6 @@ export async function runCompanion(
   // ループを使い切った時の言葉もストリームに乗せる(乗せないと会話が黙って途切れる)
   const exhausted = "申し訳ございません、確認に時間がかかっております。担当者に確認のうえ改めてご連絡いたします。";
   if (onMessage) onMessage(exhausted);
-  auditLog(approvalId, "assistant", exhausted, memKey);
+  await auditLog(approvalId, "assistant", exhausted, memKey);
   return { ok: true, reply: exhausted, messages: [...emitted, exhausted] };
 }
