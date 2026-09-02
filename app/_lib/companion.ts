@@ -476,7 +476,7 @@ export async function runCompanion(
       },
       // 返答の長さと温度(2026-09-02): max_tokens未指定だと既定で短く切られ、
       // temperature 0.3 は事務的で人格が死ぬ。相談に厚く答えられる余地を持たせる。
-      body: JSON.stringify({ model: MODEL, messages, tools: TOOLS, temperature: 0.6, max_tokens: 3000 }),
+      body: JSON.stringify({ model: MODEL, messages, tools: TOOLS, temperature: 0.6, max_tokens: 8000 }),
       cache: "no-store",
     });
     if (!res.ok) return { ok: false, error: `upstream_${res.status}` };
@@ -497,6 +497,23 @@ export async function runCompanion(
       const fr = String(data?.choices?.[0]?.finish_reason ?? "?");
       if (fr !== "stop") {
         auditLog(approvalId, "diag:finish", `turn=${turn} reason=${fr} len=${reply.length}`, memKey);
+      }
+      // 上限到達で本文が空/極端に短い時は、簡潔に答え直させる(無言で返すのが最悪)。
+      // Sonnetは内部推論に上限を使い切ることがあり、その場合contentが空になる。
+      if (fr === "length" && reply.length < 40 && turn < 5) {
+        messages.push({
+          role: "user",
+          content: "(システム: 回答が長くなりすぎました。要点を絞り、各項目3行以内で簡潔にお答えください)",
+        });
+        continue;
+      }
+      if (!reply) {
+        auditLog(approvalId, "diag:empty", `turn=${turn} reason=${fr}`, memKey);
+        return {
+          ok: true,
+          reply:
+            "申し訳ございません、うまくお返事をまとめられませんでした🙏 お手数ですが、いただいたご相談を2〜3点ずつに分けてお送りいただけますか?一つずつしっかりお答えします!",
+        };
       }
       auditLog(approvalId, "assistant", reply, memKey);
       return { ok: true, reply };
