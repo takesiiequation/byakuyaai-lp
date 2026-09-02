@@ -127,3 +127,26 @@ export function findForeignAsset(o: unknown, clientId: string, depth = 0): strin
   }
   return null;
 }
+
+/** 汎用: 任意キーのJSONを読む(レート制限カウンタ等の小さな状態に流用) */
+export async function loadJson(key: string): Promise<unknown | null> {
+  if (!/^[a-z0-9/_.-]{1,200}$/i.test(key) || key.includes("..")) return null;
+  try {
+    const res = await s3Fetch("GET", key);
+    if (!res || !res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/** 汎用: 任意キーにJSONを書く */
+export async function saveJson(key: string, value: unknown): Promise<boolean> {
+  if (!/^[a-z0-9/_.-]{1,200}$/i.test(key) || key.includes("..")) return false;
+  try {
+    const res = await s3Fetch("PUT", key, JSON.stringify(value));
+    return !!res && res.ok;
+  } catch {
+    return false;
+  }
+}

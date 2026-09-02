@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { APPROVAL_ID_RE } from "@/app/_lib/revise";
 import { runCompanion } from "@/app/_lib/companion";
+import { loadJson, saveJson } from "@/app/_lib/props_store";
 
 export const maxDuration = 60;
 
@@ -10,7 +11,7 @@ export const maxDuration = 60;
 const RATE_MAX = 12;            // 1分あたりの上限
 const RATE_WINDOW_MS = 60_000;
 const hits = new Map<string, number[]>();
-function rateLimited(key: string): boolean {
+function rateLimitedLocal(key: string): boolean {
   const now = Date.now();
   const arr = (hits.get(key) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
   arr.push(now);
@@ -18,6 +19,18 @@ function rateLimited(key: string): boolean {
   if (hits.size > 500) {
     for (const [k, v] of hits) if (!v.some((t) => now - t < RATE_WINDOW_MS)) hits.delete(k);
   }
+  return arr.length > RATE_MAX;
+}
+
+// サーバーレスは各リクエストが別インスタンスになりうるため、プロセス内カウンタだけでは
+// 制限が効かない(2026-09-02 実測: 15連打が全通過)。共有ストア(S3)でも数える。
+async function rateLimitedShared(key: string): Promise<boolean> {
+  const k = `ratelimit/${key}.json`;
+  const now = Date.now();
+  const prev = (await loadJson(k)) as { t?: number[] } | null;
+  const arr = (prev?.t ?? []).filter((x) => typeof x === "number" && now - x < RATE_WINDOW_MS);
+  arr.push(now);
+  await saveJson(k, { t: arr.slice(-40) });
   return arr.length > RATE_MAX;
 }
 
@@ -39,7 +52,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "invalid_approval_id" }, { status: 400 });
   }
 
-  if (rateLimited(approvalId)) {
+  if (rateLimitedLocal(approvalId) || (await rateLimitedShared(approvalId))) {
     return NextResponse.json(
       { ok: false, error: "少し間を置いてからお試しください(短時間に多くのご依頼をいただいています)" },
       { status: 429 },
