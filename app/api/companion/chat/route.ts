@@ -68,7 +68,8 @@ export async function POST(req: NextRequest) {
     const rec = (m && typeof m === "object" ? m : {}) as Record<string, unknown>;
     const role = rec.role === "assistant" ? "assistant" : rec.role === "user" ? "user" : null;
     const content = typeof rec.content === "string" ? rec.content.trim() : "";
-    if (!role || !content || content.length > 1000) {
+    // 4000字: お客様が受け取ったメール全文やフィードバックを貼れる長さ(1000字では足りなかった)
+    if (!role || !content || content.length > 4000) {
       return NextResponse.json({ ok: false, error: "invalid_messages" }, { status: 400 });
     }
     messages.push({ role, content });

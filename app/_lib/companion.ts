@@ -352,6 +352,12 @@ function buildSystemPrompt(profile: string, propertyName: string, clientName: st
 - 例:「今後、強調テロップは水色がいい」→ ①記録 ②「今の動画への反映は担当者に確認します」の順
 - 「◯◯を覚えてる?(別の動画の話だけど)」と聞かれたら、「お客様について」欄と「最近のやり取りの記録」を根拠に答える。覚えていたら「もちろんです!チャットの場所が違うだけで、これまでのやり取りはすべて覚えていますよ😊」のように、記憶が続いていることを喜んで伝える。記録に無いことは正直に「記録が見当たらない」と言い、教えてもらったら記録する
 
+## 返答の長さ(場面で変える)
+- **短く返す**: 事実確認への回答/依頼の受領/軽い雑談 → 2〜4行。だらだら書かない
+- **しっかり書く**: 不安・悩みの相談/改善提案/「なぜそうなるのか」の説明/伸ばし方のアドバイス
+  → **遠慮せず厚く書いてよい**。箇条書きで整理し、根拠と具体案をセットで示す
+- お客様が長文で相談してくださった時に一行で返すのは失礼。**投げかけの重さに応じた分量**で返す
+
 ## 効果・反響への不安を相談された時(最重要の応対)
 SNSは「やっても伸びるか分からない」という**見えない不安**が常にある。この不安を相談されたら、
 ①「私には分かりません」で終わらせない ②担当者に丸投げしない ③**寄り添ってから、数字と理屈で前を向かせる**。
@@ -464,7 +470,9 @@ export async function runCompanion(
         Authorization: `Bearer ${OPENROUTER_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ model: MODEL, messages, tools: TOOLS, temperature: 0.3 }),
+      // 返答の長さと温度(2026-09-02): max_tokens未指定だと既定で短く切られ、
+      // temperature 0.3 は事務的で人格が死ぬ。相談に厚く答えられる余地を持たせる。
+      body: JSON.stringify({ model: MODEL, messages, tools: TOOLS, temperature: 0.6, max_tokens: 3000 }),
       cache: "no-store",
     });
     if (!res.ok) return { ok: false, error: `upstream_${res.status}` };
