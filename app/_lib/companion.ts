@@ -27,7 +27,7 @@ function getSheets() {
   return google.sheets({ version: "v4", auth });
 }
 
-async function loadProfile(clientName: string): Promise<string> {
+async function loadProfile(clientName: string, clientId = ""): Promise<string> {
   try {
     const sheets = getSheets();
     if (!sheets || !SHEET_ID) return "";
@@ -36,8 +36,13 @@ async function loadProfile(clientName: string): Promise<string> {
       range: "'AIプロファイル'!A:C",
     });
     const rows = res.data.values ?? [];
+    // A列=client_id で厳密に照合する。会社名(B列)での照合は同名・改名で他社の記憶に
+    // 到達しうるため、client_idが分かる場合はそちらを優先する(2026-09-02 監査指摘)。
+    if (clientId) {
+      for (const r of rows) if (r[0] === clientId) return String(r[2] ?? "");
+    }
     for (const r of rows) {
-      if (r[1] === clientName || r[0] === clientName) return String(r[2] ?? "");
+      if (r[1] === clientName) return String(r[2] ?? "");
     }
   } catch {
     /* プロファイル無しでも動く */
@@ -46,7 +51,7 @@ async function loadProfile(clientName: string): Promise<string> {
 }
 
 // 顧客の記憶に追記(追記のみ・上書き不可=安全)
-async function appendClientMemory(clientName: string, note: string): Promise<boolean> {
+async function appendClientMemory(clientName: string, note: string, clientId = ""): Promise<boolean> {
   try {
     const sheets = getSheets();
     if (!sheets || !SHEET_ID || !clientName) return false;
@@ -56,7 +61,8 @@ async function appendClientMemory(clientName: string, note: string): Promise<boo
     });
     const rows = res.data.values ?? [];
     for (let i = 0; i < rows.length; i++) {
-      if (rows[i][1] === clientName || rows[i][0] === clientName) {
+      const hit = clientId ? rows[i][0] === clientId : rows[i][1] === clientName;
+      if (hit) {
         const stamp = new Date().toISOString().slice(0, 10);
         const cur = String(rows[i][2] ?? "");
         const updated = cur + "\n- [" + stamp + " ユキ記録] " + note.slice(0, 100);
@@ -76,7 +82,7 @@ async function appendClientMemory(clientName: string, note: string): Promise<boo
 }
 
 // ナレーション速度の恒久設定(契約社リスト vo_speed列)。0.8〜1.4のみ許可=極端な値で動画を壊さない。
-async function setClientVoSpeed(clientName: string, speed: number): Promise<boolean> {
+async function setClientVoSpeed(clientName: string, speed: number, clientId = ""): Promise<boolean> {
   if (!(speed >= 0.8 && speed <= 1.4)) return false;
   try {
     const sheets = getSheets();
@@ -88,6 +94,7 @@ async function setClientVoSpeed(clientName: string, speed: number): Promise<bool
     const rows = res.data.values ?? [];
     const header = rows[0] ?? [];
     const nameCol = header.indexOf("client_name");
+    const idCol = header.indexOf("client_id");
     const speedCol = header.indexOf("vo_speed");
     if (nameCol < 0 || speedCol < 0) return false;
     // 列レターは「探した位置」から算出する。固定文字列(AH等)は列が挿入された瞬間に
@@ -103,7 +110,8 @@ async function setClientVoSpeed(clientName: string, speed: number): Promise<bool
     };
     const letter = colLetter(speedCol);
     for (let i = 1; i < rows.length; i++) {
-      if (rows[i][nameCol] === clientName) {
+      const rowHit = clientId && idCol >= 0 ? rows[i][idCol] === clientId : rows[i][nameCol] === clientName;
+      if (rowHit) {
         // 書き込み先が「空 or 数値」であることを確認(別フィールドを踏んでいないかの最終確認)
         const cur = String(rows[i][speedCol] ?? "").trim();
         if (cur !== "" && !/^[0-9.]+$/.test(cur)) return false;
@@ -139,8 +147,8 @@ export async function loadHistory(approvalId: string): Promise<Array<{ role: str
 }
 
 // 同一会社の他の動画での直近のやり取り(横断記憶・システムプロンプト注入用)
-// 会社横断の記憶(別物件のやり取りを思い出す)。E列には会社名を記録している
-// (列名はclient_idだが実体は会社名。auditLogの第4引数と必ず同じ値を使うこと=一致しないと横断記憶が黙って死ぬ)
+// 会社横断の記憶(別物件のやり取りを思い出す)。E列のキーは client_id(取れない場合のみ会社名)。
+// auditLogの第4引数と必ず同じ値を使うこと=一致しないと横断記憶が黙って死ぬ。
 async function loadCrossMemory(clientKey: string, excludeApprovalId: string): Promise<string> {
   try {
     const sheets = getSheets();
@@ -404,14 +412,17 @@ export async function runCompanion(
   // 承認行のclient_idのみを使う(顧客の入力や会社名からは決して作らない)。
   const clientKey = typeof rec.client_id === "string" && /^[a-z0-9_.-]{1,40}$/i.test(rec.client_id) ? rec.client_id : "";
 
+  // 記憶系のキーは client_id を優先(会社表示名は同名・改名で他社に到達しうる=監査指摘)。
+  // client_idが取れない古い経路では会社名にフォールバックする(記憶が消えるより繋がる方を選ぶ)。
+  const memKey = clientKey || clientName;
   const [profile, crossMemory] = await Promise.all([
-    loadProfile(clientName),
-    loadCrossMemory(clientName, approvalId),
+    loadProfile(clientName, clientKey),
+    loadCrossMemory(memKey, approvalId),
   ]);
   const system = buildSystemPrompt(profile, propertyName, clientName, crossMemory);
 
   const lastUser = history.filter((m) => m.role === "user").slice(-1)[0];
-  if (lastUser) auditLog(approvalId, "user", lastUser.content, clientName);
+  if (lastUser) auditLog(approvalId, "user", lastUser.content, memKey);
   // 会話履歴はクライアントから送られてくる=assistant発言を捏造して同意ゲートを迂回できる。
   // モデルが実際に見た履歴の指紋を残し、事後に「本当にその同意があったか」を追跡可能にする。
   if (history.length > 1) {
@@ -419,7 +430,7 @@ export async function runCompanion(
       .slice(-30)
       .map((m) => `${m.role}:${String(m.content).length}:${String(m.content).slice(0, 40)}`)
       .join(" | ");
-    auditLog(approvalId, "context", shape, clientName);
+    auditLog(approvalId, "context", shape, memKey);
   }
 
   const messages: Array<Record<string, unknown>> = [
@@ -446,7 +457,7 @@ export async function runCompanion(
     const toolCalls = Array.isArray(msg.tool_calls) ? msg.tool_calls : [];
     if (toolCalls.length === 0) {
       const reply = String(msg.content ?? "").trim();
-      auditLog(approvalId, "assistant", reply, clientName);
+      auditLog(approvalId, "assistant", reply, memKey);
       return { ok: true, reply };
     }
 
@@ -480,7 +491,7 @@ export async function runCompanion(
         result = sub.ok
           ? { ok: true, message: "提出されました。数分で修正版の確認メールが届きます" }
           : { ok: false, error: sub.error };
-        auditLog(approvalId, "tool:submit", JSON.stringify(rawEdits).slice(0, 1000), clientName);
+        auditLog(approvalId, "tool:submit", JSON.stringify(rawEdits).slice(0, 1000), memKey);
       } else if (name === "get_video_details") {
         const fresh = await getReviseInfo(approvalId);
         const dz = fresh.ok ? fresh.design : null;
@@ -495,8 +506,8 @@ export async function runCompanion(
           : { error: "この動画の設計情報は取得できませんでした(古い動画の可能性があります)" };
       } else if (name === "set_narration_speed") {
         const sp = Number(args.speed);
-        const done = await setClientVoSpeed(clientName, sp);
-        auditLog(approvalId, "tool:vo_speed", String(sp), clientName);
+        const done = await setClientVoSpeed(clientName, sp, clientKey);
+        auditLog(approvalId, "tool:vo_speed", String(sp), memKey);
         result = done
           ? { ok: true, speed: sp, message: "ナレーション速度を" + sp + "倍に設定しました。次回作成分から反映されます" }
           : { ok: false, error: "設定できませんでした(0.8〜1.4の範囲で指定してください)" };
@@ -512,7 +523,7 @@ export async function runCompanion(
             result = { ok: false, error: "この動画はまだ新方式の設計データがないため、色の変更は担当者にお繋ぎする必要があります" };
           } else {
             const saved = await saveProps(clientKey, approvalId, { ...cur, pal: color });
-            auditLog(approvalId, "tool:telop_color", color, clientName);
+            auditLog(approvalId, "tool:telop_color", color, memKey);
             result = saved.ok
               ? { ok: true, color, message: "テロップの色を変更しました(次の作り直しから反映されます)" }
               : { ok: false, error: saved.error };
@@ -542,7 +553,7 @@ export async function runCompanion(
               const before = Number(hit.durF ?? 0) / 30;
               hit.durF = Math.round(sec * 30);
               const saved = await saveProps(clientKey, approvalId, { ...cur, scenes });
-              auditLog(approvalId, "tool:scene_dur", `${sceneKey}:${before}->${sec}`, clientName);
+              auditLog(approvalId, "tool:scene_dur", `${sceneKey}:${before}->${sec}`, memKey);
               result = saved.ok
                 ? { ok: true, scene: hit.key, before_sec: Math.round(before * 10) / 10, after_sec: sec,
                     message: "シーンの長さを変更しました(次の作り直しから反映されます)" }
@@ -552,8 +563,8 @@ export async function runCompanion(
         }
       } else if (name === "update_client_memory") {
         const note = String(args.note ?? "").trim();
-        const saved = note ? await appendClientMemory(clientName, note) : false;
-        auditLog(approvalId, "tool:memory", note, clientName);
+        const saved = note ? await appendClientMemory(clientName, note, clientKey) : false;
+        auditLog(approvalId, "tool:memory", note, memKey);
         result = saved
           ? { ok: true, message: "記録しました。以後の動画・会話に反映されます" }
           : { ok: false, error: "記録できませんでした" };
@@ -570,7 +581,7 @@ export async function runCompanion(
             }),
           }).catch(() => {});
         }
-        auditLog(approvalId, "tool:handoff", summary, clientName);
+        auditLog(approvalId, "tool:handoff", summary, memKey);
         result = { ok: true, message: "担当者へ申し送りました" };
       } else {
         result = { error: "unknown_tool" };
