@@ -15,6 +15,7 @@ import {
   type ProductionRow,
 } from "@/app/_lib/portal";
 import { Shell, MessageCard } from "./_components/Shell";
+import { deskVisibleFor } from "@/app/_lib/deskRelease";
 import LogoutButton from "./_components/LogoutButton";
 import ApprovalActions from "./_components/ApprovalActions";
 import CollapsedHistory from "./_components/CollapsedHistory";
@@ -468,7 +469,9 @@ export default async function PortalPage({
       </a>
 
       {/* ユキのデスクへの導線(2026-09-02)。プレミアム限定機能だが導線は全員に見せ、
-          未開放の顧客には案内画面で価値を伝える(グレーアウトはしない)。 */}
+          未開放の顧客には案内画面で価値を伝える(グレーアウトはしない)。
+          ただし全体スイッチ(DESK_RELEASED)が false の間は本番顧客に一切見せない。 */}
+      {deskVisibleFor(client.plan) && (
       <a
         href="/portal/yuki"
         className="mb-3 flex items-center gap-3 rounded-2xl border-l-4 border-[var(--brand-orange)] bg-white px-5 py-4 shadow-sm ring-1 ring-black/5 transition-all hover:shadow-md active:scale-[0.99]"
@@ -491,6 +494,7 @@ export default async function PortalPage({
           →
         </span>
       </a>
+      )}
 
       {/* 写真撮影ガイドへの導線 — trial顧客の素材品質(設備ドアップ・引き不足)
           が動画の魅力を下げていた実例を受けた顧客教育コンテンツ(2026-07-16)。

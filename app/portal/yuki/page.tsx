@@ -9,6 +9,7 @@ import { redirect } from "next/navigation";
 import { getClientById } from "@/app/_lib/sheets";
 import { verifyPortalSession } from "@/app/_lib/portalAuth";
 import { isFlagOn } from "@/app/_lib/portalSubmitShared";
+import { deskVisibleFor } from "@/app/_lib/deskRelease";
 import { Shell, MessageCard } from "../_components/Shell";
 import YukiDesk from "./_components/YukiDesk";
 import DeskLocked from "./_components/DeskLocked";
@@ -40,6 +41,15 @@ export default async function YukiDeskPage() {
           title="マイページをご利用いただけません"
           body="お手数ですが担当者までご連絡ください。"
         />
+      </Shell>
+    );
+  }
+
+  // 全体スイッチ(2026-09-02): 公開前は本番顧客に見せない(テスト顧客のみ通す)
+  if (!deskVisibleFor(client.plan)) {
+    return (
+      <Shell>
+        <MessageCard title="準備中です" body="この機能は近日公開予定です。今しばらくお待ちください。" />
       </Shell>
     );
   }
