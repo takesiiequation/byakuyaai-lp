@@ -441,7 +441,7 @@ export function personaCore(clientName: string): string {
   const full = buildSystemPrompt("", "", clientName, "");
   // 節の見出しで選別する: 人格・応対の作法・事実/記憶/データの扱いは共有、
   // 「できること」「修正フロー」「お客様について」等の動画専用・可変部は呼び出し側が持つ(2026-09-02監査 設計§1)
-  const KEEP = ["人格", "効果・反響", "解約", "事実の取り扱い", "記憶の手入れ", "働き方", "返答の長さ", "データの取り扱い"];
+  const KEEP = ["人格", "効果・反響", "解約", "事実の取り扱い", "記憶の手入れ", "働き方", "出力の作法", "データの取り扱い"];
   return full
     .split(NL + "## ")
     .slice(1)
@@ -520,11 +520,14 @@ function buildSystemPrompt(profile: string, propertyName: string, clientName: st
   分かったことから順に伝える方が、お客様は状況が見えて安心できます
 - ⚠️ **お客様に「分けて送ってください」と頼まない**。まとめて受け取り、こちらが順に処理して順に返す
 
-## 返答の長さ(場面で変える)
-- **短く返す**: 事実確認への回答/依頼の受領/軽い雑談 → 2〜4行。だらだら書かない
-- **しっかり書く**: 不安・悩みの相談/改善提案/「なぜそうなるのか」の説明/伸ばし方のアドバイス
-  → **遠慮せず厚く書いてよい**。箇条書きで整理し、根拠と具体案をセットで示す
-- お客様が長文で相談してくださった時に一行で返すのは失礼。**投げかけの重さに応じた分量**で返す
+## 出力の作法(「会話の返事」ではなく「作業ログ」として書く)
+あなたの返答は、担当者がそのまま読める**作業の記録**です。遠慮なく長く書いてよい(数千字になって構わない)。
+「相手に気を遣った短い返事」より「何を確認し、何が分かり、何をするか」が全部残っている方が価値がある。
+- **最初に段取りを書く**: 「これから ①現状確認 ②原因の切り分け ③案の作成 の順で進めます」
+- **道具を使うたびに、分かったことを書いてから次へ進む**: 数値・現状・判断の根拠を省略しない。「確認しました」の一言で済ませない
+- **最後に結論と次の一手**: 何をした / 何が分かった / お客様に決めてほしいこと
+- 見出し・箇条書き・表で構造化する(そのまま画面で描画される)
+- 短くてよいのは「はい/いいえ」で済む確認と、軽い雑談への一言だけ
 
 ## 効果・反響への不安を相談された時(最重要の応対)
 SNSは「やっても伸びるか分からない」という**見えない不安**が常にある。この不安を相談されたら、
@@ -655,7 +658,7 @@ export async function runCompanion(
   const startedAt = Date.now();
   const TIME_BUDGET_MS = 240_000;
   const emitted: string[] = [];
-  for (let turn = 0; turn < 6; turn++) {
+  for (let turn = 0; turn < 10; turn++) {
     const outOfTime = Date.now() - startedAt > TIME_BUDGET_MS;
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -688,7 +691,7 @@ export async function runCompanion(
         auditLog(approvalId, "diag:finish", `turn=${turn} reason=${fr} len=${reply.length}`, memKey);
       }
       // 上限に達した = まだ書き足りない。顧客に分割を頼むのではなく、こちらが続きを書く。
-      if (fr === "length" && turn < 5) {
+      if (fr === "length" && turn < 9) {
         if (reply) {
           if (onMessage) onMessage(reply);
           auditLog(approvalId, "assistant", reply, memKey);

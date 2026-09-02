@@ -179,7 +179,7 @@ export async function runDesk(
   const TIME_BUDGET_MS = 240_000;
   const emitted: string[] = [];
 
-  for (let turn = 0; turn < 6; turn++) {
+  for (let turn = 0; turn < 10; turn++) {
     const outOfTime = Date.now() - startedAt > TIME_BUDGET_MS;
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -203,7 +203,7 @@ export async function runDesk(
     if (toolCalls.length === 0) {
       const reply = String(msg.content ?? "").trim();
       const fr = String(choice?.finish_reason ?? "?");
-      if (fr === "length" && turn < 5) {
+      if (fr === "length" && turn < 9) {
         if (reply) {
           if (onMessage) onMessage(reply);
           auditLog(clientId, "assistant", reply);
