@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { pickSpinner, nextInterval, FIRST_LABEL, FIRST_HOLD_MS } from "@/app/_lib/spinner";
 
 interface Msg {
   role: "user" | "assistant";
@@ -44,12 +45,41 @@ export default function CompanionChat({
   }, [approvalId]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  // 待機表示(スピナー): 道具連動のstatusが来ればそれを出し、無言の間は地の語を回す
+  const [spinner, setSpinner] = useState(FIRST_LABEL);
+  const seriousRef = useRef(false);
+  const statusRef = useRef<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, busy]);
+
+  // 待機中の語を回す。最初の3秒は固定→以降4〜6秒ごと。
+  // 道具のstatusが来ている間はそれを優先(実作業の報告が常に勝つ)。
+  useEffect(() => {
+    if (!busy) return;
+    const started = Date.now();
+    let funUsed = false;
+    let prev = FIRST_LABEL;
+    setSpinner(FIRST_LABEL);
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      const elapsed = Date.now() - started;
+      if (statusRef.current) {
+        setSpinner(statusRef.current);
+      } else {
+        const p = pickSpinner(elapsed, seriousRef.current, funUsed, prev);
+        if (p.isFun) funUsed = true;
+        prev = p.text;
+        setSpinner(p.text);
+      }
+      timer = setTimeout(tick, nextInterval());
+    };
+    timer = setTimeout(tick, FIRST_HOLD_MS);
+    return () => clearTimeout(timer);
+  }, [busy]);
 
   async function send() {
     const text = input.trim();
@@ -59,6 +89,7 @@ export default function CompanionChat({
     setMessages(next);
     setInput("");
     setBusy(true);
+    statusRef.current = null;
     try {
       const res = await fetch("/api/companion/chat", {
         method: "POST",
@@ -87,10 +118,16 @@ export default function CompanionChat({
           const s = line.trim();
           if (!s) continue;
           try {
-            const ev = JSON.parse(s) as { type?: string; text?: string; error?: string };
+            const ev = JSON.parse(s) as { type?: string; text?: string; error?: string; label?: string; serious?: boolean };
             if (ev.type === "msg" && ev.text) {
               got += 1;
               setMessages((cur) => [...cur, { role: "assistant", content: ev.text as string }]);
+            } else if (ev.type === "status") {
+              if (ev.serious) seriousRef.current = true;
+              if (ev.label) {
+                statusRef.current = ev.label;
+                setSpinner(ev.label);
+              }
             } else if (ev.type === "error") {
               failed = ev.error ?? null;
             }
@@ -153,7 +190,7 @@ export default function CompanionChat({
         {busy && (
           <div className="flex justify-start">
             <div className="rounded-2xl rounded-bl-md bg-[#f4f2ee] px-4 py-2.5 text-sm text-[#888]">
-              ユキが確認しています…
+              {spinner}…
             </div>
           </div>
         )}

@@ -100,7 +100,12 @@ export async function POST(req: NextRequest) {
         }
       };
       try {
-        const result = await runCompanion(approvalId, messages, (text) => send({ type: "msg", text }));
+        const result = await runCompanion(
+          approvalId,
+          messages,
+          (text) => send({ type: "msg", text }),
+          (ev) => send({ type: "status", ...ev }),
+        );
         if (!result.ok) send({ type: "error", error: result.error ?? "failed" });
         send({ type: "done" });
       } catch (e) {

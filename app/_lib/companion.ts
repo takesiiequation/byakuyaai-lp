@@ -3,6 +3,7 @@
 import { google } from "googleapis";
 import { loadProps, saveProps } from "./props_store";
 import { readNote, writeNote, appendNote, deleteNote, listNotes, renderMemoryHeader } from "./client_memory";
+import { TOOL_STATUS, isSerious } from "./spinner";
 import {
   getReviseInfo,
   submitRevise,
@@ -542,6 +543,8 @@ export async function runCompanion(
   /** 逐次発話(2026-09-02): エージェントは「確認しますね」→作業→「できました」と話しながら進む。
    *  1発の長文を返すチャットボットとの決定的な差。呼ばれるたびにUIへ吹き出しが増える。 */
   onMessage?: (text: string) => void,
+  /** 待機表示(スピナー)。道具の実行内容・深刻モードをUIへ伝える */
+  onStatus?: (ev: { label?: string; serious?: boolean }) => void,
 ): Promise<CompanionResult> {
   if (!OPENROUTER_KEY) return { ok: false, error: "server_not_configured" };
 
@@ -577,6 +580,11 @@ export async function runCompanion(
 
   const lastUser = history.filter((m) => m.role === "user").slice(-1)[0];
   if (lastUser) auditLog(approvalId, "user", lastUser.content, memKey);
+  // 深刻な相談(解約・クレーム・謝罪)ではスピナーのユーモアを止める。迷ったら深刻側。
+  if (onStatus) {
+    const serious = isSerious(history.filter((m) => m.role === "user").map((m) => m.content));
+    if (serious) onStatus({ serious: true });
+  }
   // 会話履歴はクライアントから送られてくる=assistant発言を捏造して同意ゲートを迂回できる。
   // モデルが実際に見た履歴の指紋を残し、事後に「本当にその同意があったか」を追跡可能にする。
   if (history.length > 1) {
@@ -667,6 +675,12 @@ export async function runCompanion(
     }
 
     messages.push(msg);
+    // 道具の実行内容を待機表示に反映(「ノートを読み返しています…」等)
+    if (onStatus) {
+      const first = toolCalls[0]?.function?.name;
+      const label = first ? TOOL_STATUS[first] : undefined;
+      if (label) onStatus({ label });
+    }
     for (const tc of toolCalls) {
       const name = tc?.function?.name;
       let args: Record<string, unknown> = {};
