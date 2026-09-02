@@ -1,6 +1,7 @@
 // AI編集担当「ユキ」— 動画ごとの伴走エージェント(v1: 文言修正+質問応答+人間への取次)
 // 三層構造: 顧客⇔チャットUI⇔本ループ⇔道具。道具は対象動画(approval_id固定)のみ操作可能。
 import { google } from "googleapis";
+import { loadProps, saveProps } from "./props_store";
 import {
   getReviseInfo,
   submitRevise,
@@ -123,13 +124,15 @@ export async function loadHistory(approvalId: string): Promise<Array<{ role: str
 }
 
 // 同一会社の他の動画での直近のやり取り(横断記憶・システムプロンプト注入用)
-async function loadCrossMemory(clientId: string, excludeApprovalId: string): Promise<string> {
+// 会社横断の記憶(別物件のやり取りを思い出す)。E列には会社名を記録している
+// (列名はclient_idだが実体は会社名。auditLogの第4引数と必ず同じ値を使うこと=一致しないと横断記憶が黙って死ぬ)
+async function loadCrossMemory(clientKey: string, excludeApprovalId: string): Promise<string> {
   try {
     const sheets = getSheets();
-    if (!sheets || !SHEET_ID || !clientId) return "";
+    if (!sheets || !SHEET_ID || !clientKey) return "";
     const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: "'AI会話ログ'!A:E" });
     const rows = (res.data.values ?? [])
-      .filter((r) => r[4] === clientId && r[1] !== excludeApprovalId && (r[2] === "user" || r[2] === "assistant"))
+      .filter((r) => r[4] === clientKey && r[1] !== excludeApprovalId && (r[2] === "user" || r[2] === "assistant"))
       .slice(-16);
     if (!rows.length) return "";
     return rows
@@ -220,6 +223,37 @@ const TOOLS = [
           speed: { type: "number", description: "0.8〜1.4(1.0が等速・現在の既定は1.3)" },
         },
         required: ["speed"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "set_telop_color",
+      description:
+        "テロップの色を変更する(この動画の設計に反映)。プリセット名(gold=金/red=赤/aqua=水色/green=緑/pink=桃/purple=紫/orange=橙/silver=銀/navy=紺)または #RRGGBB の色コード(御社のコーポレートカラー等)を指定できる。【お客様が色を明示され、確認が取れてから呼ぶ】。暗い色は明るいお部屋の映像では見えにくくなるため、その場合は一言お伝えして確認する。",
+      parameters: {
+        type: "object",
+        properties: {
+          color: { type: "string", description: "プリセット名 または #RRGGBB" },
+        },
+        required: ["color"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "set_scene_duration",
+      description:
+        "特定シーンの長さ(秒)を変更する(この動画の設計に反映)。「このシーンをもっと長く見せて」「素材の7秒フルで使って」等に使う。【必ず先にget_video_detailsで現状の秒数を確認し、変更後の秒数をお客様に伝えて同意を得てから呼ぶ】。指定できるのは2〜12秒。",
+      parameters: {
+        type: "object",
+        properties: {
+          scene_key: { type: "string", description: "対象シーンのキー(get_video_detailsのroleに対応)" },
+          seconds: { type: "number", description: "2〜12秒" },
+        },
+        required: ["scene_key", "seconds"],
       },
     },
   },
@@ -351,6 +385,9 @@ export async function runCompanion(
   const rec = info as unknown as Record<string, unknown>;
   const propertyName = typeof rec.property_name === "string" ? rec.property_name : "ご依頼の動画";
   const clientName = typeof rec.client_name === "string" ? rec.client_name : "";
+  // props保管のテナントキー。S3パス props/{clientKey}/ を決める値なので、
+  // 承認行のclient_idのみを使う(顧客の入力や会社名からは決して作らない)。
+  const clientKey = typeof rec.client_id === "string" && /^[a-z0-9_.-]{1,40}$/i.test(rec.client_id) ? rec.client_id : "";
 
   const [profile, crossMemory] = await Promise.all([
     loadProfile(clientName),
@@ -419,7 +456,7 @@ export async function runCompanion(
         result = sub.ok
           ? { ok: true, message: "提出されました。数分で修正版の確認メールが届きます" }
           : { ok: false, error: sub.error };
-        auditLog(approvalId, "tool:submit", JSON.stringify(rawEdits).slice(0, 1000));
+        auditLog(approvalId, "tool:submit", JSON.stringify(rawEdits).slice(0, 1000), clientName);
       } else if (name === "get_video_details") {
         const fresh = await getReviseInfo(approvalId);
         const dz = fresh.ok ? fresh.design : null;
@@ -435,14 +472,60 @@ export async function runCompanion(
       } else if (name === "set_narration_speed") {
         const sp = Number(args.speed);
         const done = await setClientVoSpeed(clientName, sp);
-        auditLog(approvalId, "tool:vo_speed", String(sp));
+        auditLog(approvalId, "tool:vo_speed", String(sp), clientName);
         result = done
           ? { ok: true, speed: sp, message: "ナレーション速度を" + sp + "倍に設定しました。次回作成分から反映されます" }
           : { ok: false, error: "設定できませんでした(0.8〜1.4の範囲で指定してください)" };
+      } else if (name === "set_telop_color") {
+        const color = String(args.color ?? "").trim();
+        const PRESETS = ["gold", "red", "aqua", "green", "pink", "purple", "orange", "silver", "navy"];
+        const valid = PRESETS.includes(color) || /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(color);
+        if (!valid) {
+          result = { ok: false, error: "色はプリセット名か#RRGGBBで指定してください" };
+        } else {
+          const cur = await loadProps(clientKey, approvalId);
+          if (!cur) {
+            result = { ok: false, error: "この動画はまだ新方式の設計データがないため、色の変更は担当者にお繋ぎする必要があります" };
+          } else {
+            const saved = await saveProps(clientKey, approvalId, { ...cur, pal: color });
+            auditLog(approvalId, "tool:telop_color", color, clientName);
+            result = saved.ok
+              ? { ok: true, color, message: "テロップの色を変更しました(次の作り直しから反映されます)" }
+              : { ok: false, error: saved.error };
+          }
+        }
+      } else if (name === "set_scene_duration") {
+        const sceneKey = String(args.scene_key ?? "").trim();
+        const sec = Number(args.seconds);
+        if (!(sec >= 2 && sec <= 12)) {
+          result = { ok: false, error: "長さは2〜12秒で指定してください" };
+        } else {
+          const cur = await loadProps(clientKey, approvalId);
+          const scenes = Array.isArray((cur as Record<string, unknown> | null)?.scenes)
+            ? ((cur as Record<string, unknown>).scenes as Record<string, unknown>[])
+            : null;
+          if (!cur || !scenes) {
+            result = { ok: false, error: "この動画はまだ新方式の設計データがないため、尺の変更は担当者にお繋ぎする必要があります" };
+          } else {
+            const hit = scenes.find((sc) => String(sc.key ?? "").includes(sceneKey));
+            if (!hit) {
+              result = { ok: false, error: `シーン「${sceneKey}」が見つかりません(利用可能: ${scenes.map((x) => x.key).join(", ")})` };
+            } else {
+              const before = Number(hit.durF ?? 0) / 30;
+              hit.durF = Math.round(sec * 30);
+              const saved = await saveProps(clientKey, approvalId, { ...cur, scenes });
+              auditLog(approvalId, "tool:scene_dur", `${sceneKey}:${before}->${sec}`, clientName);
+              result = saved.ok
+                ? { ok: true, scene: hit.key, before_sec: Math.round(before * 10) / 10, after_sec: sec,
+                    message: "シーンの長さを変更しました(次の作り直しから反映されます)" }
+                : { ok: false, error: saved.error };
+            }
+          }
+        }
       } else if (name === "update_client_memory") {
         const note = String(args.note ?? "").trim();
         const saved = note ? await appendClientMemory(clientName, note) : false;
-        auditLog(approvalId, "tool:memory", note);
+        auditLog(approvalId, "tool:memory", note, clientName);
         result = saved
           ? { ok: true, message: "記録しました。以後の動画・会話に反映されます" }
           : { ok: false, error: "記録できませんでした" };
@@ -457,7 +540,7 @@ export async function runCompanion(
             }),
           }).catch(() => {});
         }
-        auditLog(approvalId, "tool:handoff", summary);
+        auditLog(approvalId, "tool:handoff", summary, clientName);
         result = { ok: true, message: "担当者へ申し送りました" };
       } else {
         result = { error: "unknown_tool" };
