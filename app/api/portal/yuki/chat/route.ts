@@ -11,6 +11,10 @@ import { loadJson, saveJson } from "@/app/_lib/props_store";
 
 export const maxDuration = 300;
 
+const friendly = (e: string): string =>
+  /^(upstream_|empty_|server_|failed$|unknown)/.test(e) ? "ただいま混み合っています。少し時間をおいてお試しください。" : e;
+
+
 const RATE_MAX = 12;
 const RATE_WINDOW_MS = 60_000;
 
@@ -82,7 +86,7 @@ export async function POST(req: NextRequest) {
           (text) => send({ type: "msg", text }),
           (ev) => send({ type: "status", ...ev }),
         );
-        if (!r.ok) send({ type: "error", error: r.error ?? "failed" });
+        if (!r.ok) send({ type: "error", error: friendly(r.error ?? "failed") });
         send({ type: "done" });
       } catch (e) {
         send({ type: "error", error: String(e).slice(0, 120) });

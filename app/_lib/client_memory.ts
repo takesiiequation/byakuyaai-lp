@@ -41,7 +41,7 @@ async function touchList(cid: string, path: string, remove = false): Promise<voi
 export async function readNote(cid: string, path: string): Promise<string | null> {
   if (!saneClient(cid) || !sanePath(path)) return null;
   const raw = (await loadJson(s3key(cid, path))) as { body?: unknown } | null;
-  if (typeof raw?.body !== "string") return null;
+  if (typeof raw?.body !== "string" || (raw as { deleted?: boolean }).deleted === true || !raw.body.trim()) return null;
   // 並行書き込みで一覧から落ちたノートを、読めた時点で自己修復する(発見性の回復)
   const files = await listNotes(cid);
   if (!files.includes(path)) await touchList(cid, path);
@@ -91,6 +91,12 @@ export async function appendNote(cid: string, path: string, line: string): Promi
 
 export async function deleteNote(cid: string, path: string): Promise<boolean> {
   if (!saneClient(cid) || !sanePath(path)) return false;
+  // 削除もwriteNoteと同じく1世代退避(ユキの自律的な片付けで記憶が不可逆に消えないように・2026-09-02監査B4)
+  const prev = await readNote(cid, path);
+  if (prev) {
+    const bak = await saveJson(`memory/${cid}/history/${path.replace(/[/.]/g, "_")}.json`, { path, body: prev, saved_at: new Date().toISOString(), deleted: true });
+    if (!bak) return false;
+  }
   const ok = await saveJson(s3key(cid, path), { path, body: "", deleted: true, updated_at: new Date().toISOString() });
   if (ok) await touchList(cid, path, true);
   return ok;

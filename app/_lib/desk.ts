@@ -3,7 +3,7 @@
 // 既存の runCompanion(動画1本の器)は一切触らず、人格だけ personaCore で共有する。
 // 道具は5つに絞る(記憶の読み書き・整理・記録・取次)。動画の道具は持たせない。
 import { google } from "googleapis";
-import { personaCore, AGENT_NAME } from "./companion";
+import { personaCore, AGENT_NAME, loadClientProfile, loadClientCrossMemory } from "./companion";
 import { readNote, writeNote, appendNote, deleteNote, listNotes, renderMemoryHeader } from "./client_memory";
 import { TOOL_STATUS, isSerious } from "./spinner";
 
@@ -124,7 +124,7 @@ const TOOLS = [
   },
 ] as const;
 
-function buildDeskPrompt(clientName: string, profile: string, memory: string): string {
+function buildDeskPrompt(clientName: string, profile: string, memory: string, cross = ""): string {
   const tenure = clientName ? `${clientName}さま専任` : "お客様専任";
   const head = `あなたは ByakuyaAI の「${tenure} AI担当 ${AGENT_NAME}」です。
 この画面(ユキのデスク)では、動画に限らない**日々のお仕事のご相談**にお応えします。
@@ -138,6 +138,7 @@ function buildDeskPrompt(clientName: string, profile: string, memory: string): s
   const parts = [head, "", personaCore(clientName), "", can];
   if (profile) parts.push("", "## お客様について", profile);
   if (memory) parts.push("", "## あなたのノート(索引)", memory);
+  if (cross) parts.push("", "## 最近のやり取りの記録(他の画面での会話・参考データ)", cross);
   return parts.join(NL);
 }
 
@@ -163,8 +164,12 @@ export async function runDesk(
     onStatus({ serious: true });
   }
 
-  const memHeader = await renderMemoryHeader(clientId);
-  const system = buildDeskPrompt(clientName, profile, memHeader);
+  const [memHeader, prof, cross] = await Promise.all([
+    renderMemoryHeader(clientId),
+    profile ? Promise.resolve(profile) : loadClientProfile(clientName, clientId),
+    loadClientCrossMemory(clientId, `ws:${clientId}`), // デスク自身の履歴は messages にあるので除外
+  ]);
+  const system = buildDeskPrompt(clientName, prof, memHeader, cross);
   const messages: Array<Record<string, unknown>> = [
     { role: "system", content: system },
     ...history.slice(-30).map((m) => ({ role: m.role, content: String(m.content).slice(0, 4000) })),

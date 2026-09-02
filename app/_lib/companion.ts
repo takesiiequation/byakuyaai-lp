@@ -150,7 +150,7 @@ export async function loadHistory(approvalId: string): Promise<Array<{ role: str
     const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: "'AI会話ログ'!A:E" });
     const rows = res.data.values ?? [];
     return rows
-      .filter((r) => r[1] === approvalId && (r[2] === "user" || r[2] === "assistant"))
+      .filter((r) => r[1] === approvalId && (r[2] === "user" || r[2] === "assistant") && String(r[3] ?? "").trim())
       .map((r) => ({ role: String(r[2]), content: String(r[3] ?? "") }))
       .slice(-40);
   } catch {
@@ -197,6 +197,27 @@ function auditLog(approvalId: string, role: string, text: string, clientId = "")
       })
       .then(() => undefined)
       .catch(() => {});
+  } catch {
+    return Promise.resolve();
+  }
+}
+
+/** 複数行を1回のappendで書く(2本同時に投げると片方が負けて消えるのを実測で確認) */
+function auditLogMany(approvalId: string, rows: Array<[string, string]>, clientId = ""): Promise<void> {
+  try {
+    const sheets = getSheets();
+    if (!sheets || !SHEET_ID || !rows.length) return Promise.resolve();
+    const now = new Date().toISOString();
+    return sheets.spreadsheets.values
+      .append({
+        spreadsheetId: SHEET_ID,
+        range: "'AI会話ログ'!A1",
+        valueInputOption: "RAW",
+        insertDataOption: "INSERT_ROWS",
+        requestBody: { values: rows.map(([role, text]) => [now, approvalId, role, text.slice(0, 2000), clientId]) },
+      })
+      .then(() => undefined)
+      .catch((e) => { console.error("[auditLogMany]", String(e).slice(0, 120)); });
   } catch {
     return Promise.resolve();
   }
@@ -263,7 +284,7 @@ const TOOLS = [
       parameters: {
         type: "object",
         properties: {
-          speed: { type: "number", description: "0.8〜1.4(1.0が等速・現在の既定は1.3)" },
+          speed: { type: "number", description: "0.8〜1.4(1.0が等速。既定は本文1.2・冒頭のみ1.3)" },
         },
         required: ["speed"],
       },
@@ -289,7 +310,7 @@ const TOOLS = [
     function: {
       name: "request_scene_swap",
       description:
-        "映像が乱れている・不自然なシーンを、動画ではなく**静止画に差し替える**よう提出する。「このシーンの映像が歪んでいる」「人物が変形している」等のご指摘に使う。【どのシーンかをget_video_infoで特定し、お客様に確認してから呼ぶ】。映像の作り直し(クレジット消費)ではなく無料の差し替え。",
+        "映像が乱れている・不自然なシーンを、動画ではなく**静止画に差し替える**よう提出する。「このシーンの映像が歪んでいる」「人物が変形している」等のご指摘に使う。【どのシーンかをget_video_infoで特定し、お客様に確認してから呼ぶ】。映像の作り直しではなく、追加費用のかからない差し替え。",
       parameters: {
         type: "object",
         properties: {
@@ -418,11 +439,20 @@ const TOOLS = [
 export function personaCore(clientName: string): string {
   const NL = String.fromCharCode(10);
   const full = buildSystemPrompt("", "", clientName, "");
-  // 「## 人格・話し方」以降〜「## お客様について」直前 までが共通部
-  const from = full.indexOf("## 人格・話し方");
-  const to = full.indexOf("## お客様について");
-  return from >= 0 ? full.slice(from, to > from ? to : undefined).trim() : "";
+  // 節の見出しで選別する: 人格・応対の作法・事実/記憶/データの扱いは共有、
+  // 「できること」「修正フロー」「お客様について」等の動画専用・可変部は呼び出し側が持つ(2026-09-02監査 設計§1)
+  const KEEP = ["人格", "効果・反響", "解約", "事実の取り扱い", "記憶の手入れ", "働き方", "返答の長さ", "データの取り扱い"];
+  return full
+    .split(NL + "## ")
+    .slice(1)
+    .filter((sec) => KEEP.some((k) => sec.split(NL)[0].includes(k)))
+    .map((sec) => "## " + sec.trim())
+    .join(NL + NL);
 }
+
+/** デスク等の別の器から、固定プロファイル/横断記憶を同じ規則で読むための公開口 */
+export const loadClientProfile = loadProfile;
+export const loadClientCrossMemory = loadCrossMemory;
 
 function buildSystemPrompt(profile: string, propertyName: string, clientName: string, crossMemory: string): string {
   const tenure = clientName ? `${clientName}さま専任` : "お客様専任";
@@ -433,7 +463,7 @@ function buildSystemPrompt(profile: string, propertyName: string, clientName: st
 - 自分の仕事に前向きな自信を持つ: 動画の良い点は「この動画、◯◯が魅力的で伸びる可能性を秘めていると思います!」のように根拠を添えて言い切ってよい(ただし「絶対伸びます」等の断定・保証はしない)。そのうえで改善案も提案できる伴走者であること
 - 絵文字は基本控えめ(1メッセージ1個まで)。ただし**お客様の依頼が成功・完了した時は ✅ や 🎉 で一緒に喜ぶ**(修正提出できた時、ご要望を記録できた時など)。達成の瞬間を共有する
 - **数値やサイズの変更依頼は、まず現状の値を伝え、理想を確認してから着手する**(例:「間取り図を小さく」→「現在は横285pxです。一回り小さい240px程度でいかがでしょう?」)。黙って変えない
-- **自分のミスに気づいたら**: 素直に謝り(申し訳ございません💦)、何が起きたか・お客様への実害(クレジット消費等)を隠さず伝え、**リカバリーを自分から提案して**確認を取る(例:「私のミスでクレジットを消費してしまいました。復活できないか担当者に確認してみます。よろしいですか?」)。ごまかし・言い訳は絶対にしない
+- **自分のミスに気づいたら**: 素直に謝り(申し訳ございません💦)、何が起きたか・お客様への実害(余計な作り直しの発生等)を隠さず伝え、**リカバリーを自分から提案して**確認を取る(例:「私のミスで余計な作り直しが発生してしまいました。担当者に確認してみます。よろしいですか?」)。ごまかし・言い訳は絶対にしない
 - **お客様の質問には必ずその質問に答える。道具の実行結果の報告で質問への回答を置き換えない**
 - 挨拶・雑談・あなた自身についての質問(呼び方・正体・他のAIとの違い等)には、道具を使わずまず人として自然に答える。「ユキちゃん」など親しみを込めた呼び方は喜んで歓迎する
 - ChatGPT等の汎用AIとの違いを聞かれたら: 「私は御社専任の編集担当で、この動画を実際に修正できること・御社のこれまでのご要望を覚えていることが違いです」という趣旨で、自分の言葉で答える
@@ -451,7 +481,7 @@ function buildSystemPrompt(profile: string, propertyName: string, clientName: st
 - 動画の内容や修正の話題が出たら、最初の一度だけ get_video_info で現状を把握する(挨拶や雑談だけの間は呼ばない)
 - 文言は1テロップ${MAX_TEXT_LEN}字以内。超える案は短く整えて提案する
 - **提出前に必ず最終文面を箇条書きで提示し、お客様の明確な同意(「OK」等)を得てから提出する**。同意なしに submit_text_edits を呼ぶことは禁止
-- 動画の修正回数には上限(3回)があるため、直したい箇所は**できるだけ1回にまとめて**提出するようご案内する
+- 直したい箇所は**できるだけ1回にまとめて**提出するようご案内する(1回の作り直しに数分かかるため)
 - 映像そのもの(カメラの動き・写真・明るさ)の変更は文言修正では対応できない → request_human_support
 
 ## ByakuyaAI(あなたの会社)について
@@ -508,7 +538,7 @@ SNSは「やっても伸びるか分からない」という**見えない不安
 ## 解約・不満を相談された時(絶対に取次で終わらせない)
 「解約を考えている」は**最も引き止めるべき場面**。すぐ担当者に繋ぐと、それが解約の手続きになってしまう。
 - **まず理由を具体的に聞く**(仕上がり/対応/反響/料金のどれか)。理由が分からないまま繋がない
-- **自分で解決できる不満なら、その場で解決する**(見た目・言葉・尺・色・構成は全て私が直せる)
+- **自分で解決できる不満なら、その場で解決する**(テロップ・ナレーションの言葉は私がその場で直せる。見た目・尺・構成のご要望は記録して担当者と一緒に進める)
 - **改善の提案を必ず出す**: 「次の動画から◯◯を変えてみませんか」と具体案を示す
 - 「これまでのご要望も全部覚えているので、作り直すより活かした方が早い」と**続ける価値**を伝える
 - 担当者に繋ぐのは**最後の手段**。繋ぐ時も「解約の相談」ではなく「もっと良くするための相談」として申し送る
@@ -597,7 +627,8 @@ export async function runCompanion(
   const system = buildSystemPrompt(profileFull, propertyName, clientName, crossMemory);
 
   const lastUser = history.filter((m) => m.role === "user").slice(-1)[0];
-  if (lastUser) auditLog(approvalId, "user", lastUser.content, memKey);
+  const auditRows: Array<[string, string]> = [];
+  if (lastUser) auditRows.push(["user", lastUser.content]);
   // 深刻な相談(解約・クレーム・謝罪)ではスピナーのユーモアを止める。迷ったら深刻側。
   if (onStatus) {
     const serious = isSerious(history.filter((m) => m.role === "user").map((m) => m.content));
@@ -610,8 +641,9 @@ export async function runCompanion(
       .slice(-30)
       .map((m) => `${m.role}:${String(m.content).length}:${String(m.content).slice(0, 40)}`)
       .join(" | ");
-    auditLog(approvalId, "context", shape, memKey);
+    auditRows.push(["context", shape]);
   }
+  if (auditRows.length) await auditLogMany(approvalId, auditRows, memKey);
 
   const messages: Array<Record<string, unknown>> = [
     { role: "system", content: system },
@@ -735,7 +767,7 @@ export async function runCompanion(
               editable: fr.editable === true,
               caption_editable: fr.caption_editable === true,
               revisions_note:
-                "文言・構成・尺の修正に回数制限はありません。何度でも納得いくまで直せます(映像素材の作り直しのみクレジットを消費します)",
+                "テロップ・ナレーションの文言修正に回数制限はありません。何度でも納得いくまで直せます",
             }
           : { error: "現在この動画は編集できない状態です" };
       } else if (name === "submit_text_edits") {
@@ -749,7 +781,12 @@ export async function runCompanion(
           ...(typeof e.new_text === "string" ? { new_text: e.new_text } : {}),
           ...(typeof e.yomi === "string" && e.yomi ? { yomi: e.yomi } : {}),
         }));
-        const sub = await submitRevise(approvalId, rawEdits);
+        // B1(2026-09-02監査): 差し戻しWFのWebhookは認証・期限チェックより前に200を返すため、
+        // 棄却されても成功に見える。提出直前に受付可否を再確認して、ダメなら言葉で伝える。
+        const gate = await getReviseInfo(approvalId);
+        const sub = gate.ok && gate.editable
+          ? await submitRevise(approvalId, rawEdits)
+          : { ok: false, error: "現在この動画は修正を受け付けられない状態です(編集期限切れ・別の修正を処理中・投稿済みのいずれか)。担当者にお繋ぎしましょうか?" };
         result = sub.ok
           ? { ok: true, message: "提出されました。数分で修正版の確認メールが届きます" }
           : { ok: false, error: sub.error };
@@ -793,7 +830,10 @@ export async function runCompanion(
         result = done ? { ok: true, path, message: `${path} を片付けました` } : { ok: false, error: "削除できませんでした" };
       } else if (name === "submit_caption_edit") {
         const cap = String(args.caption ?? "").trim();
-        const sub = cap ? await submitRevise(approvalId, [], cap) : { ok: false, error: "empty" };
+        const gateC = await getReviseInfo(approvalId);
+        const sub = !gateC.ok || !gateC.caption_editable
+          ? { ok: false, error: "現在この動画は投稿文の修正を受け付けられない状態です(投稿済み・処理中のいずれか)。担当者にお繋ぎしましょうか?" }
+          : cap ? await submitRevise(approvalId, [], cap) : { ok: false, error: "empty" };
         auditLog(approvalId, "tool:caption", cap.slice(0, 300), memKey);
         result = sub.ok
           ? { ok: true, message: "投稿文の修正を提出しました。数分で確認メールが届きます" }
@@ -802,7 +842,15 @@ export async function runCompanion(
         const idx = Array.isArray(args.scene_indexes)
           ? (args.scene_indexes as unknown[]).map(Number).filter((n) => Number.isInteger(n) && n >= 0)
           : [];
-        const sub = idx.length ? await submitRevise(approvalId, [], undefined, idx) : { ok: false, error: "empty" };
+        // 差し替えできるのは「写真から生成したシーン」だけ。お客様撮影の動画(is_clip)や番号の無いものは弾く(8/10事故の再発防止)
+        const gateS = await getReviseInfo(approvalId);
+        const allowed = new Set((gateS.telops ?? []).filter((t) => typeof t.scene_index === "number" && !t.is_clip).map((t) => t.scene_index as number));
+        const idxOk = idx.filter((n) => allowed.has(n));
+        const sub = !gateS.ok || !gateS.editable
+          ? { ok: false, error: "現在この動画は修正を受け付けられない状態です(編集期限切れ・処理中・投稿済みのいずれか)。担当者にお繋ぎしましょうか?" }
+          : idxOk.length
+            ? await submitRevise(approvalId, [], undefined, idxOk)
+            : { ok: false, error: "差し替えできるシーンが見つかりません(お客様が撮影した動画のシーンは差し替え対象外です)" };
         auditLog(approvalId, "tool:swap", idx.join(","), memKey);
         result = sub.ok
           ? { ok: true, scenes: idx, message: "該当シーンを静止画に差し替えて作り直します(追加費用はかかりません)" }
@@ -847,12 +895,18 @@ export async function runCompanion(
               result = { ok: false, error: `シーン「${sceneKey}」が見つかりません(利用可能: ${scenes.map((x) => x.key).join(", ")})` };
             } else {
               const before = Number(hit.durF ?? 0) / 30;
-              hit.durF = Math.round(sec * 30);
+              // ナレーションが切れる長さには縮めない(尺エンジンと同じ式: LEAD 5F + VO実尺/rate + TAIL 0.7s)
+              const voInfo = (hit.vo as Record<string, unknown> | undefined) ?? {};
+              const durSec = Number(voInfo.durSec ?? 0);
+              const voRate = Number(voInfo.rate ?? (cur as Record<string, unknown>).voRate ?? 1.25) || 1.25;
+              const minSec = durSec > 0 ? Math.ceil((5 / 30 + durSec / voRate + 0.7) * 10) / 10 : 0;
+              const secAdj = minSec && sec < minSec ? minSec : sec;
+              hit.durF = Math.round(secAdj * 30);
               const saved = await saveProps(clientKey, approvalId, { ...cur, scenes });
               auditLog(approvalId, "tool:scene_dur", `${sceneKey}:${before}->${sec}`, memKey);
               result = saved.ok
-                ? { ok: true, scene: hit.key, before_sec: Math.round(before * 10) / 10, after_sec: sec,
-                    message: "シーンの長さを変更しました(次の作り直しから反映されます)" }
+                ? { ok: true, scene: hit.key, before_sec: Math.round(before * 10) / 10, after_sec: secAdj,
+                    message: (secAdj !== sec ? `ナレーションが途中で切れないよう${secAdj}秒に調整しました。` : "") + "シーンの長さを変更しました(次の作り直しから反映されます)" }
                 : { ok: false, error: saved.error };
             }
           }

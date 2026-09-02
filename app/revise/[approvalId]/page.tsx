@@ -55,7 +55,7 @@ function Shell({
 // ロックの理由が異なるため、一律の「投稿処理中または投稿済み」ではなく
 // 理由が伝わる文言に出し分ける。
 //  ・pending なのに editable/caption_editable が両方falseになるのは
-//    修正期限(6日間)超過のケースのみ(posted/processing中ならまず
+//    修正期限(14日間)超過のケースのみ(posted/processing中ならまず
 //    statusがpendingではなくなっている)。
 //  ・rejected は却下済みである旨を明示。
 //  ・それ以外(posted/processing等)は従来通りの汎用文言のまま。
@@ -66,7 +66,7 @@ function lockedMessage(status: string | undefined): {
   if (status === "pending") {
     return {
       title: "編集期限を過ぎています",
-      body: "この動画の編集期限(6日間)を過ぎたため編集できません。編集をご希望の場合は、お手数ですがご担当者までご連絡ください。",
+      body: "この動画の編集期限(14日間)を過ぎたため編集できません。編集をご希望の場合は、お手数ですがご担当者までご連絡ください。",
     };
   }
   if (status === "rejected") {
@@ -96,7 +96,7 @@ function MessageCard({ title, body }: { title: string; body: string }) {
 }
 
 // 修正期限の赤字表示(2026-07-27 岡本要望「残り何日かを赤字で表示させてあげる」)。
-// deadline は編集情報APIが期限判定に使う値そのもの(created_at+6日)なので、
+// deadline は編集情報APIが期限判定に使う値そのもの(created_at+14日)なので、
 // ここで独自計算はしない — 表示と判定がズレる事故を構造的に防ぐ。
 // 旧応答に deadline が無い場合は何も出さない(表示だけの機能なのでfail-soft)。
 function DeadlineNotice({ deadline }: { deadline?: string }) {

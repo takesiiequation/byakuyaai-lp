@@ -36,6 +36,9 @@ async function rateLimitedShared(key: string): Promise<boolean> {
   return arr.length > RATE_MAX;
 }
 
+const friendly = (e: string): string =>
+  /^(upstream_|empty_|server_|failed$|unknown)/.test(e) ? "ただいま混み合っています。少し時間をおいてお試しください。" : e;
+
 interface Body {
   approvalId?: unknown;
   messages?: unknown;
@@ -106,7 +109,7 @@ export async function POST(req: NextRequest) {
           (text) => send({ type: "msg", text }),
           (ev) => send({ type: "status", ...ev }),
         );
-        if (!result.ok) send({ type: "error", error: result.error ?? "failed" });
+        if (!result.ok) send({ type: "error", error: friendly(result.error ?? "failed") });
         send({ type: "done" });
       } catch (e) {
         send({ type: "error", error: String(e).slice(0, 120) });
