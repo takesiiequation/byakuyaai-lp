@@ -463,7 +463,11 @@ export async function runCompanion(
   ];
 
   // エージェントループ(最大6往復)
+  // 時間予算: 応答が返らない(504)のが最悪なので、上限に近づいたら道具を止めて必ず言葉を返す
+  const startedAt = Date.now();
+  const TIME_BUDGET_MS = 240_000;
   for (let turn = 0; turn < 6; turn++) {
+    const outOfTime = Date.now() - startedAt > TIME_BUDGET_MS;
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -480,7 +484,12 @@ export async function runCompanion(
     const msg = data?.choices?.[0]?.message;
     if (!msg) return { ok: false, error: "empty_response" };
 
-    const toolCalls = Array.isArray(msg.tool_calls) ? msg.tool_calls : [];
+    const toolCalls = outOfTime ? [] : (Array.isArray(msg.tool_calls) ? msg.tool_calls : []);
+    if (outOfTime && Array.isArray(msg.tool_calls) && msg.tool_calls.length) {
+      // 時間切れ: 道具は諦めて、いま持っている情報で答えるよう促す
+      messages.push({ role: "user", content: "(システム: 確認に時間がかかっています。今わかっている範囲でお答えください)" });
+      continue;
+    }
     if (toolCalls.length === 0) {
       const reply = String(msg.content ?? "").trim();
       auditLog(approvalId, "assistant", reply, memKey);

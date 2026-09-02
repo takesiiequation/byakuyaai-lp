@@ -3,7 +3,9 @@ import { APPROVAL_ID_RE } from "@/app/_lib/revise";
 import { runCompanion } from "@/app/_lib/companion";
 import { loadJson, saveJson } from "@/app/_lib/props_store";
 
-export const maxDuration = 60;
+// 長文の相談は「道具で情報取得 → 厚い回答生成」で複数往復するため60秒では落ちる(2026-09-02 実測504)。
+// 実運用で最も大事な場面なので上限を延ばす。
+export const maxDuration = 300;
 
 // 簡易レート制限(2026-09-02 セキュリティ監査): approval_idが漏れた場合に
 // 第三者がLLM費用を焼く/修正枠を潰すのを防ぐ。プロセス内メモリなので厳密ではないが、
