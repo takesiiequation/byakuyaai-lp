@@ -480,6 +480,17 @@ export async function runCompanion(
               property_name: propertyName,
               telops: fr.telops,
               deadline: fr.deadline,
+              // 日付の比較はモデルに任せない(過ぎた期限を「まだ有効」と答える事故が実測で発生)。
+              // サーバ側で今日と突き合わせ、残り日数と期限切れフラグを明示して渡す。
+              ...(() => {
+                const raw = typeof fr.deadline === "string" ? fr.deadline : "";
+                const d = raw ? new Date(raw) : null;
+                if (!d || Number.isNaN(d.getTime())) return { deadline_note: "編集期限は設定されていません" };
+                const days = Math.floor((d.getTime() - Date.now()) / 86400000);
+                return days < 0
+                  ? { deadline_expired: true, deadline_note: `編集期限(${raw.slice(0, 10)})は${-days}日前に過ぎています。文言修正の提出はできません。ご要望は担当者にお繋ぎしてください` }
+                  : { deadline_expired: false, days_left: days, deadline_note: `編集期限まであと${days}日(${raw.slice(0, 10)}まで)` };
+              })(),
               status: fr.status,
               revisions_used: usedCount,
               revisions_remaining: Math.max(0, 3 - usedCount),
