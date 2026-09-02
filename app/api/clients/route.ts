@@ -84,6 +84,8 @@ export async function POST(req: NextRequest) {
       // report_enabled: プランと独立の月次レポート配信フラグ(2026-08-01)。
       // 新規作成時はプランがpremiumなら配信ON(従来挙動の踏襲)、それ以外OFF。
       report_enabled: (body.plan || "standard") === "premium" ? "true" : "",
+      // workspace_enabled: ユキのデスク(2026-09-02)。プレミアム既定ON・adminで個社切替可
+      workspace_enabled: (body.plan || "standard") === "premium" ? "true" : "",
       invoice_enabled: "",
       line_notify_email: "",
       quota_no_reset: "",

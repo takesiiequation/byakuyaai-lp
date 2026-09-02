@@ -54,6 +54,7 @@ export interface Client {
   portfolio_enabled: string;
   line_staff_user_ids: string;
   report_enabled: string; // 'true'=月次レポート配信ON(プランと独立・2026-08-01)
+  workspace_enabled: string; // 'true'=ユキのデスク(エージェントユキ)ON(プランと独立・2026-09-02)
   invoice_enabled: string; // 'true'=請求書・領収書発行ON(プランと独立・2026-08-02)
   line_notify_email: string; // LINE問い合わせ通知の専用宛先(空=approval_emailにフォールバック・2026-08-07)
   quota_no_reset: string; // 'true'=月次クォータの自動リセットをしない(使い切り型・2026-08-03)

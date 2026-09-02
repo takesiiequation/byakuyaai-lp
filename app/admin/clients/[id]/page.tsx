@@ -102,6 +102,15 @@ export default async function ClientDetailPage({
           ],
         },
         {
+          key: "workspace_enabled",
+          label: "ユキのデスク(AI担当)",
+          type: "select",
+          options: [
+            { value: "", label: "利用しない" },
+            { value: "true", label: "利用する" },
+          ],
+        },
+        {
           key: "invoice_enabled",
           label: "請求書・領収書発行",
           type: "select",
