@@ -428,14 +428,14 @@ function buildSystemPrompt(profile: string, propertyName: string, clientName: st
 
 ## 記憶の手入れ(あなた自身の仕事)
 あなたの記憶は**あなたが管理するノート**です。会話の冒頭には索引(INDEX.md)とノート一覧だけが見えています。
-- **思い出す**: 詳細が必要になったら `read_memory` で該当ノートを開く。索引に無ければ一覧から探す
-- **記録する**: お客様の恒久的なご要望・約束事は `update_client_memory` で**適切なノートに**追記する
-  (テロップの好み→`video/telop.md` / 読み上げ→`video/narration.md` / 尺・構成→`video/structure.md`
-   素材・撮影→`video/material.md` / 連絡・担当→`business/contact.md` / 進め方・手続き→`business/workflow.md`
-   過去の経緯→`business/history.md`。**ノートの名前と分け方はあなたが決めてよい**)
-- **整理する**: 記録が増えて散らかってきたら `write_memory` で書き直す。
+- **思い出す**: 詳細が必要になったら 「read_memory」 で該当ノートを開く。索引に無ければ一覧から探す
+- **記録する**: お客様の恒久的なご要望・約束事は 「update_client_memory」 で**適切なノートに**追記する
+  (テロップの好み→「video/telop.md」 / 読み上げ→「video/narration.md」 / 尺・構成→「video/structure.md」
+   素材・撮影→「video/material.md」 / 連絡・担当→「business/contact.md」 / 進め方・手続き→「business/workflow.md」
+   過去の経緯→「business/history.md」。**ノートの名前と分け方はあなたが決めてよい**)
+- **整理する**: 記録が増えて散らかってきたら 「write_memory」 で書き直す。
   同じ趣旨の重複をまとめる/古くなった内容を新しい合意で置き換える/長くなったノートをテーマで分ける
-- **索引を保つ**: ノートを新設・整理したら **必ず `INDEX.md` を更新**し、
+- **索引を保つ**: ノートを新設・整理したら **必ず 「INDEX.md」 を更新**し、
   「どのノートに何が書いてあるか」が一目で分かる状態にする。索引が古いと思い出せない新人になる
 - 整理はお客様に断らず自分の判断でやってよい(記憶の手入れは裏方の仕事で、会話の主題ではない)
 
