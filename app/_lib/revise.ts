@@ -98,6 +98,8 @@ export interface ReviseInfo {
   revision_count?: number;
   property_name?: string;
   client_name?: string;
+  /** テナントキー(承認行由来のみ)。propsのS3パスを決めるのでLLM・顧客入力からは絶対に取らない */
+  client_id?: string;
   video_url?: string;
   /** 修正期限のISO(created_at+6日・編集情報API FINDが判定に使う値そのもの)。
    * 旧応答には無いのでoptional — 無ければ画面は期限表示を出さないだけ。 */
@@ -190,6 +192,10 @@ export async function getReviseInfo(approvalId: string): Promise<ReviseInfo> {
       deadline: typeof rec.deadline === "string" ? rec.deadline : undefined,
       telops: shapeTelops(rec.telops),
       caption: typeof rec.caption === "string" ? rec.caption : "",
+      client_id:
+        typeof rec.client_id === "string" && /^[a-z0-9_.-]{1,40}$/i.test(rec.client_id)
+          ? rec.client_id
+          : undefined,
       design:
         rec.design && typeof rec.design === "object"
           ? (rec.design as ReviseInfo["design"])

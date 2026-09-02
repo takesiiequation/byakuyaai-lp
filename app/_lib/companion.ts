@@ -90,11 +90,26 @@ async function setClientVoSpeed(clientName: string, speed: number): Promise<bool
     const nameCol = header.indexOf("client_name");
     const speedCol = header.indexOf("vo_speed");
     if (nameCol < 0 || speedCol < 0) return false;
+    // 列レターは「探した位置」から算出する。固定文字列(AH等)は列が挿入された瞬間に
+    // 別のフィールドを破壊する(portal_enabled上書き事故と同型)。
+    const colLetter = (n: number): string => {
+      let s2 = "";
+      for (let x = n + 1; x > 0; ) {
+        const r = (x - 1) % 26;
+        s2 = String.fromCharCode(65 + r) + s2;
+        x = Math.floor((x - 1) / 26);
+      }
+      return s2;
+    };
+    const letter = colLetter(speedCol);
     for (let i = 1; i < rows.length; i++) {
       if (rows[i][nameCol] === clientName) {
+        // 書き込み先が「空 or 数値」であることを確認(別フィールドを踏んでいないかの最終確認)
+        const cur = String(rows[i][speedCol] ?? "").trim();
+        if (cur !== "" && !/^[0-9.]+$/.test(cur)) return false;
         await sheets.spreadsheets.values.update({
           spreadsheetId: SHEET_ID,
-          range: "'契約社リスト'!AH" + (i + 1),
+          range: `'契約社リスト'!${letter}${i + 1}`,
           valueInputOption: "RAW",
           requestBody: { values: [[String(speed)]] },
         });
@@ -397,6 +412,15 @@ export async function runCompanion(
 
   const lastUser = history.filter((m) => m.role === "user").slice(-1)[0];
   if (lastUser) auditLog(approvalId, "user", lastUser.content, clientName);
+  // 会話履歴はクライアントから送られてくる=assistant発言を捏造して同意ゲートを迂回できる。
+  // モデルが実際に見た履歴の指紋を残し、事後に「本当にその同意があったか」を追跡可能にする。
+  if (history.length > 1) {
+    const shape = history
+      .slice(-30)
+      .map((m) => `${m.role}:${String(m.content).length}:${String(m.content).slice(0, 40)}`)
+      .join(" | ");
+    auditLog(approvalId, "context", shape, clientName);
+  }
 
   const messages: Array<Record<string, unknown>> = [
     { role: "system", content: system },
@@ -507,7 +531,11 @@ export async function runCompanion(
           if (!cur || !scenes) {
             result = { ok: false, error: "この動画はまだ新方式の設計データがないため、尺の変更は担当者にお繋ぎする必要があります" };
           } else {
-            const hit = scenes.find((sc) => String(sc.key ?? "").includes(sceneKey));
+            // 完全一致のみ(部分一致だと scene_key:"" が先頭シーンに当たり、"1"がscene1/scene10で先勝ちする)
+            const hit = sceneKey
+              ? scenes.find((sc) => String(sc.key ?? "") === sceneKey) ??
+                scenes.find((sc) => String(sc.key ?? "").replace(/^s/, "") === sceneKey)
+              : undefined;
             if (!hit) {
               result = { ok: false, error: `シーン「${sceneKey}」が見つかりません(利用可能: ${scenes.map((x) => x.key).join(", ")})` };
             } else {
@@ -537,6 +565,8 @@ export async function runCompanion(
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               content: `🤝 ${AGENT_NAME}から引き継ぎ (${approvalId})\n${summary}`,
+              // 顧客が書いた文面がそのまま載るので @everyone 等を無効化(通知爆撃の防止)
+              allowed_mentions: { parse: [] },
             }),
           }).catch(() => {});
         }

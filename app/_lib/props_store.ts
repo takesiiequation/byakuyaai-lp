@@ -8,8 +8,9 @@ import { createHash, createHmac } from "crypto";
 const REGION = "ap-northeast-1";
 const BUCKET = "byakuyaai-media";
 const HOST = `${BUCKET}.s3.${REGION}.amazonaws.com`;
-const APPROVAL_RE = /^APR-[a-z0-9]+-[a-f0-9]+$/i;
-const CLIENT_RE = /^[a-z0-9_.-]{1,40}$/i;
+const APPROVAL_RE = /^APR-[a-z0-9]{6,}-[a-f0-9]{16,}$/i;
+// 純ドット(. / ..)を明示拒否=パス脱出の芽を断つ。英数で始まることも要求する
+const CLIENT_RE = /^(?!\.+$)[a-z0-9][a-z0-9_.-]{0,39}$/i;
 
 const sha256 = (s: string | Buffer) => createHash("sha256").update(s).digest("hex");
 const hmac = (k: Buffer | string, s: string) => createHmac("sha256", k).update(s).digest();
@@ -82,13 +83,18 @@ export async function saveProps(
   if (!key) return { ok: false, error: "invalid_ids" };
   // テナント混入の最終ゲート: props内の素材URLが他社領域を指していないか
   const bad = findForeignAsset(props, clientId);
-  if (bad) return { ok: false, error: `foreign_asset:${bad.slice(0, 80)}` };
+  if (bad) {
+    console.warn("[props_store] foreign asset blocked", { clientId, url: bad.slice(0, 200) });
+    return { ok: false, error: "foreign_asset" }; // URLは返さない(他社情報が顧客との会話に出るのを防ぐ)
+  }
   try {
     const prev = await loadProps(clientId, approvalId);
     if (prev) {
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
       const h = await s3Fetch("PUT", `props/${clientId}/history/${approvalId}-${stamp}.json`, JSON.stringify(prev));
       if (!h) return { ok: false, error: "s3_not_configured" };
+      // 退避に失敗したまま上書きすると復旧できない=保存自体を中止する
+      if (!h.ok) return { ok: false, error: `history_backup_failed_${h.status}` };
     }
     const res = await s3Fetch("PUT", key, JSON.stringify(props));
     if (!res) return { ok: false, error: "s3_not_configured" };

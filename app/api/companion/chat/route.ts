@@ -4,6 +4,23 @@ import { runCompanion } from "@/app/_lib/companion";
 
 export const maxDuration = 60;
 
+// 簡易レート制限(2026-09-02 セキュリティ監査): approval_idが漏れた場合に
+// 第三者がLLM費用を焼く/修正枠を潰すのを防ぐ。プロセス内メモリなので厳密ではないが、
+// 「1本のURLで無限に叩ける」状態を無くすのが目的。
+const RATE_MAX = 12;            // 1分あたりの上限
+const RATE_WINDOW_MS = 60_000;
+const hits = new Map<string, number[]>();
+function rateLimited(key: string): boolean {
+  const now = Date.now();
+  const arr = (hits.get(key) ?? []).filter((t) => now - t < RATE_WINDOW_MS);
+  arr.push(now);
+  hits.set(key, arr);
+  if (hits.size > 500) {
+    for (const [k, v] of hits) if (!v.some((t) => now - t < RATE_WINDOW_MS)) hits.delete(k);
+  }
+  return arr.length > RATE_MAX;
+}
+
 interface Body {
   approvalId?: unknown;
   messages?: unknown;
@@ -20,6 +37,13 @@ export async function POST(req: NextRequest) {
   const approvalId = body?.approvalId;
   if (typeof approvalId !== "string" || !APPROVAL_ID_RE.test(approvalId)) {
     return NextResponse.json({ ok: false, error: "invalid_approval_id" }, { status: 400 });
+  }
+
+  if (rateLimited(approvalId)) {
+    return NextResponse.json(
+      { ok: false, error: "少し間を置いてからお試しください(短時間に多くのご依頼をいただいています)" },
+      { status: 429 },
+    );
   }
 
   const raw = Array.isArray(body?.messages) ? body.messages : [];
