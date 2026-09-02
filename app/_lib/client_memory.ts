@@ -41,7 +41,11 @@ async function touchList(cid: string, path: string, remove = false): Promise<voi
 export async function readNote(cid: string, path: string): Promise<string | null> {
   if (!saneClient(cid) || !sanePath(path)) return null;
   const raw = (await loadJson(s3key(cid, path))) as { body?: unknown } | null;
-  return typeof raw?.body === "string" ? raw.body : null;
+  if (typeof raw?.body !== "string") return null;
+  // 並行書き込みで一覧から落ちたノートを、読めた時点で自己修復する(発見性の回復)
+  const files = await listNotes(cid);
+  if (!files.includes(path)) await touchList(cid, path);
+  return raw.body;
 }
 
 /** 書き込み(全文置換)。ユキが自分で整理・統合・書き直すための道具 */
@@ -56,6 +60,17 @@ export async function writeNote(cid: string, path: string, body: string): Promis
   if (!files.includes(path) && files.length >= MAX_NOTES) {
     return { ok: false, error: "ノートが多すぎます。既存のノートに統合してください" };
   }
+  // 全文置換の前に1世代退避する。統合・書き直しはLLMの判断で行われるため、
+  // 一度の要約ミスで数ヶ月分の記憶が不可逆に消えうる(props保存と同じ思想)。
+  const prev = await readNote(cid, path);
+  if (prev) {
+    const bak = await saveJson(`memory/${cid}/history/${path.replace(/[/.]/g, "_")}.json`, {
+      path,
+      body: prev,
+      saved_at: new Date().toISOString(),
+    });
+    if (!bak) return { ok: false, error: "以前の内容を退避できなかったため、上書きを中止しました" };
+  }
   const ok = await saveJson(s3key(cid, path), { path, body: text, updated_at: new Date().toISOString() });
   if (ok) await touchList(cid, path);
   return ok ? { ok: true } : { ok: false, error: "保存に失敗しました" };
@@ -67,7 +82,9 @@ export async function appendNote(cid: string, path: string, line: string): Promi
   const NL = String.fromCharCode(10);
   const add = String(line ?? "").trim();
   if (!add) return { ok: false, error: "空です" };
-  if (cur.includes(add)) return { ok: true }; // 重複は書かない
+  // 「水色→金色→やっぱり水色」の回帰を落とさないよう、部分一致では弾かない(整理はユキの仕事)
+  const NLx = String.fromCharCode(10);
+  if (cur.split(NLx).some((l) => l.replace(/^- \d{4}-\d{2}-\d{2} /, "").trim() === add)) return { ok: true };
   const stamp = new Date().toISOString().slice(0, 10);
   return writeNote(cid, path, cur ? `${cur}${NL}- ${stamp} ${add}` : `- ${stamp} ${add}`);
 }
@@ -86,7 +103,8 @@ export async function renderMemoryHeader(cid: string): Promise<string> {
   const [index, files] = await Promise.all([readNote(cid, "INDEX.md"), listNotes(cid)]);
   if (!index && !files.length) return "";
   const out: string[] = [];
-  if (index) out.push(index);
+  // INDEXはユキが自由に書けるため、注入面とトークン費が無制限にならないよう上限を設ける
+  if (index) out.push(index.slice(0, 4000));
   const others = files.filter((f) => f !== "INDEX.md");
   if (others.length) out.push("", "(保存しているノート: " + others.join(" / ") + ")");
   return out.join(NL);

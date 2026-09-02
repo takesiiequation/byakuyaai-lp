@@ -2,7 +2,7 @@
 // 三層構造: 顧客⇔チャットUI⇔本ループ⇔道具。道具は対象動画(approval_id固定)のみ操作可能。
 import { google } from "googleapis";
 import { loadProps, saveProps } from "./props_store";
-import { readNote, writeNote, appendNote, listNotes, renderMemoryHeader } from "./client_memory";
+import { readNote, writeNote, appendNote, deleteNote, listNotes, renderMemoryHeader } from "./client_memory";
 import {
   getReviseInfo,
   submitRevise,
@@ -39,11 +39,21 @@ async function loadProfile(clientName: string, clientId = ""): Promise<string> {
     const rows = res.data.values ?? [];
     // A列=client_id で厳密に照合する。会社名(B列)での照合は同名・改名で他社の記憶に
     // 到達しうるため、client_idが分かる場合はそちらを優先する(2026-09-02 監査指摘)。
+    const trim = (v: string): string => {
+      // シートC列には「ユキ記録」行が無限に溜まる。全量を注入すると
+      // S3側でユキが整理した記憶と矛盾し、トークンも線形に膨らむ(2026-09-02監査)。
+      // 人間が書いた固定部は全て残し、ユキ記録は直近12行だけ載せる。
+      const NLp = String.fromCharCode(10);
+      const lines = v.split(NLp);
+      const fixed = lines.filter((l) => !l.includes("ユキ記録"));
+      const notes = lines.filter((l) => l.includes("ユキ記録")).slice(-12);
+      return [...fixed, ...notes].join(NLp);
+    };
     if (clientId) {
-      for (const r of rows) if (r[0] === clientId) return String(r[2] ?? "");
+      for (const r of rows) if (r[0] === clientId) return trim(String(r[2] ?? ""));
     }
     for (const r of rows) {
-      if (r[1] === clientName) return String(r[2] ?? "");
+      if (r[1] === clientName) return trim(String(r[2] ?? ""));
     }
   } catch {
     /* プロファイル無しでも動く */
@@ -346,6 +356,19 @@ const TOOLS = [
           body: { type: "string", description: "ノートの全文(Markdown)" },
         },
         required: ["path", "body"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "delete_memory_note",
+      description:
+        "不要になった記憶ノートを削除する。複数のノートを1つに統合した後、空になった古いノートを片付ける時に使う。削除したらINDEX.mdも更新すること。",
+      parameters: {
+        type: "object",
+        properties: { path: { type: "string", description: "削除するノート(例: video/old.md)" } },
+        required: ["path"],
       },
     },
   },
@@ -676,12 +699,23 @@ export async function runCompanion(
               status: fr.status,
               revisions_used: usedCount,
               // 2026-09-02: 回数上限は撤廃(歯止めはクレジット制)。残数の代わりに実績のみ伝える
+              editable: fr.editable === true,
+              caption_editable: fr.caption_editable === true,
               revisions_note:
                 "文言・構成・尺の修正に回数制限はありません。何度でも納得いくまで直せます(映像素材の作り直しのみクレジットを消費します)",
             }
           : { error: "現在この動画は編集できない状態です" };
       } else if (name === "submit_text_edits") {
-        const rawEdits = Array.isArray(args.edits) ? (args.edits as ReviseEditInput[]) : [];
+        // ツールの語彙(text)とバックエンドの語彙(new_text)は別物。無変換で渡すと
+        // 全件 invalid_edit で棄却されるか、yomiだけ通って「ナレーションだけ変わり
+        // テロップは元のまま」という無音のズレになる(2026-09-02 監査で発覚・v1から壊れていた)。
+        const rawIn = Array.isArray(args.edits) ? (args.edits as Array<Record<string, unknown>>) : [];
+        const rawEdits: ReviseEditInput[] = rawIn.map((e) => ({
+          role: String(e.role ?? ""),
+          ...(typeof e.text === "string" ? { new_text: e.text } : {}),
+          ...(typeof e.new_text === "string" ? { new_text: e.new_text } : {}),
+          ...(typeof e.yomi === "string" && e.yomi ? { yomi: e.yomi } : {}),
+        }));
         const sub = await submitRevise(approvalId, rawEdits);
         result = sub.ok
           ? { ok: true, message: "提出されました。数分で修正版の確認メールが届きます" }
@@ -717,8 +751,13 @@ export async function runCompanion(
         const path = String(args.path ?? "").trim();
         const body = String(args.body ?? "");
         const w = clientKey ? await writeNote(clientKey, path, body) : { ok: false, error: "no_client" };
-        auditLog(approvalId, "tool:memory_write", `${path} (${body.length}字)`, memKey);
+        auditLog(approvalId, "tool:memory_write", `${path} (${body.length}字) ${body.slice(0, 300)}`, memKey);
         result = w.ok ? { ok: true, path, message: `${path} を整理しました` } : { ok: false, error: w.error };
+      } else if (name === "delete_memory_note") {
+        const path = String(args.path ?? "").trim();
+        const done = clientKey ? await deleteNote(clientKey, path) : false;
+        auditLog(approvalId, "tool:memory_delete", path, memKey);
+        result = done ? { ok: true, path, message: `${path} を片付けました` } : { ok: false, error: "削除できませんでした" };
       } else if (name === "submit_caption_edit") {
         const cap = String(args.caption ?? "").trim();
         const sub = cap ? await submitRevise(approvalId, [], cap) : { ok: false, error: "empty" };

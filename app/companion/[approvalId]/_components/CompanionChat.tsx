@@ -99,7 +99,13 @@ export default function CompanionChat({
           }
         }
       }
-      if (!got) {
+      if (failed && got) {
+        // 前置きだけ出た後に落ちると、画面が「確認しますね」で止まって無言になる
+        setMessages((cur) => [
+          ...cur,
+          { role: "assistant", content: "すみません、途中で通信が切れてしまいました🙏 もう一度お送りいただけますか?" },
+        ]);
+      } else if (!got) {
         setError(
           failed && failed.length < 120
             ? failed
@@ -169,7 +175,7 @@ export default function CompanionChat({
             }
           }}
           rows={2}
-          maxLength={1000}
+          maxLength={4000}
           placeholder="修正のご希望・ご質問を入力"
           className="min-h-[44px] flex-1 resize-none rounded-xl border border-black/10 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
         />
