@@ -69,17 +69,40 @@ export default function CompanionChat({
           messages: next.slice(1).slice(-30),
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        reply?: string;
-        error?: string;
-      };
-      if (data.ok && data.reply) {
-        setMessages((cur) => [...cur, { role: "assistant", content: data.reply as string }]);
-      } else {
+      // 逐次受信(NDJSON): ユキが「確認しますね」→作業→「できました」と
+      // 話しながら進む様子をそのまま吹き出しに反映する。
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("no_stream");
+      const decoder = new TextDecoder();
+      let buf = "";
+      let got = 0;
+      let failed: string | null = null;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          const s = line.trim();
+          if (!s) continue;
+          try {
+            const ev = JSON.parse(s) as { type?: string; text?: string; error?: string };
+            if (ev.type === "msg" && ev.text) {
+              got += 1;
+              setMessages((cur) => [...cur, { role: "assistant", content: ev.text as string }]);
+            } else if (ev.type === "error") {
+              failed = ev.error ?? null;
+            }
+          } catch {
+            /* 壊れた行は捨てる(次の行で復帰できる) */
+          }
+        }
+      }
+      if (!got) {
         setError(
-          data.error && data.error.length < 120
-            ? data.error
+          failed && failed.length < 120
+            ? failed
             : "送信に失敗しました。時間をおいてお試しください。"
         );
       }

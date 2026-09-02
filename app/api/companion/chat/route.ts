@@ -80,6 +80,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "invalid_messages" }, { status: 400 });
   }
 
-  const result = await runCompanion(approvalId, messages);
-  return NextResponse.json(result, { status: result.ok ? 200 : 400 });
+  // 逐次配信(NDJSON): エージェントが話しながら作業する様子をそのまま届ける。
+  // 1行1メッセージ {type:"msg",text} / 最後に {type:"done"}。
+  // 旧クライアント互換: ?stream=0 で従来のJSON一括応答。
+  const wantStream = new URL(req.url).searchParams.get("stream") !== "0";
+  if (!wantStream) {
+    const result = await runCompanion(approvalId, messages);
+    return NextResponse.json(result, { status: result.ok ? 200 : 400 });
+  }
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (obj: unknown) => {
+        try {
+          controller.enqueue(encoder.encode(JSON.stringify(obj) + String.fromCharCode(10)));
+        } catch {
+          /* クライアント切断時は無視 */
+        }
+      };
+      try {
+        const result = await runCompanion(approvalId, messages, (text) => send({ type: "msg", text }));
+        if (!result.ok) send({ type: "error", error: result.error ?? "failed" });
+        send({ type: "done" });
+      } catch (e) {
+        send({ type: "error", error: String(e).slice(0, 120) });
+        send({ type: "done" });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-store, no-transform",
+      "X-Accel-Buffering": "no",
+    },
+  });
 }

@@ -352,6 +352,15 @@ function buildSystemPrompt(profile: string, propertyName: string, clientName: st
 - 例:「今後、強調テロップは水色がいい」→ ①記録 ②「今の動画への反映は担当者に確認します」の順
 - 「◯◯を覚えてる?(別の動画の話だけど)」と聞かれたら、「お客様について」欄と「最近のやり取りの記録」を根拠に答える。覚えていたら「もちろんです!チャットの場所が違うだけで、これまでのやり取りはすべて覚えていますよ😊」のように、記憶が続いていることを喜んで伝える。記録に無いことは正直に「記録が見当たらない」と言い、教えてもらったら記録する
 
+## 働き方(チャットボットではなくエージェントとして)
+あなたは「質問に1回答える窓口」ではなく、**手を動かしながら伴走する担当者**です。
+- **道具を使う前に、何をするか一言添える**: 「まず今の設定を確認しますね」「素材の長さを見てみます」
+  → この一言は道具の実行と一緒にお客様へ届き、待っている間の安心になります
+- 作業が終わったら**結果を報告してから次に進む**: 「確認できました。◯◯です」→「では次に△△を見ますね」
+- 複数の論点があるご相談は、**1つずつ片付けながら話す**。全部調べ終わってから長文を1回で返すより、
+  分かったことから順に伝える方が、お客様は状況が見えて安心できます
+- ⚠️ **お客様に「分けて送ってください」と頼まない**。まとめて受け取り、こちらが順に処理して順に返す
+
 ## 返答の長さ(場面で変える)
 - **短く返す**: 事実確認への回答/依頼の受領/軽い雑談 → 2〜4行。だらだら書かない
 - **しっかり書く**: 不安・悩みの相談/改善提案/「なぜそうなるのか」の説明/伸ばし方のアドバイス
@@ -412,12 +421,17 @@ interface ChatMessage {
 export interface CompanionResult {
   ok: boolean;
   reply?: string;
+  /** 逐次発話した全メッセージ(非ストリーミング呼び出し用) */
+  messages?: string[];
   error?: string;
 }
 
 export async function runCompanion(
   approvalId: string,
-  history: ChatMessage[]
+  history: ChatMessage[],
+  /** 逐次発話(2026-09-02): エージェントは「確認しますね」→作業→「できました」と話しながら進む。
+   *  1発の長文を返すチャットボットとの決定的な差。呼ばれるたびにUIへ吹き出しが増える。 */
+  onMessage?: (text: string) => void,
 ): Promise<CompanionResult> {
   if (!OPENROUTER_KEY) return { ok: false, error: "server_not_configured" };
 
@@ -466,6 +480,7 @@ export async function runCompanion(
   // 時間予算: 応答が返らない(504)のが最悪なので、上限に近づいたら道具を止めて必ず言葉を返す
   const startedAt = Date.now();
   const TIME_BUDGET_MS = 240_000;
+  const emitted: string[] = [];
   for (let turn = 0; turn < 6; turn++) {
     const outOfTime = Date.now() - startedAt > TIME_BUDGET_MS;
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -498,25 +513,41 @@ export async function runCompanion(
       if (fr !== "stop") {
         auditLog(approvalId, "diag:finish", `turn=${turn} reason=${fr} len=${reply.length}`, memKey);
       }
-      // 上限到達で本文が空/極端に短い時は、簡潔に答え直させる(無言で返すのが最悪)。
-      // Sonnetは内部推論に上限を使い切ることがあり、その場合contentが空になる。
-      if (fr === "length" && reply.length < 40 && turn < 5) {
+      // 上限に達した = まだ書き足りない。顧客に分割を頼むのではなく、こちらが続きを書く。
+      if (fr === "length" && turn < 5) {
+        if (reply) {
+          if (onMessage) onMessage(reply);
+          auditLog(approvalId, "assistant", reply, memKey);
+          emitted.push(reply);
+          messages.push({ role: "assistant", content: reply });
+        }
         messages.push({
           role: "user",
-          content: "(システム: 回答が長くなりすぎました。要点を絞り、各項目3行以内で簡潔にお答えください)",
+          content: "(システム: 続きをお願いします。同じ内容は繰り返さず、続きから書いてください)",
         });
         continue;
       }
       if (!reply) {
         auditLog(approvalId, "diag:empty", `turn=${turn} reason=${fr}`, memKey);
-        return {
-          ok: true,
-          reply:
-            "申し訳ございません、うまくお返事をまとめられませんでした🙏 お手数ですが、いただいたご相談を2〜3点ずつに分けてお送りいただけますか?一つずつしっかりお答えします!",
-        };
+        const fallback = emitted.length
+          ? "以上です!他にも気になる点があればお聞かせください😊"
+          : "申し訳ございません、確認に手間取っております。少しだけお時間をいただけますか?";
+        if (onMessage) onMessage(fallback);
+        return { ok: true, reply: fallback, messages: [...emitted, fallback] };
       }
+      if (onMessage) onMessage(reply);
       auditLog(approvalId, "assistant", reply, memKey);
-      return { ok: true, reply };
+      emitted.push(reply);
+      return { ok: true, reply, messages: emitted };
+    }
+
+    // モデルが道具を呼ぶ時に添えた前置き(「まず現状を確認しますね」等)を捨てずに届ける。
+    // これがエージェントらしさの正体——今まではここで破棄していた。
+    const preface = String(msg.content ?? "").trim();
+    if (preface && onMessage) {
+      onMessage(preface);
+      auditLog(approvalId, "assistant", preface, memKey);
+      emitted.push(preface);
     }
 
     messages.push(msg);
