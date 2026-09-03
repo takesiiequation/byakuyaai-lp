@@ -54,6 +54,27 @@ x-amz-date:${amzDate}
   });
 }
 
+/** 本番のS3疎通診断(admin専用)。鍵の有無・PUT/GETの生のHTTP結果を返す(鍵の値は返さない) */
+export async function s3Diag(): Promise<Record<string, unknown>> {
+  const ak = process.env.AWS_ACCESS_KEY_ID ?? "";
+  const sk = process.env.AWS_SECRET_ACCESS_KEY ?? "";
+  const out: Record<string, unknown> = {
+    hasAccessKey: !!ak, accessKeyLen: ak.length, accessKeyHead: ak.slice(0, 4), accessKeyHasSpace: /\s/.test(ak),
+    hasSecret: !!sk, secretLen: sk.length, secretHasSpace: /\s/.test(sk),
+  };
+  if (!ak || !sk) return out;
+  const key = `ratelimit/_diag_${Date.now()}.json`;
+  try {
+    const put = await s3Fetch("PUT", key, JSON.stringify({ at: new Date().toISOString() }));
+    out.put = put ? { status: put.status, text: (await put.text()).slice(0, 300) } : null;
+    const get = await s3Fetch("GET", key);
+    out.get = get ? { status: get.status, text: (await get.text()).slice(0, 120) } : null;
+  } catch (e) {
+    out.error = String((e as Error)?.message ?? e).slice(0, 300);
+  }
+  return out;
+}
+
 /** props/{client_id}/{approval_id}.json — 引数が汚れていたら組み立てない(パス脱出の防止) */
 export function propsKey(clientId: string, approvalId: string): string | null {
   if (!CLIENT_RE.test(clientId) || !APPROVAL_RE.test(approvalId)) return null;
