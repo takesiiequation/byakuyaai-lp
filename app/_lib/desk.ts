@@ -3,7 +3,7 @@
 // 既存の runCompanion(動画1本の器)は一切触らず、人格だけ personaCore で共有する。
 // 道具は5つに絞る(記憶の読み書き・整理・記録・取次)。動画の道具は持たせない。
 import { google } from "googleapis";
-import { personaCore, AGENT_NAME, loadClientProfile, loadClientCrossMemory } from "./companion";
+import { personaCore, AGENT_NAME, loadClientProfile, loadClientCrossMemory, appendClientMemory } from "./companion";
 import { readNote, writeNote, appendNote, deleteNote, listNotes, renderMemoryHeader } from "./client_memory";
 import { TOOL_STATUS, isSerious } from "./spinner";
 
@@ -260,13 +260,28 @@ export async function runDesk(
         const body = String(args.body ?? "");
         const w = await writeNote(clientId, path, body);
         auditLog(clientId, "tool:memory_write", `${path} (${body.length}字) ${body.slice(0, 300)}`);
-        result = w.ok ? { ok: true, path, message: `${path} を整理しました` } : { ok: false, error: w.error };
+        if (!w.ok && w.error === "保存に失敗しました" && body.trim()) {
+          // S3が使えない時はシートのプロファイルへ控える(記憶の二重化・同じ保存を繰り返させない)
+          const saved = await appendClientMemory(clientName, `[${path}] ${body.slice(0, 800)}`, clientId);
+          result = saved
+            ? { ok: true, path, message: `${path} はノート保管庫に保存できなかったため、プロファイル台帳に控えました(内容は残っています。再試行は不要です)` }
+            : { ok: false, error: "ノートにもプロファイルにも保存できませんでした。担当者に申し送りしてください(同じ保存を繰り返さないこと)" };
+        } else {
+          result = w.ok ? { ok: true, path, message: `${path} を整理しました` } : { ok: false, error: w.error };
+        }
       } else if (name === "update_client_memory") {
         const note = String(args.note ?? "").trim();
         const path = String(args.path ?? "business/general.md").trim() || "business/general.md";
         const r = note ? await appendNote(clientId, path, note) : { ok: false, error: "空です" };
         auditLog(clientId, "tool:memory", `[${path}] ${note}`);
-        result = r.ok ? { ok: true, path, message: `${path} に記録しました` } : { ok: false, error: (r as { error?: string }).error };
+        if (!r.ok && note && (r as { error?: string }).error === "保存に失敗しました") {
+          const saved = await appendClientMemory(clientName, `[${path}] ${note.slice(0, 800)}`, clientId);
+          result = saved
+            ? { ok: true, path, message: `${path} には保存できなかったため、プロファイル台帳に控えました(再試行は不要です)` }
+            : { ok: false, error: "保存できませんでした。担当者に申し送りしてください(同じ保存を繰り返さないこと)" };
+        } else {
+          result = r.ok ? { ok: true, path, message: `${path} に記録しました` } : { ok: false, error: (r as { error?: string }).error };
+        }
       } else if (name === "delete_memory_note") {
         const path = String(args.path ?? "").trim();
         const done = await deleteNote(clientId, path);

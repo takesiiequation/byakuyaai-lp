@@ -63,7 +63,7 @@ async function loadProfile(clientName: string, clientId = ""): Promise<string> {
 }
 
 // 顧客の記憶に追記(追記のみ・上書き不可=安全)
-async function appendClientMemory(clientName: string, note: string, clientId = ""): Promise<boolean> {
+export async function appendClientMemory(clientName: string, note: string, clientId = ""): Promise<boolean> {
   try {
     const sheets = getSheets();
     if (!sheets || !SHEET_ID || !clientName) return false;
@@ -827,7 +827,15 @@ export async function runCompanion(
         const body = String(args.body ?? "");
         const w = clientKey ? await writeNote(clientKey, path, body) : { ok: false, error: "no_client" };
         auditLog(approvalId, "tool:memory_write", `${path} (${body.length}字) ${body.slice(0, 300)}`, memKey);
-        result = w.ok ? { ok: true, path, message: `${path} を整理しました` } : { ok: false, error: w.error };
+        if (!w.ok && w.error === "保存に失敗しました" && body.trim()) {
+          // S3が使えない時はシートのプロファイルへ控える(記憶の二重化・2026-09-04: 鍵未投入で4回失敗し方針が消えた教訓)
+          const saved = await appendClientMemory(clientName, `[${path}] ${body.slice(0, 800)}`, clientKey);
+          result = saved
+            ? { ok: true, path, message: `${path} はノート保管庫に保存できなかったため、プロファイル台帳に控えました(内容は残っています。再試行は不要です)` }
+            : { ok: false, error: "ノートにもプロファイルにも保存できませんでした。担当者に申し送りしてください(同じ保存を繰り返さないこと)" };
+        } else {
+          result = w.ok ? { ok: true, path, message: `${path} を整理しました` } : { ok: false, error: w.error };
+        }
       } else if (name === "delete_memory_note") {
         const path = String(args.path ?? "").trim();
         const done = clientKey ? await deleteNote(clientKey, path) : false;
