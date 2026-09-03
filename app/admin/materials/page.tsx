@@ -54,10 +54,10 @@ const CUSTOMER: Material[] = [
 
 const INTERNAL: Material[] = [
   {
-    title: "提案資料 HTML版(作り直し中)",
+    title: "提案資料 HTML版(予備)",
     path: "/proposal-a4",
-    what: "画像版 proposal.pdf を HTML で再現したもの。誤字ゼロ・QR正確・価格改定が5分で済む。承認後に proposal.pdf を差し替える",
-    when: "内部確認用",
+    what: "proposal.pdf と同じ内容を HTML で組んだ版。価格や文言を変えたい時にここを直してPDF化すれば、画像を作り直さずに済む",
+    when: "価格改定・文言修正の時。普段は使わない",
   },
   {
     title: "ピッチ資料",
