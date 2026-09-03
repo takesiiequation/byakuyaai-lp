@@ -52,62 +52,8 @@ const CUSTOMER: Material[] = [
   },
 ];
 
-const INTERNAL: Material[] = [
-  {
-    title: "提案資料 HTML版(予備)",
-    path: "/proposal-a4",
-    what: "proposal.pdf と同じ内容を HTML で組んだ版。価格や文言を変えたい時にここを直してPDF化すれば、画像を作り直さずに済む",
-    when: "価格改定・文言修正の時。普段は使わない",
-  },
-  {
-    title: "ピッチ資料",
-    path: "/pitch.pdf",
-    what: "投資家・提携先向けの事業説明",
-    when: "提携・出資の話が出た時",
-  },
-  {
-    title: "旧A4資料: サービス概要",
-    path: "/about-a4",
-    what: "ブラウザ印刷用の旧資料",
-    when: "旧版。参考用",
-  },
-  {
-    title: "旧A4資料: 全プラン比較",
-    path: "/all-plans-a4",
-    what: "ブラウザ印刷用の旧資料",
-    when: "旧版。参考用",
-  },
-  {
-    title: "旧A4資料: プレミアム単独",
-    path: "/premium-a4",
-    what: "杉田商事 5/17 訪問時の持参資料",
-    when: "旧版。プレミアム提案資料の下敷きに",
-  },
-  {
-    title: "旧A4資料: お試しプラン",
-    path: "/trial-a4",
-    what: "ブラウザ印刷用の旧資料",
-    when: "旧版。参考用",
-  },
-  {
-    title: "旧A4資料: HPオプション",
-    path: "/hp-options-a4",
-    what: "HP制作オプションの案内(HP-SEO事業は撤退済み)",
-    when: "使わない",
-  },
-  {
-    title: "旧A4資料: 事業計画",
-    path: "/business-plan-a4",
-    what: "事業計画の要約",
-    when: "提携・出資の話が出た時",
-  },
-  {
-    title: "訪問マニュアル",
-    path: "/visit-manual",
-    what: "飛び込み・訪問時の手順書",
-    when: "訪問前の確認用(顧客には見せない)",
-  },
-];
+// 旧A4資料・ピッチ・HTML版チラシは 2026-09-04 に岡本指示で削除(git 4688305 以前から復元可)。
+// 顧客に見せる資料は上の4つだけ。増やす時は岡本の判断を仰ぐ。
 
 async function checkAuth() {
   const jar = await cookies();
@@ -169,16 +115,9 @@ export default async function MaterialsPage() {
         </a>
       </div>
 
-      <h2 className="mb-2 text-sm font-bold text-gray-500">顧客に見せる資料</h2>
+      <h2 className="mb-2 text-sm font-bold text-gray-500">顧客に見せる資料(この4つだけ)</h2>
       <div className="grid gap-3 sm:grid-cols-2">
         {CUSTOMER.map((m) => (
-          <Card key={m.path} m={m} />
-        ))}
-      </div>
-
-      <h2 className="mb-2 mt-8 text-sm font-bold text-gray-500">内部用・旧資料</h2>
-      <div className="grid gap-3">
-        {INTERNAL.map((m) => (
           <Card key={m.path} m={m} />
         ))}
       </div>
