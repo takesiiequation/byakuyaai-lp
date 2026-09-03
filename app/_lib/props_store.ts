@@ -16,7 +16,7 @@ const sha256 = (s: string | Buffer) => createHash("sha256").update(s).digest("he
 const hmac = (k: Buffer | string, s: string) => createHmac("sha256", k).update(s).digest();
 
 /** S3にSigV4署名付きでリクエスト。鍵が無ければnull(呼び出し側はfail-soft) */
-async function s3Fetch(method: "GET" | "PUT", key: string, body?: string): Promise<Response | null> {
+async function s3Fetch(method: "GET" | "PUT", key: string, body?: string, extraHeaders?: Record<string, string>): Promise<Response | null> {
   const ak = process.env.AWS_ACCESS_KEY_ID;
   const sk = process.env.AWS_SECRET_ACCESS_KEY;
   if (!ak || !sk) return null;
@@ -48,6 +48,7 @@ x-amz-date:${amzDate}
       "x-amz-content-sha256": payloadHash,
       Authorization: `AWS4-HMAC-SHA256 Credential=${ak}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
       ...(body ? { "Content-Type": "application/json" } : {}),
+      ...(extraHeaders ?? {}),  // If-Match 等(SigV4のSignedHeadersに含めない条件ヘッダは未署名でよい)
     },
     body,
     cache: "no-store",
@@ -171,3 +172,32 @@ export async function saveJson(key: string, value: unknown): Promise<boolean> {
     return false;
   }
 }
+
+/** 汎用: JSONとETagを読む(条件付き書き込み用)。未作成は {value:null, etag:null} */
+export async function loadJsonEtag(key: string): Promise<{ value: unknown | null; etag: string | null }> {
+  if (!/^[a-z0-9/_.-]{1,200}$/i.test(key) || key.includes("..")) return { value: null, etag: null };
+  try {
+    const res = await s3Fetch("GET", key);
+    if (!res || !res.ok) return { value: null, etag: null };
+    return { value: await res.json(), etag: res.headers.get("etag") };
+  } catch {
+    return { value: null, etag: null };
+  }
+}
+
+/** 汎用: 条件付き書き込み。etag指定=その版からの更新のみ許可 / null=未作成の時だけ作成。
+ *  S3の条件付きPUT(If-Match / If-None-Match: *)で同時更新を直列化する(2026-09-04: 並列13連打が全通過した教訓)。
+ *  戻り: ok | conflict(他が先に書いた=読み直して再試行) | fail(S3不通・鍵なし) */
+export async function saveJsonIfMatch(key: string, value: unknown, etag: string | null): Promise<"ok" | "conflict" | "fail"> {
+  if (!/^[a-z0-9/_.-]{1,200}$/i.test(key) || key.includes("..")) return "fail";
+  try {
+    const res = await s3Fetch("PUT", key, JSON.stringify(value), etag ? { "If-Match": etag } : { "If-None-Match": "*" });
+    if (!res) return "fail";
+    if (res.ok) return "ok";
+    if (res.status === 412 || res.status === 409) return "conflict";
+    return "fail";
+  } catch {
+    return "fail";
+  }
+}
+

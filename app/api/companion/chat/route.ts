@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { APPROVAL_ID_RE } from "@/app/_lib/revise";
 import { runCompanion } from "@/app/_lib/companion";
-import { loadJson, saveJson } from "@/app/_lib/props_store";
+import { loadJsonEtag, saveJsonIfMatch } from "@/app/_lib/props_store";
 
 // 長文の相談は「道具で情報取得 → 厚い回答生成」で複数往復するため60秒では落ちる(2026-09-02 実測504)。
 // 実運用で最も大事な場面なので上限を延ばす。
@@ -28,12 +28,19 @@ function rateLimitedLocal(key: string): boolean {
 // 制限が効かない(2026-09-02 実測: 15連打が全通過)。共有ストア(S3)でも数える。
 async function rateLimitedShared(key: string): Promise<boolean> {
   const k = `ratelimit/${key}.json`;
-  const now = Date.now();
-  const prev = (await loadJson(k)) as { t?: number[] } | null;
-  const arr = (prev?.t ?? []).filter((x) => typeof x === "number" && now - x < RATE_WINDOW_MS);
-  arr.push(now);
-  await saveJson(k, { t: arr.slice(-40) });
-  return arr.length > RATE_MAX;
+  // 読み→書きを条件付きPUTで直列化(並列13連打が全通過した2026-09-04の実測への対策)。衝突したら読み直して最大6回
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const now = Date.now();
+    const { value, etag } = await loadJsonEtag(k);
+    const prev = value as { t?: number[] } | null;
+    const arr = (prev?.t ?? []).filter((x) => typeof x === "number" && now - x < RATE_WINDOW_MS);
+    arr.push(now);
+    const r = await saveJsonIfMatch(k, { t: arr.slice(-40) }, etag);
+    if (r === "ok") return arr.length > RATE_MAX;
+    if (r === "fail") return arr.length > RATE_MAX;  // S3不通時は読めた分で判定(fail-soft)
+    await new Promise((res) => setTimeout(res, 40 + Math.floor(Math.random() * 120)));
+  }
+  return true;  // 6回衝突=明らかな連打 → 制限側に倒す
 }
 
 const friendly = (e: string): string =>
