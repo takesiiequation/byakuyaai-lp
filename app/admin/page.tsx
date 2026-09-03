@@ -73,12 +73,20 @@ export default async function AdminDashboard() {
         <h1 className="text-xl sm:text-2xl font-bold text-[var(--brand-ink)]">
           ダッシュボード
         </h1>
-        <a
-          href="/admin/clients"
-          className="text-sm text-gray-500 hover:text-[var(--brand-orange)] transition-colors"
-        >
-          顧客一覧 →
-        </a>
+        <div className="flex items-center gap-4 text-sm">
+          <a
+            href="/admin/materials"
+            className="font-bold text-[var(--brand-orange-dark)] hover:text-[var(--brand-orange)] transition-colors"
+          >
+            営業資料棚 →
+          </a>
+          <a
+            href="/admin/clients"
+            className="text-gray-500 hover:text-[var(--brand-orange)] transition-colors"
+          >
+            顧客一覧 →
+          </a>
+        </div>
       </div>
 
       {error && (

@@ -59,6 +59,12 @@ export default function AdminLayout({
             営業リスト
           </a>
           <a
+            href="/admin/materials"
+            className="text-gray-600 hover:text-[var(--brand-orange)] transition-colors"
+          >
+            資料棚
+          </a>
+          <a
             href="/admin/line"
             className="text-gray-600 hover:text-[var(--brand-orange)] transition-colors"
           >
