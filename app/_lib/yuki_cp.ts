@@ -280,8 +280,7 @@ export async function archiveThread(clientId: string, threadId: string, archived
 function threadTitle(prompt: string): string {
   let s = prompt.replace(/APR-[a-z0-9-]+/gi, "").replace(/[「」『』()（）\[\]【】]/g, " ").replace(/\s+/g, " ").trim();
   s = s.replace(/^(まず|あと|えっと|すみません|お疲れ様です|こんにちは)[、,\s]*/u, "");
-  const cut = s.split(/[。．!！?？
-]/)[0] || s;
+  const cut = s.split(/[。．!！?？\n]/)[0] || s;
   const t = cut.replace(/(してください|して欲しい|してほしい|お願いします|ください)$/u, "").trim();
   return (t || s).slice(0, 14) || "相談";
 }
