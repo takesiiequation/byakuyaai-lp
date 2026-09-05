@@ -127,14 +127,22 @@ export async function startJob(p: { clientId: string; clientName: string; plan?:
     };
     const prefix = `jobs/${p.clientId}/${jobId}/`;
     await putJson(prefix + "job.json", job);
-    const bundleKey = (await s3().send(new GetObjectCommand({ Bucket: BUCKET, Key: "build/latest.txt" }))).Body!.transformToString("utf-8");
-    const jobUrl = await getSignedUrl(s3(), new GetObjectCommand({ Bucket: BUCKET, Key: prefix + "job.json" }), { expiresIn: 1800 });
-    const bundleUrl = await getSignedUrl(s3(), new GetObjectCommand({ Bucket: BUCKET, Key: (await bundleKey).trim() }), { expiresIn: 1800 });
+    // 起動物: コード束 + node_modules/python 環境のS3キャッシュ(署名付きGET/PUT・boot.mjs が使う。コンテナにS3権限は要らない)
+    let bmeta: { bundle_key: string; lock_hash?: string; py_ver?: string; py_src_url?: string };
+    try { bmeta = JSON.parse(await (await s3().send(new GetObjectCommand({ Bucket: BUCKET, Key: "build/latest.json" }))).Body!.transformToString("utf-8")); }
+    catch { bmeta = { bundle_key: (await (await s3().send(new GetObjectCommand({ Bucket: BUCKET, Key: "build/latest.txt" }))).Body!.transformToString("utf-8")).trim() }; }
+    const sign = (key: string, put = false) => getSignedUrl(s3(), put ? new PutObjectCommand({ Bucket: BUCKET, Key: key })  /* ContentTypeを署名に入れない(boot側もヘッダを送らない) */ : new GetObjectCommand({ Bucket: BUCKET, Key: key }), { expiresIn: 3600 });
+    const jobUrl = await sign(prefix + "job.json");
+    const bundleUrl = await sign(bmeta.bundle_key);
+    const cacheEnv: Array<{ name: string; value: string }> = [];
+    if (bmeta.lock_hash) { const k = `build/cache/nm-${bmeta.lock_hash}.tgz`; cacheEnv.push({ name: "NM_GET_URL", value: await sign(k) }, { name: "NM_PUT_URL", value: await sign(k, true) }); }
+    if (bmeta.py_ver && bmeta.py_src_url) { const k = `build/cache/py-${bmeta.py_ver.replace(/\+/g, "_")}.tgz`; cacheEnv.push({ name: "PY_GET_URL", value: await sign(k) }, { name: "PY_PUT_URL", value: await sign(k, true) }, { name: "PY_SRC_URL", value: bmeta.py_src_url }); }
     const r = await ecs().send(new RunTaskCommand({
       cluster: CLUSTER, launchType: "FARGATE", taskDefinition: TASK_FAMILY, count: 1,
       networkConfiguration: { awsvpcConfiguration: { subnets: SUBNETS, securityGroups: [SECURITY_GROUP], assignPublicIp: "ENABLED" } },
       overrides: { containerOverrides: [{ name: "yuki", environment: [
         { name: "BUNDLE_URL", value: bundleUrl }, { name: "JOB_URL", value: jobUrl }, { name: "JOB_ID", value: jobId }, { name: "CLIENT_ID", value: p.clientId }, { name: "YUKI_MODE", value: "worker" },
+        ...cacheEnv,
       ] }] },
       tags: [{ key: "app", value: "yuki" }, { key: "client", value: p.clientId }],
     }));
