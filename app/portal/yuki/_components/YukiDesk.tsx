@@ -3,13 +3,15 @@
 //   相談(スレッド一覧→チャット) / ノート(記憶の閲覧・読み取り専用)。モバイル=セグメント、PC=2ペイン。
 //   通信: POST /api/portal/yuki/run {prompt, thread_id?, paid_grant?} → job_id,thread_id → GET /api/portal/yuki/job をポーリング
 //   復元: 進行中ジョブは localStorage に控え、画面を開き直しても続きから描く
+//   意匠(2026-09-06 岡本レビュー): アイコン+名前は付けない / 色はオレンジのまま・水色は「縁」だけ / 背景は無地 / 吹き出しは紙の質感 /
+//         作業カードはタイムライン(絵柄+経過秒) / 最初の画面は「ようこそ」 / 一覧に話題の絵柄と相対時刻 / ノートは手帳風 / 動きは控えめ
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { pickSpinner, nextInterval, FIRST_LABEL, FIRST_HOLD_MS } from "@/app/_lib/spinner";
 import LiteMd from "@/app/_lib/lite_md";
 
-type Part = { kind: "text"; text: string } | { kind: "step"; label: string; done: boolean; failed?: boolean };
+type Part = { kind: "text"; text: string } | { kind: "step"; label: string; done: boolean; failed?: boolean; startedAt: number; endedAt?: number };
 interface Msg { role: "user" | "assistant"; content: string; parts?: Part[]; live?: boolean; }
 interface Proposal { tool: string; args_hash: string; cost_label: string; }
 interface CreditsView { stage: string; pct10: number; exhausted: boolean; }
@@ -26,9 +28,31 @@ const TOOL_LABEL: Record<string, string> = {
   Read: "机の上の資料を確認", Write: "資料を書く", Edit: "設計図を直す", Glob: "机の上を探す", Grep: "机の上を探す",
 };
 const labelOf = (name: string) => TOOL_LABEL[name] || (name.startsWith("mcp__byakuyaai__") ? "作業中" : "机の上を確認");
+/** 作業カードの絵柄(話題で決める) */
+const stepIcon = (label: string) => /検査/.test(label) ? "🔍" : /記憶|ノート/.test(label) ? "📝" : /仕上げ|映像/.test(label) ? "🎬" : /担当者/.test(label) ? "🤝" : /稼働/.test(label) ? "⏱" : /設計図/.test(label) ? "📐" : /一覧/.test(label) ? "🗂" : "📄";
+const threadIcon = (t: ThreadMeta) => { const s = (t.title + " " + t.last_preview); return /動画|設計図|テロップ|レンダー|検査/.test(s) ? "🎬" : /覚え|記憶|決まり|ルール|ノート/.test(s) ? "📝" : /紹介文|SNS|投稿|反響/.test(s) ? "✍️" : "💬"; };
 const POLL_MS = 1500;
 const LS_KEY = "yuki_desk_active_job";
-const fmtWhen = (iso: string) => { const d = new Date(iso); if (isNaN(d.getTime())) return ""; const now = new Date(); const same = d.toDateString() === now.toDateString(); return same ? `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}` : `${d.getMonth() + 1}/${d.getDate()}`; };
+/** 相対時刻(3分前・昨日・9/5) */
+const fmtRel = (iso: string) => {
+  const d = new Date(iso); if (isNaN(d.getTime())) return "";
+  const diff = Date.now() - d.getTime(); const m = Math.floor(diff / 60000);
+  if (m < 1) return "いま"; if (m < 60) return `${m}分前`; const h = Math.floor(m / 60); if (h < 24) return `${h}時間前`;
+  const days = Math.floor(h / 24); if (days === 1) return "昨日"; if (days < 7) return `${days}日前`;
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+};
+const fmtSec = (ms: number) => (ms < 1000 ? "" : ms < 60000 ? `${Math.round(ms / 1000)}秒` : `${Math.floor(ms / 60000)}分${Math.round((ms % 60000) / 1000)}秒`);
+
+const STYLE = `
+@keyframes yukiIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes yukiPop { 0% { transform: scale(.6); opacity: .4; } 60% { transform: scale(1.25); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes yukiDot { 0%, 80%, 100% { transform: translateY(0); opacity: .35; } 40% { transform: translateY(-3px); opacity: 1; } }
+.yuki-in { animation: yukiIn .28s ease-out both; }
+.yuki-pop { animation: yukiPop .45s ease-out both; }
+.yuki-dot { display:inline-block; width:5px; height:5px; border-radius:9999px; background:#c96a00; animation: yukiDot 1.2s infinite ease-in-out; }
+.yuki-dot:nth-child(2) { animation-delay: .15s } .yuki-dot:nth-child(3) { animation-delay: .3s }
+.yuki-paper { background: #fbf8f2; box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 6px 16px -12px rgba(120, 80, 20, .25); }
+`;
 
 function CreditsBar({ c }: { c: CreditsView | null }) {
   const pct = c ? c.pct10 : 0;
@@ -46,29 +70,83 @@ function CreditsBar({ c }: { c: CreditsView | null }) {
   );
 }
 
-/** ユキの吹き出し: 発話と作業の1手(ステップ)を時間順に描く。ステップが多い時は折りたたむ */
+/** 待機中の表示: スピナー語(3層)+点3つ */
+function Thinking({ label }: { label: string }) {
+  return (
+    <div className="yuki-in flex justify-start">
+      <div className="yuki-paper flex items-center gap-2 rounded-2xl rounded-bl-md px-4 py-2.5 text-sm text-[#777]">
+        <span className="flex items-center gap-[3px]"><span className="yuki-dot" /><span className="yuki-dot" /><span className="yuki-dot" /></span>
+        <span>{label}…</span>
+      </div>
+    </div>
+  );
+}
+
+/** ユキの吹き出し: 発話と作業の1手(ステップ)を時間順に描く。ステップはタイムライン(絵柄+経過秒)。多い時は折りたたむ */
 function AssistantBubble({ m }: { m: Msg }) {
   const [open, setOpen] = useState(false);
   const parts = m.parts && m.parts.length ? m.parts : [{ kind: "text", text: m.content } as Part];
   const steps = parts.filter((p) => p.kind === "step").length;
   const collapsible = steps > 4 && !m.live;
+  // 連続するステップをひとかたまり(タイムライン)にする
+  const groups: Array<{ kind: "text"; text: string } | { kind: "steps"; items: Extract<Part, { kind: "step" }>[] }> = [];
+  for (const p of parts) {
+    if (p.kind === "text") groups.push(p);
+    else { const last = groups[groups.length - 1]; if (last && last.kind === "steps") last.items.push(p); else groups.push({ kind: "steps", items: [p] }); }
+  }
   return (
-    <div className="max-w-[90%] rounded-2xl rounded-bl-md bg-[#f4f2ee] px-4 py-3 text-sm text-[#222] lg:max-w-[88%] lg:px-6 lg:py-4 lg:text-[15.5px]">
+    <div className="yuki-paper max-w-[90%] rounded-3xl rounded-bl-lg px-4 py-3 text-sm leading-relaxed text-[#222] lg:max-w-[88%] lg:px-6 lg:py-4 lg:text-[15.5px]">
       {collapsible && (
         <button onClick={() => setOpen((v) => !v)} className="mb-2 flex items-center gap-1 text-xs font-bold text-[#c96a00]">
           <span className={"inline-block transition-transform " + (open ? "rotate-90" : "")}>▶</span> 作業の記録({steps}手){open ? "を閉じる" : "を見る"}
         </button>
       )}
-      {parts.map((p, i) =>
-        p.kind === "text" ? (
-          p.text.trim() ? <div key={i} className={i > 0 ? "mt-2" : ""}><LiteMd text={p.text} /></div> : null
+      {groups.map((g, gi) =>
+        g.kind === "text" ? (
+          g.text.trim() ? <div key={gi} className={gi > 0 ? "mt-2" : ""}><LiteMd text={g.text} /></div> : null
         ) : (collapsible && !open) ? null : (
-          <div key={i} className="my-1.5 flex items-center gap-2 rounded-lg border border-black/5 bg-white/70 px-2.5 py-1.5 text-xs text-[#555]">
-            {p.done ? <span className={"font-black " + (p.failed ? "text-red-500" : "text-emerald-600")}>{p.failed ? "!" : "✓"}</span> : <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-orange-400 border-t-transparent" />}
-            <span>{p.label}{p.done ? "" : "…"}</span>
-          </div>
+          <ol key={gi} className="my-2 ml-1 border-l-2 border-sky-200 pl-3">
+            {g.items.map((p, i) => (
+              <li key={i} className="relative my-1.5 flex items-center gap-2 text-xs text-[#555]">
+                <span className={"absolute -left-[19px] top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full border-2 border-white " + (p.done ? (p.failed ? "bg-red-400" : "bg-emerald-500") : "bg-sky-400")} />
+                <span className="rounded-lg border border-sky-100 bg-white/80 px-2 py-1 text-base leading-none">{stepIcon(p.label)}</span>
+                <span className="text-[#444]">{p.label}{p.done ? "" : "…"}</span>
+                {p.done && p.endedAt && <span className="text-[10px] text-[#aaa]">{fmtSec(p.endedAt - p.startedAt)}</span>}
+                {p.done ? <span className={"yuki-pop ml-auto font-black " + (p.failed ? "text-red-500" : "text-emerald-600")}>{p.failed ? "!" : "✓"}</span> : <span className="ml-auto inline-block h-3 w-3 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" />}
+              </li>
+            ))}
+          </ol>
         ),
       )}
+    </div>
+  );
+}
+
+/** 最初の画面: ようこそ(できること3つ+用途チップ) */
+function Welcome({ clientName, onPick }: { clientName: string; onPick: (s: string) => void }) {
+  const items = [
+    { icon: "🎬", t: "動画の設計図を整える", d: "テロップの文言・順番・尺を見直し、検査してから仕上げ直します" },
+    { icon: "📝", t: "御社の決まりを覚える", d: "「今後はこうして」と伝えると記憶ノートに書き、次から活かします" },
+    { icon: "💬", t: "日々の相談", d: "紹介文づくり・SNSの反響・社内の記録など、何でもどうぞ" },
+  ];
+  return (
+    <div className="yuki-in mx-auto max-w-2xl px-1 pt-2">
+      <div className="yuki-paper rounded-3xl px-5 py-4 lg:px-7 lg:py-6">
+        <p className="text-[15px] font-black text-[#222] lg:text-lg">{clientName ? `${clientName}さま、` : ""}ようこそ ユキのデスクへ😊</p>
+        <p className="mt-1 text-xs text-[#777] lg:text-sm">御社専任のAI担当が、ここで一緒に働きます。今日はどんなご相談でしょうか?</p>
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          {items.map((it) => (
+            <div key={it.t} className="rounded-2xl border border-sky-100 bg-white/70 px-3 py-3">
+              <div className="text-xl">{it.icon}</div>
+              <p className="mt-1 text-sm font-bold text-[#222]">{it.t}</p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-[#777]">{it.d}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {STARTERS.map((s) => <button key={s} onClick={() => onPick(s)} className="rounded-full border border-[#f7931e]/40 bg-[#fff8f0] px-3 py-1.5 text-xs font-bold text-[#c96a00] hover:bg-[#ffefdc]">{s}</button>)}
+        </div>
+      </div>
     </div>
   );
 }
@@ -82,18 +160,19 @@ function ThreadList({ threads, currentId, onOpen, onNew, onArchive }: { threads:
   const shown = live.slice(0, 10);
   const more = live.slice(10);
   const Row = ({ t }: { t: ThreadMeta }) => (
-    <div className={"group flex items-start gap-2 rounded-xl px-3 py-2.5 " + (t.id === currentId ? "bg-[#fff3e6]" : "hover:bg-black/[.03]")}>
+    <div className={"group flex items-center gap-2.5 rounded-xl px-3 py-2.5 " + (t.id === currentId ? "bg-[#fff3e6]" : "hover:bg-black/[.03]")}>
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-50 text-lg">{threadIcon(t)}</span>
       <button onClick={() => onOpen(t.id)} className="min-w-0 flex-1 text-left">
-        <div className="flex items-center gap-2"><span className="truncate text-sm font-bold text-[#222]">{t.title || "相談"}</span><span className="ml-auto shrink-0 text-[10px] text-[#999]">{fmtWhen(t.updated_at)}</span></div>
+        <div className="flex items-center gap-2"><span className="truncate text-sm font-bold text-[#222]">{t.title || "相談"}</span><span className="ml-auto shrink-0 text-[10px] text-[#999]">{fmtRel(t.updated_at)}</span></div>
         <p className="truncate text-xs text-[#888]">{t.last_preview || "…"}</p>
       </button>
-      <button onClick={() => onArchive(t.id, !t.archived)} title={t.archived ? "戻す" : "片付ける"} className="shrink-0 rounded-md px-1.5 py-1 text-[11px] text-[#aaa] hover:bg-black/5 hover:text-[#666]">{t.archived ? "戻す" : "片付ける"}</button>
+      <button onClick={() => onArchive(t.id, !t.archived)} title={t.archived ? "戻す" : "片付ける"} className="shrink-0 rounded-md px-1.5 py-1 text-[11px] text-[#bbb] hover:bg-black/5 hover:text-[#666]">{t.archived ? "戻す" : "片付ける"}</button>
     </div>
   );
   return (
     <div className="flex h-full flex-col">
       <div className="px-3 pt-3">
-        <button onClick={onNew} className={"w-full rounded-xl border px-3 py-2.5 text-sm font-bold " + (currentId === null ? "border-orange-400 bg-[#fff8f0] text-[#c96a00]" : "border-dashed border-[#f7931e]/50 text-[#c96a00]")}>＋ 新しい相談をはじめる</button>
+        <button onClick={onNew} className={"w-full rounded-xl border px-3 py-2.5 text-sm font-bold transition-colors " + (currentId === null ? "border-orange-400 bg-[#fff8f0] text-[#c96a00]" : "border-dashed border-[#f7931e]/50 text-[#c96a00] hover:bg-[#fff8f0]")}>＋ 新しい相談をはじめる</button>
       </div>
       <div className="flex-1 overflow-y-auto px-1 py-2">
         {shown.map((t) => <Row key={t.id} t={t} />)}
@@ -111,33 +190,47 @@ function ThreadList({ threads, currentId, onOpen, onNew, onArchive }: { threads:
   );
 }
 
-/** ノート(記憶)の閲覧・読み取り専用。書き換えはチャットでユキに頼む(設計書§8-6) */
+/** ノート(記憶)の閲覧・読み取り専用・手帳風。書き換えはチャットでユキに頼む(設計書§8-6) */
 function NotesPane({ compact, onBack }: { compact: boolean; onBack?: () => void }) {
   const [notes, setNotes] = useState<NoteMeta[] | null>(null);
   const [current, setCurrent] = useState<string | null>(null);
   const [body, setBody] = useState<string>("");
   useEffect(() => { fetch("/api/portal/yuki/notes").then((r) => r.json()).then((d: { ok?: boolean; notes?: NoteMeta[] }) => setNotes(d.ok ? d.notes ?? [] : [])).catch(() => setNotes([])); }, []);
   const open = (p: string) => { setCurrent(p); setBody(""); fetch(`/api/portal/yuki/notes?path=${encodeURIComponent(p)}`).then((r) => r.json()).then((d: { ok?: boolean; body?: string }) => setBody(d.ok ? d.body ?? "" : "(読めませんでした)")).catch(() => setBody("(読めませんでした)")); };
+  const title = (p: string) => (p === "INDEX.md" ? "索引" : p.replace(/\.md$/, "").split("/").pop() || p);
+  const group = (p: string) => (p.includes("/") ? p.split("/")[0] : "");
   const list = (
-    <div className="h-full overflow-y-auto px-2 py-2">
-      <p className="px-2 pb-2 text-[11px] text-[#999]">ユキが御社について覚えていることです。書き換えはチャットでユキに頼んでください</p>
-      {notes === null ? <p className="px-2 text-xs text-[#999]">読み込んでいます…</p> : notes.length === 0 ? <p className="px-2 text-xs text-[#999]">まだノートはありません。相談の中で「覚えて」と伝えると増えていきます</p> :
-        notes.map((n) => (
-          <button key={n.path} onClick={() => open(n.path)} className={"block w-full rounded-lg px-2 py-2 text-left text-sm " + (current === n.path ? "bg-[#fff3e6] font-bold text-[#c96a00]" : "text-[#333] hover:bg-black/[.03]")}>
-            {n.path === "INDEX.md" ? "📒 索引(INDEX)" : n.path.replace(/\.md$/, "")}
-            <span className="ml-2 text-[10px] text-[#aaa]">{fmtWhen(n.updated_at)}</span>
-          </button>
-        ))}
+    <div className="h-full overflow-y-auto px-3 py-3">
+      <p className="pb-3 text-[11px] leading-relaxed text-[#999]">ユキが御社について覚えていることです。書き換えはチャットでユキに頼んでください</p>
+      {notes === null ? <p className="text-xs text-[#999]">読み込んでいます…</p> : notes.length === 0 ? <p className="text-xs text-[#999]">まだノートはありません。相談の中で「覚えて」と伝えると増えていきます</p> :
+        <div className="grid gap-2">
+          {notes.map((n) => (
+            <button key={n.path} onClick={() => open(n.path)} className={"yuki-in relative overflow-hidden rounded-2xl border px-3 py-3 text-left transition-colors " + (current === n.path ? "border-orange-300 bg-[#fff8f0]" : "border-sky-100 bg-white hover:bg-sky-50/40")}>
+              <span className="absolute left-0 top-0 h-full w-1.5 bg-sky-200" />
+              <div className="flex items-center gap-2 pl-1">
+                <span className="text-lg">{n.path === "INDEX.md" ? "📒" : "📄"}</span>
+                <span className="truncate text-sm font-bold text-[#222]">{title(n.path)}</span>
+                <span className="ml-auto shrink-0 text-[10px] text-[#aaa]">{fmtRel(n.updated_at)}</span>
+              </div>
+              <p className="mt-0.5 pl-1 text-[11px] text-[#999]">{group(n.path) ? `${group(n.path)} / ` : ""}約{Math.max(1, Math.round(n.size / 3))}字</p>
+            </button>
+          ))}
+        </div>}
     </div>
   );
   const viewer = (
-    <div className="h-full overflow-y-auto px-4 py-3 text-sm text-[#222] lg:px-6">
+    <div className="h-full overflow-y-auto px-4 py-3 lg:px-6">
       {compact && <button onClick={() => setCurrent(null)} className="mb-2 text-xs text-[#999]">← ノート一覧</button>}
-      {current ? (body ? <LiteMd text={body} /> : <p className="text-xs text-[#999]">読み込んでいます…</p>) : <p className="text-xs text-[#999]">左の一覧からノートを選んでください</p>}
+      {current ? (
+        <div className="yuki-paper yuki-in rounded-3xl px-5 py-4 text-sm leading-relaxed text-[#222] lg:px-7 lg:py-6">
+          <p className="mb-3 text-[11px] text-[#aaa]">📒 {current === "INDEX.md" ? "索引" : current.replace(/\.md$/, "")}</p>
+          {body ? <LiteMd text={body} /> : <p className="text-xs text-[#999]">読み込んでいます…</p>}
+        </div>
+      ) : <p className="text-xs text-[#999]">左の一覧からノートを選んでください</p>}
     </div>
   );
   if (compact) return <div className="flex h-full flex-col">{onBack && !current && <button onClick={onBack} className="px-3 pt-2 text-left text-xs text-[#999]">← 相談へ</button>}<div className="min-h-0 flex-1">{current ? viewer : list}</div></div>;
-  return <div className="grid h-full grid-cols-[260px_1fr]"><div className="min-h-0 border-r border-black/5">{list}</div><div className="min-h-0">{viewer}</div></div>;
+  return <div className="grid h-full grid-cols-[280px_1fr]"><div className="min-h-0 border-r border-black/5">{list}</div><div className="min-h-0">{viewer}</div></div>;
 }
 
 export default function YukiDesk({ clientName }: { clientName: string }) {
@@ -146,7 +239,7 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
   const [threads, setThreads] = useState<ThreadMeta[]>([]);
   const [threadId, setThreadId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Msg[]>([{ role: "assistant", content: greeting }]);
+  const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -166,13 +259,12 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
   }, []);
   const openThread = useCallback(async (id: string | null) => {
     setThreadId(id); setProposal(null); setError(null); setMobileView("chat"); setTab("chat");
-    if (!id) { setMessages([{ role: "assistant", content: greeting }]); return; }
+    if (!id) { setMessages([]); return; }
     setMessages([{ role: "assistant", content: "読み込んでいます…" }]);
     try {
       const d = (await (await fetch(`/api/portal/yuki/threads?thread_id=${encodeURIComponent(id)}`)).json()) as { ok?: boolean; messages?: Msg[] };
-      setMessages(d.ok && d.messages?.length ? d.messages.map((m) => ({ role: m.role, content: m.content })) : [{ role: "assistant", content: greeting }]);
-    } catch { setMessages([{ role: "assistant", content: greeting }]); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      setMessages(d.ok && d.messages?.length ? d.messages.map((m) => ({ role: m.role, content: m.content })) : []);
+    } catch { setMessages([]); }
   }, []);
 
   useEffect(() => {
@@ -180,7 +272,6 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
     (async () => {
       await loadThreads();
       fetch("/api/portal/yuki/credits").then((r) => r.json()).then((d: { ok?: boolean; credits?: CreditsView }) => { if (alive && d.ok && d.credits) setCredits(d.credits); }).catch(() => {});
-      // 進行中のジョブがあれば、そのスレッドを開いて続きから描く
       try {
         const raw = localStorage.getItem(LS_KEY);
         if (raw) {
@@ -189,7 +280,6 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
           localStorage.removeItem(LS_KEY);
         }
       } catch {}
-      // PCは最新の相談を開いておく。スマホは一覧から
       if (alive && window.matchMedia("(min-width: 1024px)").matches) {
         const d = (await (await fetch("/api/portal/yuki/threads")).json().catch(() => ({}))) as { threads?: ThreadMeta[] };
         const first = (d.threads ?? []).find((t) => !t.archived);
@@ -225,7 +315,7 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
     });
   const startBubble = () => setMessages((cur) => {
     const i = cur.map((m) => !!m.live).lastIndexOf(true);
-    if (i >= 0 && !cur[i].content.trim()) return cur;  // 作業カードだけの吹き出しに本文を続ける
+    if (i >= 0 && !cur[i].content.trim()) return cur;
     return [...cur.map((m) => ({ ...m, live: false })), { role: "assistant", content: "", parts: [], live: true }];
   });
   const addText = (t: string) => withLive((m) => {
@@ -234,10 +324,10 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
     if (last && last.kind === "text") parts[parts.length - 1] = { kind: "text", text: last.text + t }; else parts.push({ kind: "text", text: t });
     return { ...m, parts, content: m.content + t };
   });
-  const addStep = (label: string) => withLive((m) => ({ ...m, parts: [...(m.parts ?? []), { kind: "step", label, done: false }] }));
+  const addStep = (label: string) => withLive((m) => ({ ...m, parts: [...(m.parts ?? []), { kind: "step", label, done: false, startedAt: Date.now() }] }));
   const finishStep = (failed = false) => withLive((m) => {
     const parts = [...(m.parts ?? [])];
-    for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; if (p.kind === "step" && !p.done) { parts[i] = { ...p, done: true, failed }; break; } }
+    for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; if (p.kind === "step" && !p.done) { parts[i] = { ...p, done: true, failed, endedAt: Date.now() }; break; } }
     return { ...m, parts };
   });
   const seal = () => setMessages((cur) => cur.map((m) => ({ ...m, live: false })).filter((m) => !(m.role === "assistant" && !m.content.trim() && !(m.parts ?? []).some((p) => p.kind === "step"))));
@@ -303,7 +393,7 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
     void loadThreads();
   };
 
-  const fresh = messages.length <= 1;
+  const fresh = messages.length === 0;
   const exhausted = !!credits?.exhausted;
   const currentTitle = threads.find((t) => t.id === threadId)?.title;
 
@@ -314,33 +404,29 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
         <span className="truncate text-xs font-bold text-[#555]">{currentTitle || "新しい相談"}</span>
       </div>
       <div onScroll={(e) => { const el = e.currentTarget; nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120; if (nearBottomRef.current) setFinishedBanner(false); }} className="flex-1 space-y-3 overflow-y-auto px-3 py-4 lg:space-y-4 lg:px-6 lg:py-6">
+        {fresh && !busy && <Welcome clientName={clientName} onPick={(s) => void send(s === "その他なんでも" ? "相談したいことがあります。" : s)} />}
         {messages.map((m, i) => (
-          <div key={i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
+          <div key={i} className={"yuki-in " + (m.role === "user" ? "flex justify-end" : "flex justify-start")}>
             {m.role === "user" ? (
-              <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-orange-500 px-4 py-2.5 text-sm leading-relaxed text-white lg:max-w-[70%] lg:text-[15px]">{m.content}</div>
+              <div className="max-w-[85%] whitespace-pre-wrap rounded-3xl rounded-br-lg bg-orange-500 px-4 py-2.5 text-sm leading-relaxed text-white shadow-sm lg:max-w-[70%] lg:text-[15px]">{m.content}</div>
             ) : (m.content.trim() || (m.parts ?? []).some((p) => p.kind === "step")) ? <AssistantBubble m={m} /> : null}
           </div>
         ))}
-        {fresh && !busy && (
-          <div className="flex flex-wrap gap-2 pt-1">
-            {STARTERS.map((s) => <button key={s} onClick={() => void send(s === "その他なんでも" ? "相談したいことがあります。" : s)} className="rounded-full border border-[#f7931e]/40 bg-[#fff8f0] px-3 py-1.5 text-xs font-bold text-[#c96a00]">{s}</button>)}
-          </div>
-        )}
         {proposal && !busy && (
-          <div className="rounded-2xl border border-orange-300 bg-[#fff8f0] px-4 py-3 text-sm text-[#222]">
+          <div className="yuki-in rounded-3xl border border-orange-300 bg-[#fff8f0] px-4 py-3 text-sm text-[#222] shadow-sm">
             <p className="font-bold">この操作には <span className="text-[#c96a00]">{proposal.cost_label}</span> がかかります。実行してよろしいですか?</p>
             <p className="mt-1 text-xs text-[#777]">承認するとユキが先ほどの操作を実行します。迷う点があれば、承認の前にそのまま質問してください。</p>
             <div className="mt-3 flex gap-2">
-              <button onClick={() => void send("承認しました。先ほどご提案の操作を実行してください。", proposal)} className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-bold text-white">承認して実行</button>
-              <button onClick={() => setProposal(null)} className="rounded-xl border border-black/10 px-4 py-2 text-sm font-bold text-[#555]">今はやめる</button>
+              <button onClick={() => void send("承認しました。先ほどご提案の操作を実行してください。", proposal)} className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-orange-600">承認して実行</button>
+              <button onClick={() => setProposal(null)} className="rounded-xl border border-black/10 px-4 py-2 text-sm font-bold text-[#555] hover:bg-black/5">今はやめる</button>
             </div>
           </div>
         )}
-        {busy && <div className="flex justify-start"><div className="rounded-2xl rounded-bl-md bg-[#f4f2ee] px-4 py-2.5 text-sm text-[#888]">{spinner}…</div></div>}
+        {busy && <Thinking label={spinner} />}
         <div ref={bottomRef} />
       </div>
       {finishedBanner && (
-        <button onClick={() => { setFinishedBanner(false); nearBottomRef.current = true; bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }} className="mx-4 mb-1 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white">✅ ユキの作業が終わりました。結果を見る</button>
+        <button onClick={() => { setFinishedBanner(false); nearBottomRef.current = true; bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }} className="yuki-in mx-4 mb-1 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-bold text-white">✅ ユキの作業が終わりました。結果を見る</button>
       )}
       {error && <p className="px-4 pb-1 text-xs font-bold text-red-500">{error}</p>}
       {exhausted && <p className="px-4 pb-1 text-xs font-bold text-[#c96a00]">今月のユキクレジットの枠を使い切りました。来月また一緒に働けます(ご相談の閲覧はできます)</p>}
@@ -348,8 +434,8 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
         <textarea value={input} onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(input); } }}
           rows={2} maxLength={4000} disabled={exhausted} placeholder={exhausted ? "今月の枠を使い切りました" : busy ? "ユキが作業中です(終わったら続けて送れます)" : "ご相談・ご依頼を入力"}
-          className="min-h-[44px] flex-1 resize-none rounded-xl border border-black/10 px-3 py-2.5 text-sm outline-none focus:border-orange-400 disabled:bg-black/5 lg:min-h-[72px] lg:text-[15px]" />
-        <button onClick={() => void send(input)} disabled={busy || exhausted || !input.trim()} className="h-[44px] shrink-0 rounded-xl bg-orange-500 px-4 text-sm font-bold text-white disabled:opacity-40">送信</button>
+          className="min-h-[44px] flex-1 resize-none rounded-2xl border border-black/10 px-3 py-2.5 text-sm outline-none transition-colors focus:border-orange-400 disabled:bg-black/5 lg:min-h-[72px] lg:text-[15px]" />
+        <button onClick={() => void send(input)} disabled={busy || exhausted || !input.trim()} className="h-[44px] shrink-0 rounded-2xl bg-orange-500 px-4 text-sm font-bold text-white shadow-sm transition-transform active:scale-95 disabled:opacity-40">送信</button>
       </div>
     </div>
   );
@@ -357,13 +443,14 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
   const tabs = (
     <div className="flex gap-1 px-3 pt-2">
       {(["chat", "notes"] as const).map((k) => (
-        <button key={k} onClick={() => { setTab(k); if (k === "chat") setMobileView("list"); }} className={"rounded-full px-3 py-1 text-xs font-bold " + (tab === k ? "bg-[#222] text-white" : "bg-black/5 text-[#666]")}>{k === "chat" ? "相談" : "ノート"}</button>
+        <button key={k} onClick={() => { setTab(k); if (k === "chat") setMobileView("list"); }} className={"rounded-full px-3 py-1 text-xs font-bold transition-colors " + (tab === k ? "bg-[#222] text-white" : "bg-black/5 text-[#666] hover:bg-black/10")}>{k === "chat" ? "相談" : "ノート"}</button>
       ))}
     </div>
   );
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-8.5rem)] min-h-[520px] w-full flex-col rounded-2xl bg-white shadow-sm ring-1 ring-black/5 sm:h-[calc(100dvh-10.5rem)]">
+      <style dangerouslySetInnerHTML={{ __html: STYLE }} />
       <header className="flex items-center gap-3 border-b border-black/5 px-4 py-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-amber-300 text-lg font-black text-white">ユ</div>
         <div className="min-w-0">
