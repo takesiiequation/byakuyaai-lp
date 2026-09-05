@@ -1,14 +1,10 @@
-// ユキのデスク 会話履歴(画面復元用)
-//   R2: デスクユキ(Fargateランタイム)の会話記録は S3 workspace/{client}/desk/transcript.json。無ければ旧経路(AI会話ログ)に落ちる
+// ユキクレジットの表示用API(R2): 段階の言葉と10%刻みの割合だけ返す(生の金額・トークン数は返さない=設計§6)
 import { NextResponse } from "next/server";
 import { getPortalClientId } from "@/app/_lib/portalAuth";
 import { getClientById } from "@/app/_lib/sheets";
 import { isFlagOn } from "@/app/_lib/portalSubmitShared";
 import { deskVisibleFor } from "@/app/_lib/deskRelease";
-import { loadDeskHistory } from "@/app/_lib/desk";
-import { readTranscript } from "@/app/_lib/yuki_cp";
-
-export const maxDuration = 30;
+import { readLedger, creditsView } from "@/app/_lib/yuki_cp";
 
 export async function GET() {
   const clientId = await getPortalClientId();
@@ -17,8 +13,9 @@ export async function GET() {
   if (!client || !deskVisibleFor(client.plan) || !isFlagOn(client.portal_enabled) || !isFlagOn(client.workspace_enabled)) {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
-  let messages: Array<{ role: string; content: string }> = [];
-  try { messages = (await readTranscript(clientId)).map((m) => ({ role: m.role, content: m.content })); } catch {}
-  if (!messages.length) messages = await loadDeskHistory(clientId);
-  return NextResponse.json({ ok: true, messages });
+  try {
+    return NextResponse.json({ ok: true, credits: creditsView(await readLedger(clientId, client.plan)) });
+  } catch {
+    return NextResponse.json({ ok: true, credits: { stage: "たっぷり余裕があります", pct10: 0, exhausted: false }, degraded: true });
+  }
 }
