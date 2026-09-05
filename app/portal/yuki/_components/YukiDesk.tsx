@@ -171,8 +171,8 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
           if (t === "text_start") startBubble();
           else if (t === "text" && typeof ev.text === "string") { got += ev.text.length; addText(ev.text); }
           else if (t === "tool") { const lbl = labelOf(String(ev.name)); statusRef.current = lbl + "しています"; setSpinner(lbl + "しています"); if (String(ev.name) !== "ToolSearch") addStep(lbl); }
-          else if (t === "tool_result") { if (String(ev.name) !== "ToolSearch") finishStep(false); }
-          else if (t === "deny") { finishStep(true); if (ev.proposal) { const p = ev.proposal as Proposal; if (p.tool && p.args_hash) pendingProposal = p; } }
+          else if (t === "tool_result") { statusRef.current = null; if (String(ev.name) !== "ToolSearch") finishStep(false); }
+          else if (t === "deny") { statusRef.current = null; finishStep(true); if (ev.proposal) { const p = ev.proposal as Proposal; if (p.tool && p.args_hash) pendingProposal = p; } }
           else if (t === "error" && typeof ev.message === "string") failed = ev.message;
         }
         if (pd.done) { if (pd.credits) setCredits(pd.credits); if (pd.status === "error" && pd.error) failed = pd.error; break; }
