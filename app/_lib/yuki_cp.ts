@@ -109,7 +109,8 @@ export async function releaseLock(clientId: string, jobId: string): Promise<void
 
 // ---------- ジョブ ----------
 export type PaidGrant = { tool: string; args_hash: string };
-export type JobMeta = { job_id: string; client_id: string; task_arn: string; started_at: string; prompt: string; settled: boolean; status: "running" | "done" | "error"; error?: string; session_id?: string; cost_usd?: number; tools_cost_usd?: number };
+export type JobMeta = { job_id: string; client_id: string; task_arn: string; started_at: string; prompt: string; settled: boolean; status: "running" | "done" | "error"; error?: string; session_id?: string; cost_usd?: number; tools_cost_usd?: number; warm?: boolean };
+const WORKER_FRESH_MS = 15_000;  // 心拍がこの範囲なら常駐ワーカーへ enqueue(RunTaskしない)
 const metaKey = (c: string, j: string) => `jobs/${c}/${j}/meta.json`;
 
 export async function startJob(p: { clientId: string; clientName: string; plan?: string; prompt: string; paidGrant?: PaidGrant | null }): Promise<{ ok: true; job_id: string } | { ok: false; error: string }> {
@@ -127,6 +128,14 @@ export async function startJob(p: { clientId: string; clientName: string; plan?:
     };
     const prefix = `jobs/${p.clientId}/${jobId}/`;
     await putJson(prefix + "job.json", job);
+    // 常駐ワーカー(前の仕事の後10分居残り)が生きていれば、タスクを起こさず待ち行列に置く=数秒で応答
+    const worker = (await getJson<{ task_arn?: string; at?: number; busy?: boolean }>(`jobs/${p.clientId}/_worker.json`)).value;
+    if (worker && Date.now() - Number(worker.at) < WORKER_FRESH_MS && !worker.busy) {
+      await putJson(`jobs/${p.clientId}/_queue/${jobId}.json`, { at: Date.now() });
+      const meta: JobMeta = { job_id: jobId, client_id: p.clientId, task_arn: String(worker.task_arn || ""), started_at: new Date().toISOString(), prompt: p.prompt.slice(0, 4000), settled: false, status: "running", warm: true };
+      await putJson(metaKey(p.clientId, jobId), meta);
+      return { ok: true, job_id: jobId };
+    }
     // 起動物: コード束 + node_modules/python 環境のS3キャッシュ(署名付きGET/PUT・boot.mjs が使う。コンテナにS3権限は要らない)
     let bmeta: { bundle_key: string; lock_hash?: string; py_ver?: string; py_src_url?: string };
     try { bmeta = JSON.parse(await (await s3().send(new GetObjectCommand({ Bucket: BUCKET, Key: "build/latest.json" }))).Body!.transformToString("utf-8")); }
@@ -182,8 +191,17 @@ export async function pollJob(clientId: string, jobId: string, cursor: string, p
     await releaseLock(clientId, jobId);
     return { ok: true, events, cursor: newCursor, done: true, status: m2.status, error: m2.error, credits: creditsView(led) };
   }
-  // 結果が無いまま長い→タスクの生死を見る(コールドスタート≒2分を考慮して4分以降)
   const age = Date.now() - new Date(meta.started_at).getTime();
+  // 常駐ワーカーへ渡した仕事が90秒たっても動き出さない(断片ゼロ)→ワーカー死亡とみなし、次回はRunTaskに戻す
+  if (meta.warm && age > 90_000 && !cursor && !keys.length) {
+    const m2: JobMeta = { ...meta, settled: true, status: "error", error: "worker_unresponsive" };
+    await putJson(metaKey(clientId, jobId), m2);
+    try { await s3().send(new DeleteObjectCommand({ Bucket: BUCKET, Key: `jobs/${clientId}/_worker.json` })); } catch {}
+    try { await s3().send(new DeleteObjectCommand({ Bucket: BUCKET, Key: `jobs/${clientId}/_queue/${jobId}.json` })); } catch {}
+    await releaseLock(clientId, jobId);
+    return { ok: true, events, cursor: newCursor, done: true, status: "error", error: "ユキの応答がありませんでした。もう一度お送りください", credits: creditsView(await readLedger(clientId, plan)) };
+  }
+  // 結果が無いまま長い→タスクの生死を見る(コールドスタート≒2分を考慮して4分以降)
   if (age > 4 * 60 * 1000 && meta.task_arn) {
     try {
       const d = await ecs().send(new DescribeTasksCommand({ cluster: CLUSTER, tasks: [meta.task_arn] }));
