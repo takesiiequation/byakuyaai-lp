@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   if (!cpConfigured()) return NextResponse.json({ ok: false, error: "ただいま準備中です。担当者までご連絡ください" }, { status: 503 });
   if (await rateLimited(clientId)) return NextResponse.json({ ok: false, error: "少し間を置いてからお試しください" }, { status: 429 });
 
-  let body: { prompt?: unknown; paid_grant?: unknown };
+  let body: { prompt?: unknown; paid_grant?: unknown; thread_id?: unknown };
   try { body = await req.json(); } catch { return NextResponse.json({ ok: false, error: "invalid_request" }, { status: 400 }); }
   const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
   if (!prompt || prompt.length > 4000) return NextResponse.json({ ok: false, error: "invalid_prompt" }, { status: 400 });
@@ -45,10 +45,11 @@ export async function POST(req: NextRequest) {
   const view = creditsView(led);
   if (view.exhausted && grant) return NextResponse.json({ ok: false, error: "今月のユキクレジットの枠を使い切っているため、この操作は実行できません。来月また一緒に働けます", credits: view }, { status: 402 });
 
-  const r = await startJob({ clientId, clientName: client.client_name ?? "", plan: client.plan, prompt, paidGrant: grant });
+  const threadId = typeof body.thread_id === "string" && /^[a-z0-9]{6,32}$/i.test(body.thread_id) ? body.thread_id : null;
+  const r = await startJob({ clientId, clientName: client.client_name ?? "", plan: client.plan, prompt, paidGrant: grant, threadId });
   if (!r.ok) {
     const msg = r.error === "busy" ? "ユキが前のご依頼を進めています。終わってからお送りください" : "ただいま混み合っています。少し時間をおいてお試しください";
     return NextResponse.json({ ok: false, error: msg, detail: r.error }, { status: r.error === "busy" ? 409 : 502 });
   }
-  return NextResponse.json({ ok: true, job_id: r.job_id, credits: view });
+  return NextResponse.json({ ok: true, job_id: r.job_id, thread_id: r.thread_id, credits: view });
 }

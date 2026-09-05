@@ -109,20 +109,22 @@ export async function releaseLock(clientId: string, jobId: string): Promise<void
 
 // ---------- ジョブ ----------
 export type PaidGrant = { tool: string; args_hash: string };
-export type JobMeta = { job_id: string; client_id: string; task_arn: string; started_at: string; prompt: string; settled: boolean; status: "running" | "done" | "error"; error?: string; session_id?: string; cost_usd?: number; tools_cost_usd?: number; warm?: boolean };
+export type JobMeta = { job_id: string; client_id: string; task_arn: string; started_at: string; prompt: string; settled: boolean; status: "running" | "done" | "error"; error?: string; session_id?: string; cost_usd?: number; tools_cost_usd?: number; warm?: boolean; thread_id?: string };
 const WORKER_FRESH_MS = 15_000;  // 心拍がこの範囲なら常駐ワーカーへ enqueue(RunTaskしない)
 const metaKey = (c: string, j: string) => `jobs/${c}/${j}/meta.json`;
 
-export async function startJob(p: { clientId: string; clientName: string; plan?: string; prompt: string; paidGrant?: PaidGrant | null }): Promise<{ ok: true; job_id: string } | { ok: false; error: string }> {
+export async function startJob(p: { clientId: string; clientName: string; plan?: string; prompt: string; paidGrant?: PaidGrant | null; threadId?: string | null }): Promise<{ ok: true; job_id: string; thread_id: string } | { ok: false; error: string }> {
   if (!CLIENT_RE.test(p.clientId)) return { ok: false, error: "invalid_client" };
   const jobId = `${Date.now().toString(36)}-${randomBytes(4).toString("hex")}`;
   if (!(await acquireLock(p.clientId, jobId))) return { ok: false, error: "busy" };
   try {
     const led = await readLedger(p.clientId, p.plan);
     const remaining = +(led.cap_usd - led.used_usd).toFixed(4);
-    const sess = (await getJson<{ session_id?: string }>(`workspace/${p.clientId}/desk/session.json`)).value;
+    // スレッド(相談の器): 会話の文脈=Agent SDKのセッションはスレッド単位。記憶(memory/)は全スレッド共通
+    const threadId = p.threadId && THREAD_RE.test(p.threadId) ? p.threadId : `t${Date.now().toString(36)}${randomBytes(3).toString("hex")}`;
+    const thread = (await getJson<ThreadDoc>(threadKey(p.clientId, threadId))).value;
     const job = {
-      prompt: p.prompt.slice(0, 8000), client_name: p.clientName, session_id: sess?.session_id || null,
+      prompt: p.prompt.slice(0, 8000), client_name: p.clientName, session_id: thread?.session_id || null, thread_id: threadId,
       credits: { cap_usd: led.cap_usd, used_usd: led.used_usd, remaining_usd: remaining },
       paid_grant: p.paidGrant ?? null,
     };
@@ -132,9 +134,9 @@ export async function startJob(p: { clientId: string; clientName: string; plan?:
     const worker = (await getJson<{ task_arn?: string; at?: number; busy?: boolean }>(`jobs/${p.clientId}/_worker.json`)).value;
     if (worker && Date.now() - Number(worker.at) < WORKER_FRESH_MS && !worker.busy) {
       await putJson(`jobs/${p.clientId}/_queue/${jobId}.json`, { at: Date.now() });
-      const meta: JobMeta = { job_id: jobId, client_id: p.clientId, task_arn: String(worker.task_arn || ""), started_at: new Date().toISOString(), prompt: p.prompt.slice(0, 4000), settled: false, status: "running", warm: true };
+      const meta: JobMeta = { job_id: jobId, client_id: p.clientId, task_arn: String(worker.task_arn || ""), started_at: new Date().toISOString(), prompt: p.prompt.slice(0, 4000), settled: false, status: "running", warm: true, thread_id: threadId };
       await putJson(metaKey(p.clientId, jobId), meta);
-      return { ok: true, job_id: jobId };
+      return { ok: true, job_id: jobId, thread_id: threadId };
     }
     // 起動物: コード束 + node_modules/python 環境のS3キャッシュ(署名付きGET/PUT・boot.mjs が使う。コンテナにS3権限は要らない)
     let bmeta: { bundle_key: string; lock_hash?: string; py_ver?: string; py_src_url?: string };
@@ -156,9 +158,9 @@ export async function startJob(p: { clientId: string; clientName: string; plan?:
       tags: [{ key: "app", value: "yuki" }, { key: "client", value: p.clientId }],
     }));
     if (r.failures?.length || !r.tasks?.length) { await releaseLock(p.clientId, jobId); return { ok: false, error: "run_task_failed:" + (r.failures?.[0]?.reason || "unknown") }; }
-    const meta: JobMeta = { job_id: jobId, client_id: p.clientId, task_arn: r.tasks[0].taskArn || "", started_at: new Date().toISOString(), prompt: p.prompt.slice(0, 4000), settled: false, status: "running" };
+    const meta: JobMeta = { job_id: jobId, client_id: p.clientId, task_arn: r.tasks[0].taskArn || "", started_at: new Date().toISOString(), prompt: p.prompt.slice(0, 4000), settled: false, status: "running", thread_id: threadId };
     await putJson(metaKey(p.clientId, jobId), meta);
-    return { ok: true, job_id: jobId };
+    return { ok: true, job_id: jobId, thread_id: threadId };
   } catch (e) {
     await releaseLock(p.clientId, jobId);
     return { ok: false, error: "start_failed:" + String((e as Error)?.message ?? e).slice(0, 120) };
@@ -184,8 +186,8 @@ export async function pollJob(clientId: string, jobId: string, cursor: string, p
   const result = (await getJson<{ ok: boolean; error?: string; cost_usd?: number; tools_cost_usd?: number; session_id?: string }>(prefix + "result.json")).value;
   if (result) {
     const led = await settleLedger(clientId, plan, { job_id: jobId, cost_usd: Number(result.cost_usd) || 0, tools_cost_usd: Number(result.tools_cost_usd) || 0 });
-    if (result.ok && result.session_id) await putJson(`workspace/${clientId}/desk/session.json`, { session_id: result.session_id, updated_at: new Date().toISOString() });
-    await appendTranscript(clientId, jobId, meta.prompt);
+    const text = await collectText(clientId, jobId);
+    await settleThread(clientId, meta.thread_id || "legacy", meta.prompt, text, result.ok ? result.session_id : undefined, jobId);
     const m2: JobMeta = { ...meta, settled: true, status: result.ok ? "done" : "error", error: result.ok ? undefined : String(result.error || "failed").slice(0, 200), session_id: result.session_id, cost_usd: result.cost_usd, tools_cost_usd: result.tools_cost_usd };
     await putJson(metaKey(clientId, jobId), m2);
     await releaseLock(clientId, jobId);
@@ -217,15 +219,19 @@ export async function pollJob(clientId: string, jobId: string, cursor: string, p
   return { ok: true, events, cursor: newCursor, done: false, status: "running" };
 }
 
-// ---------- 会話記録(画面復元用・S3) ----------
+// ---------- スレッド(相談の器)・会話記録(S3) ----------
+//   workspace/{client}/desk/threads.json            = { threads: [{id,title,archived,updated_at,last_preview}] }
+//   workspace/{client}/desk/threads/{id}.json       = { messages: [{role,content,at,job_id}], session_id }
+//   記憶(memory/)は全スレッド共通=分かれるのは会話の文脈だけ(設計書§3)
 export type TranscriptMsg = { role: "user" | "assistant"; content: string; at: string; job_id?: string };
-const transcriptKey = (c: string) => `workspace/${c}/desk/transcript.json`;
-export async function readTranscript(clientId: string): Promise<TranscriptMsg[]> {
-  if (!CLIENT_RE.test(clientId)) return [];
-  return ((await getJson<{ messages: TranscriptMsg[] }>(transcriptKey(clientId))).value?.messages ?? []).slice(-60);
-}
-/** 全断片からユキの発話(text)を集めて1本にし、依頼文と一緒に記録 */
-async function appendTranscript(clientId: string, jobId: string, prompt: string) {
+export type ThreadMeta = { id: string; title: string; archived: boolean; updated_at: string; last_preview: string };
+type ThreadDoc = { messages: TranscriptMsg[]; session_id?: string };
+const THREAD_RE = /^[a-z0-9]{6,32}$/i;
+const threadsKey = (c: string) => `workspace/${c}/desk/threads.json`;
+const threadKey = (c: string, t: string) => `workspace/${c}/desk/threads/${t}.json`;
+
+/** 全断片からユキの発話(text)を集めて1本にする */
+async function collectText(clientId: string, jobId: string): Promise<string> {
   const prefix = `jobs/${clientId}/${jobId}/`;
   const list = await s3().send(new ListObjectsV2Command({ Bucket: BUCKET, Prefix: prefix + "ev-" }));
   let text = "";
@@ -235,10 +241,73 @@ async function appendTranscript(clientId: string, jobId: string, prompt: string)
       for (const e of evs) { if (e.type === "text_start" && text && !text.endsWith("\n\n")) text += "\n\n"; if (e.type === "text" && e.text) text += e.text; }
     } catch {}
   }
+  return text.trim();
+}
+
+/** 旧形式(単一スレッド: desk/transcript.json + desk/session.json)があれば「これまでの相談」スレッドに取り込む */
+async function migrateLegacy(clientId: string): Promise<void> {
+  const legacy = (await getJson<{ messages: TranscriptMsg[] }>(`workspace/${clientId}/desk/transcript.json`)).value;
+  if (!legacy?.messages?.length) return;
+  const sess = (await getJson<{ session_id?: string }>(`workspace/${clientId}/desk/session.json`)).value;
+  const id = "legacy";
+  await putJson(threadKey(clientId, id), { messages: legacy.messages.slice(-200), session_id: sess?.session_id } as ThreadDoc);
+  const last = legacy.messages[legacy.messages.length - 1];
+  await putJson(threadsKey(clientId), { threads: [{ id, title: "これまでの相談", archived: false, updated_at: last.at || new Date().toISOString(), last_preview: String(last.content || "").slice(0, 40) }] });
+  try { await s3().send(new DeleteObjectCommand({ Bucket: BUCKET, Key: `workspace/${clientId}/desk/transcript.json` })); } catch {}
+}
+
+export async function listThreads(clientId: string): Promise<ThreadMeta[]> {
+  if (!CLIENT_RE.test(clientId)) return [];
+  let idx = (await getJson<{ threads: ThreadMeta[] }>(threadsKey(clientId))).value;
+  if (!idx) { await migrateLegacy(clientId); idx = (await getJson<{ threads: ThreadMeta[] }>(threadsKey(clientId))).value; }
+  return (idx?.threads ?? []).sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1));
+}
+export async function readThread(clientId: string, threadId: string): Promise<TranscriptMsg[]> {
+  if (!CLIENT_RE.test(clientId) || !THREAD_RE.test(threadId)) return [];
+  return ((await getJson<ThreadDoc>(threadKey(clientId, threadId))).value?.messages ?? []).slice(-80);
+}
+/** 片付ける=アーカイブ(物理削除はしない・設計書§8) */
+export async function archiveThread(clientId: string, threadId: string, archived = true): Promise<boolean> {
+  if (!CLIENT_RE.test(clientId) || !THREAD_RE.test(threadId)) return false;
   for (let i = 0; i < 4; i++) {
-    const { value, etag } = await getJson<{ messages: TranscriptMsg[] }>(transcriptKey(clientId));
-    const at = new Date().toISOString();
-    const msgs = [...(value?.messages ?? []), { role: "user" as const, content: prompt.slice(0, 4000), at, job_id: jobId }, ...(text.trim() ? [{ role: "assistant" as const, content: text.trim().slice(0, 20000), at, job_id: jobId }] : [])].slice(-200);
-    if ((await putJsonIf(transcriptKey(clientId), { messages: msgs }, etag)) === "ok") return;
+    const { value, etag } = await getJson<{ threads: ThreadMeta[] }>(threadsKey(clientId));
+    const threads = (value?.threads ?? []).map((t) => (t.id === threadId ? { ...t, archived } : t));
+    if ((await putJsonIf(threadsKey(clientId), { threads }, etag)) === "ok") return true;
   }
+  return false;
+}
+/** 精算時: スレッドの会話記録・セッション・索引(タイトルは最初の依頼文から。ユキ自身の命名は後日) */
+async function settleThread(clientId: string, threadId: string, prompt: string, text: string, sessionId: string | undefined, jobId: string) {
+  const at = new Date().toISOString();
+  const doc = (await getJson<ThreadDoc>(threadKey(clientId, threadId))).value ?? { messages: [] };
+  const msgs = [...doc.messages, { role: "user" as const, content: prompt.slice(0, 4000), at, job_id: jobId }, ...(text ? [{ role: "assistant" as const, content: text.slice(0, 20000), at, job_id: jobId }] : [])].slice(-200);
+  await putJson(threadKey(clientId, threadId), { messages: msgs, session_id: sessionId || doc.session_id } as ThreadDoc);
+  for (let i = 0; i < 4; i++) {
+    let { value, etag } = await getJson<{ threads: ThreadMeta[] }>(threadsKey(clientId));
+    if (!value) { await migrateLegacy(clientId); ({ value, etag } = await getJson<{ threads: ThreadMeta[] }>(threadsKey(clientId))); }
+    const threads = [...(value?.threads ?? [])];
+    const preview = (text || prompt).replace(/[#*`>\n]+/g, " ").trim().slice(0, 40);
+    const i0 = threads.findIndex((t) => t.id === threadId);
+    if (i0 >= 0) threads[i0] = { ...threads[i0], updated_at: at, last_preview: preview };
+    else threads.push({ id: threadId, title: prompt.replace(/\s+/g, " ").trim().slice(0, 12) || "相談", archived: false, updated_at: at, last_preview: preview });
+    if ((await putJsonIf(threadsKey(clientId), { threads: threads.slice(-50) }, etag)) === "ok") return;
+  }
+}
+/** 後方互換: 直近スレッドの会話(旧 /history 用) */
+export async function readTranscript(clientId: string): Promise<TranscriptMsg[]> {
+  const th = await listThreads(clientId);
+  const t = th.find((x) => !x.archived);
+  return t ? readThread(clientId, t.id) : [];
+}
+
+// ---------- ノート(記憶)の閲覧・読み取り専用 ----------
+export async function listNotes(clientId: string): Promise<Array<{ path: string; size: number; updated_at: string }>> {
+  if (!CLIENT_RE.test(clientId)) return [];
+  const prefix = `workspace/${clientId}/memory/`;
+  const r = await s3().send(new ListObjectsV2Command({ Bucket: BUCKET, Prefix: prefix }));
+  return (r.Contents ?? []).filter((o) => o.Key!.endsWith(".md")).map((o) => ({ path: o.Key!.slice(prefix.length), size: o.Size ?? 0, updated_at: o.LastModified?.toISOString() ?? "" })).sort((a, b) => (a.path === "INDEX.md" ? -1 : b.path === "INDEX.md" ? 1 : a.path.localeCompare(b.path)));
+}
+export async function readNote(clientId: string, p: string): Promise<string | null> {
+  if (!CLIENT_RE.test(clientId) || !/^[a-z0-9_\-/]{1,80}\.md$/i.test(p) || p.includes("..")) return null;
+  try { return await (await s3().send(new GetObjectCommand({ Bucket: BUCKET, Key: `workspace/${clientId}/memory/${p}` }))).Body!.transformToString("utf-8"); } catch { return null; }
 }
