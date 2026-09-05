@@ -35,10 +35,10 @@ function CreditsBar({ c }: { c: CreditsView | null }) {
   const filled = Math.round(pct / 10);
   return (
     <div className="flex items-center gap-3 px-4 py-2">
-      <span className="shrink-0 text-[11px] font-bold text-[#888]">今月のユキクレジット</span>
+      <span className="shrink-0 text-[11px] font-bold text-sky-700">今月のユキクレジット</span>
       <div className="flex flex-1 gap-[3px]">
         {Array.from({ length: 10 }).map((_, i) => (
-          <span key={i} className={"h-2 flex-1 rounded-sm " + (i < filled ? (pct >= 80 ? "bg-orange-400" : "bg-amber-300") : "bg-black/10")} />
+          <span key={i} className={"h-2 flex-1 rounded-sm " + (i < filled ? (pct >= 80 ? "bg-orange-400" : "bg-sky-400") : "bg-sky-100")} />
         ))}
       </div>
       <span className="shrink-0 text-[11px] text-[#666]">{c ? c.stage : "確認中"}</span>
