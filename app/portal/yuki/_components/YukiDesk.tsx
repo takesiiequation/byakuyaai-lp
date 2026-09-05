@@ -55,14 +55,15 @@ const STYLE = `
 `;
 
 function CreditsBar({ c }: { c: CreditsView | null }) {
-  const pct = c ? c.pct10 : 0;
-  const filled = Math.round(pct / 10);
+  // 残りを濃い水色、使った分(枯渇分)をグレーで。残りが2割を切ったら残りをオレンジで注意(岡本 9/6: 濃淡の差が無いと分かりにくい)
+  const used = c ? c.pct10 : 0;
+  const remainingSeg = 10 - Math.round(used / 10);
   return (
     <div className="flex items-center gap-3 px-4 py-2">
       <span className="shrink-0 text-[11px] font-bold text-sky-700">今月のユキクレジット</span>
       <div className="flex flex-1 gap-[3px]">
         {Array.from({ length: 10 }).map((_, i) => (
-          <span key={i} className={"h-2 flex-1 rounded-sm " + (i < filled ? (pct >= 80 ? "bg-orange-400" : "bg-sky-400") : "bg-sky-100")} />
+          <span key={i} className={"h-2 flex-1 rounded-sm " + (i < remainingSeg ? (used >= 80 ? "bg-orange-400" : "bg-sky-600") : "bg-gray-300")} />
         ))}
       </div>
       <span className="shrink-0 text-[11px] text-[#666]">{c ? c.stage : "確認中"}</span>
