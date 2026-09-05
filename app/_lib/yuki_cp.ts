@@ -276,7 +276,16 @@ export async function archiveThread(clientId: string, threadId: string, archived
   }
   return false;
 }
-/** 精算時: スレッドの会話記録・セッション・索引(タイトルは最初の依頼文から。ユキ自身の命名は後日) */
+/** スレッド題: 最初の依頼文から。承認IDや記号を外し、最初の意味の区切りまで(最大14字)。ユキ自身の命名は後日 */
+function threadTitle(prompt: string): string {
+  let s = prompt.replace(/APR-[a-z0-9-]+/gi, "").replace(/[「」『』()（）\[\]【】]/g, " ").replace(/\s+/g, " ").trim();
+  s = s.replace(/^(まず|あと|えっと|すみません|お疲れ様です|こんにちは)[、,\s]*/u, "");
+  const cut = s.split(/[。．!！?？
+]/)[0] || s;
+  const t = cut.replace(/(してください|して欲しい|してほしい|お願いします|ください)$/u, "").trim();
+  return (t || s).slice(0, 14) || "相談";
+}
+/** 精算時: スレッドの会話記録・セッション・索引 */
 async function settleThread(clientId: string, threadId: string, prompt: string, text: string, sessionId: string | undefined, jobId: string) {
   const at = new Date().toISOString();
   const doc = (await getJson<ThreadDoc>(threadKey(clientId, threadId))).value ?? { messages: [] };
@@ -289,7 +298,7 @@ async function settleThread(clientId: string, threadId: string, prompt: string, 
     const preview = (text || prompt).replace(/[#*`>\n]+/g, " ").trim().slice(0, 40);
     const i0 = threads.findIndex((t) => t.id === threadId);
     if (i0 >= 0) threads[i0] = { ...threads[i0], updated_at: at, last_preview: preview };
-    else threads.push({ id: threadId, title: prompt.replace(/\s+/g, " ").trim().slice(0, 12) || "相談", archived: false, updated_at: at, last_preview: preview });
+    else threads.push({ id: threadId, title: threadTitle(prompt), archived: false, updated_at: at, last_preview: preview });
     if ((await putJsonIf(threadsKey(clientId), { threads: threads.slice(-50) }, etag)) === "ok") return;
   }
 }

@@ -30,7 +30,7 @@ const TOOL_LABEL: Record<string, string> = {
 const labelOf = (name: string) => TOOL_LABEL[name] || (name.startsWith("mcp__byakuyaai__") ? "作業中" : "机の上を確認");
 /** 作業カードの絵柄(話題で決める) */
 const stepIcon = (label: string) => /検査/.test(label) ? "🔍" : /記憶|ノート/.test(label) ? "📝" : /仕上げ|映像/.test(label) ? "🎬" : /担当者/.test(label) ? "🤝" : /稼働/.test(label) ? "⏱" : /設計図/.test(label) ? "📐" : /一覧/.test(label) ? "🗂" : "📄";
-const threadIcon = (t: ThreadMeta) => { const s = (t.title + " " + t.last_preview); return /動画|設計図|テロップ|レンダー|検査/.test(s) ? "🎬" : /覚え|記憶|決まり|ルール|ノート/.test(s) ? "📝" : /紹介文|SNS|投稿|反響/.test(s) ? "✍️" : "💬"; };
+const threadIcon = (t: ThreadMeta) => { const s = t.title + " " + t.last_preview; return /覚え|記憶|決まり|ルール|ノート/.test(s) ? "📝" : /紹介文|SNS|投稿|反響|ハッシュタグ/.test(s) ? "✍️" : /動画|設計図|テロップ|レンダー|検査|APR-/.test(s) ? "🎬" : "💬"; };
 const POLL_MS = 1500;
 const LS_KEY = "yuki_desk_active_job";
 /** 相対時刻(3分前・昨日・9/5) */
