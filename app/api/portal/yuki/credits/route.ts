@@ -17,9 +17,10 @@ export async function GET() {
   // 制作クレジット(数字で見せてよい財布)= 月枠 − 新規制作(本数×10) − 作り直し(台帳)
   let production: ReturnType<typeof productionView> | undefined;
   try { production = productionView(client.plan, Number(client.used_this_month) || 0, await readProdLedger(clientId)); } catch {}
+  const build = String(process.env.VERCEL_GIT_COMMIT_SHA || "").slice(0, 7);  // どのデプロイが応答しているか(検証用・秘密ではない)
   try {
-    return NextResponse.json({ ok: true, credits: creditsView(await readLedger(clientId, client.plan)), production });
+    return NextResponse.json({ ok: true, credits: creditsView(await readLedger(clientId, client.plan)), production, build });
   } catch {
-    return NextResponse.json({ ok: true, credits: { stage: "たっぷり余裕があります", pct10: 0, exhausted: false }, production, degraded: true });
+    return NextResponse.json({ ok: true, credits: { stage: "たっぷり余裕があります", pct10: 0, exhausted: false }, production, build, degraded: true });
   }
 }

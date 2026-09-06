@@ -167,7 +167,7 @@ export async function startJob(p: { clientId: string; clientName: string; plan?:
         { name: "BUNDLE_URL", value: bundleUrl }, { name: "JOB_URL", value: jobUrl }, { name: "JOB_ID", value: jobId }, { name: "CLIENT_ID", value: p.clientId }, { name: "YUKI_MODE", value: "worker" },
         ...cacheEnv,
       ] }] },
-      tags: [{ key: "app", value: "yuki" }, { key: "client", value: p.clientId }],
+      // tags は付けない: RunTask に tags を渡すと ecs:TagResource が要り、制御面IAM(byakuyaai-control-plane)には無い(2026-09-06 本番で start_failed)
     }));
     if (r.failures?.length || !r.tasks?.length) { await releaseLock(p.clientId, jobId); return { ok: false, error: "run_task_failed:" + (r.failures?.[0]?.reason || "unknown") }; }
     const meta: JobMeta = { job_id: jobId, client_id: p.clientId, task_arn: r.tasks[0].taskArn || "", started_at: new Date().toISOString(), prompt: p.prompt.slice(0, 4000), settled: false, status: "running", thread_id: threadId };
