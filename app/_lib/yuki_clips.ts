@@ -20,7 +20,8 @@ export const productionCap = (plan?: string) => PRODUCTION_CAP[String(plan || ""
 // ---------- 制作クレジット台帳(作り直し分だけ。新規制作分は契約社シートの used_this_month×10 を足して表示) ----------
 export type ProdLedger = { regen_used: number; events: Array<{ id: string; at: string; approval_id: string; scene: string; credits: number; usd: number }> };
 const monthKey = (d = new Date()) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-const prodKey = (c: string) => `credits_production/${c}/${monthKey()}.json`;
+// 制御面のIAMは credits/* しか読めない(credits_production/ は AccessDenied で production 表示が消える=2026-09-06 本番で判明)。credits/ の下に置く
+const prodKey = (c: string) => `credits/${c}/production-${monthKey()}.json`;
 export async function readProdLedger(clientId: string): Promise<ProdLedger> {
   return (await getJsonS3<ProdLedger>(prodKey(clientId))).value ?? { regen_used: 0, events: [] };
 }
