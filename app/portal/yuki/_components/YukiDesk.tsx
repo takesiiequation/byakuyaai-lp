@@ -34,7 +34,7 @@ async function shrinkImage(file: File): Promise<Blob> {
     return await new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("toBlob"))), png ? "image/png" : "image/jpeg", 0.9));
   } catch { return file; }
 }
-interface Proposal { tool: string; args_hash: string; cost_label: string; }
+interface Proposal { tool: string; args_hash: string; cost_label: string; thread_id?: string; }
 interface CreditsView { stage: string; pct10: number; exhausted: boolean; }
 interface ProductionView { cap: number; used: number; remaining: number; videos_left: number; regen_used: number; }
 interface ThreadMeta { id: string; title: string; archived: boolean; updated_at: string; last_preview: string; }
@@ -296,11 +296,15 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
   const nearBottomRef = useRef(true);
   const threadRef = useRef<string | null>(null);
   threadRef.current = threadId;
+  const busyRef = useRef(false);
+  busyRef.current = busy;
 
   const loadThreads = useCallback(async () => {
     try { const d = (await (await fetch("/api/portal/yuki/threads")).json()) as { ok?: boolean; threads?: ThreadMeta[] }; if (d.ok) setThreads(d.threads ?? []); } catch {}
   }, []);
   const openThread = useCallback(async (id: string | null) => {
+    // 仕事中の切替は不可(監査 2026-09-07: 進行中の出力や承認カードが別スレッドの画面に流れ込む)
+    if (busyRef.current) { setError("ユキの作業が終わってから、相談を切り替えてください"); return; }
     setThreadId(id); setProposal(null); setError(null); setMobileView("chat"); setTab("chat");
     if (!id) { setMessages([]); return; }
     setMessages([{ role: "assistant", content: "読み込んでいます…" }]);
@@ -379,14 +383,19 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
   async function followJob(jobId: string, prompt: string, resumed = false) {
     setBusy(true); statusRef.current = null; setError(null); setFinishedBanner(false);
     if (resumed) setMessages((cur) => [...cur.filter((m) => m.content !== "読み込んでいます…"), { role: "user", content: prompt }]);
-    let cursor = ""; let got = 0; let pendingProposal: Proposal | null = null; let failed: string | null = null;
+    let cursor = ""; let got = 0; let pendingProposal: Proposal | null = null; let failed: string | null = null; let finished = false; let netFails = 0;
     try {
       for (let i = 0; i < 1600; i++) {
         await new Promise((r) => setTimeout(r, POLL_MS));
-        const pr = await fetch(`/api/portal/yuki/job?job_id=${encodeURIComponent(jobId)}&cursor=${encodeURIComponent(cursor)}`);
+        // 通信の一時的な失敗では追跡をやめない(監査 2026-09-07: 1回の失敗で控えを消し、精算されないまま止まっていた)
+        let pr: Response;
+        try { pr = await fetch(`/api/portal/yuki/job?job_id=${encodeURIComponent(jobId)}&cursor=${encodeURIComponent(cursor)}`); }
+        catch { if (++netFails >= 8) { failed = "通信に失敗しました。電波の良いところで画面を開き直すと続きが出ます。"; break; } await new Promise((r) => setTimeout(r, 1500 * netFails)); continue; }
         if (pr.status === 401) { failed = "ログインが切れました。もう一度ログインしてください"; break; }
+        if (pr.status >= 500) { if (++netFails >= 8) { failed = "サーバーの応答がありません。少し待って画面を開き直してください。"; break; } await new Promise((r) => setTimeout(r, 1500 * netFails)); continue; }
+        netFails = 0;
         const pd = (await pr.json()) as { ok?: boolean; events?: Array<Record<string, unknown>>; cursor?: string; done?: boolean; status?: string; error?: string; credits?: CreditsView };
-        if (!pd.ok) { failed = pd.error || "failed"; break; }
+        if (!pd.ok) { failed = pd.error || "failed"; finished = true; break; }
         cursor = pd.cursor || cursor;
         for (const ev of pd.events ?? []) {
           const t = String(ev.type);
@@ -395,13 +404,13 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
           else if (t === "tool") { const lbl = labelOf(String(ev.name)); statusRef.current = lbl + "しています"; setSpinner(lbl + "しています"); if (String(ev.name) !== "ToolSearch") addStep(lbl); }
           else if (t === "tool_result") { statusRef.current = null; if (String(ev.name) !== "ToolSearch") finishStep(false); }
           else if (t === "image" && typeof ev.key === "string" && IMG_KEY.test(ev.key)) addImage(ev.key, String(ev.alt ?? ""));
-          else if (t === "deny") { statusRef.current = null; finishStep(true); if (ev.proposal) { const p = ev.proposal as Proposal; if (p.tool && p.args_hash) pendingProposal = p; } }
+          else if (t === "deny") { statusRef.current = null; finishStep(true); if (ev.proposal) { const p = ev.proposal as Proposal; if (p.tool && p.args_hash) pendingProposal = { ...p, thread_id: threadRef.current ?? undefined }; } }
           else if (t === "error" && typeof ev.message === "string") failed = ev.message;
         }
-        if (pd.done) { if (pd.credits) setCredits(pd.credits); if (pd.status === "error" && pd.error) failed = pd.error; break; }
+        if (pd.done) { finished = true; if (pd.credits) setCredits(pd.credits); if (pd.status === "error" && pd.error) failed = pd.error; break; }
       }
     } catch { failed = failed || "通信に失敗しました。電波の良いところでお試しください。"; }
-    try { localStorage.removeItem(LS_KEY); } catch {}
+    if (finished) { try { localStorage.removeItem(LS_KEY); } catch {} }  // 終わっていない時は控えを残す(画面を開き直せば続きから追える)
     seal();
     if (pendingProposal) setProposal(pendingProposal);
     if (failed && got) setMessages((cur) => [...cur, { role: "assistant", content: "すみません、途中で処理が止まってしまいました🙏 もう一度お送りいただけますか?" }]);
@@ -443,7 +452,10 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
     if (/解約|クレーム|苦情|返金|法律|訴/.test(body)) seriousRef.current = true;
     setBusy(true);
     try {
-      const res = await fetch("/api/portal/yuki/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: body, ...(threadRef.current ? { thread_id: threadRef.current } : {}), ...(grant ? { paid_grant: { tool: grant.tool, args_hash: grant.args_hash } } : {}) }) });
+      // 承認は、それを出したスレッドに返す(別スレッドを開いていても取り違えない)
+      const threadForSend = grant?.thread_id || threadRef.current;
+      if (grant?.thread_id && grant.thread_id !== threadRef.current) setThreadId(grant.thread_id);
+      const res = await fetch("/api/portal/yuki/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: body, ...(threadForSend ? { thread_id: threadForSend } : {}), ...(grant ? { paid_grant: { tool: grant.tool, args_hash: grant.args_hash } } : {}) }) });
       const d = (await res.json()) as { ok?: boolean; job_id?: string; thread_id?: string; error?: string; credits?: CreditsView };
       if (!d.ok || !d.job_id) { setError(d.error && d.error.length < 120 ? d.error : "送信に失敗しました。時間をおいてお試しください。"); if (d.credits) setCredits(d.credits); setBusy(false); return; }
       if (d.thread_id && d.thread_id !== threadRef.current) setThreadId(d.thread_id);

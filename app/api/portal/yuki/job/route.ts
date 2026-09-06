@@ -6,7 +6,7 @@ import { isFlagOn } from "@/app/_lib/portalSubmitShared";
 import { deskVisibleFor } from "@/app/_lib/deskRelease";
 import { pollJob } from "@/app/_lib/yuki_cp";
 
-export const maxDuration = 30;
+export const maxDuration = 60;  // 完了時の精算(全断片の読み込み)が長い仕事で30秒を超えることがある(監査 2026-09-07)
 // 画面に流してよいイベントだけ(道具の生の入力は出さない=内部構成の露出を避ける)
 const PASS = new Set(["text_start", "text", "tool", "tool_result", "deny", "cost", "done", "error", "job", "sync", "init", "result", "image"]);
 

@@ -4,9 +4,9 @@
 //   鍵: ECS_AWS_ACCESS_KEY_ID / ECS_AWS_SECRET_ACCESS_KEY(= IAMユーザー byakuyaai-control-plane。RunTask/PassRole/jobs・build・credits)。
 //        無ければ AWS_ACCESS_KEY_ID(S3用)に落ちるが、その鍵にECS権限は無いので本番はECS_*必須。
 //   コンテナ側は台帳(credits/)を読めない・書けない。残高はジョブ仕様に埋めて渡す(構造的に顧客が書き換えられない)。
-import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command, DeleteObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { ECSClient, RunTaskCommand, DescribeTasksCommand } from "@aws-sdk/client-ecs";
+import { ECSClient, RunTaskCommand, DescribeTasksCommand, StopTaskCommand } from "@aws-sdk/client-ecs";
 import { randomBytes } from "crypto";
 
 // ⚠️ Vercel の関数は AWS(us-east-1 等)で動き、AWS_REGION が自動で入る。それを拾うと東京のS3/ECSに届かない(2026-09-06 cp_check で判明: 301 PermanentRedirect / Unable to describe task definition)
@@ -22,7 +22,7 @@ export const RESERVE_USD = 0.05;
 export const PAID_TOOL_LABELS: Record<string, string> = { "mcp__byakuyaai__render_lambda": "ユキクレジット(再レンダー・少量)", "mcp__byakuyaai__seedance_regenerate": "制作クレジット 1", "mcp__byakuyaai__image_generate": "ユキクレジット(画像1枚・少量)", "mcp__byakuyaai__image_edit": "ユキクレジット(画像1枚・少量)" };
 const CLIENT_RE = /^(?!\.+$)[a-z0-9][a-z0-9_.-]{0,39}$/i;
 const JOB_RE = /^[a-z0-9-]{8,64}$/i;
-const LOCK_TTL_MS = 15 * 60 * 1000;
+const LOCK_TTL_MS = 30 * 60 * 1000;  // 1仕事の壁時計上限(コンテナ側20分)より長く(監査 2026-09-07: 15分だと実行中に失効して2つ目のコンテナが立った)
 
 function creds() {
   const ak = process.env.ECS_AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID || "";
@@ -125,6 +125,14 @@ const metaKey = (c: string, j: string) => `jobs/${c}/${j}/meta.json`;
 export async function startJob(p: { clientId: string; clientName: string; plan?: string; prompt: string; paidGrant?: PaidGrant | null; threadId?: string | null; usedVideosThisMonth?: number }): Promise<{ ok: true; job_id: string; thread_id: string } | { ok: false; error: string }> {
   if (!CLIENT_RE.test(p.clientId)) return { ok: false, error: "invalid_client" };
   const jobId = `${Date.now().toString(36)}-${randomBytes(4).toString("hex")}`;
+  // 前の仕事が画面のポーリング切れで未精算のまま残っていたら、ここで精算する(監査 2026-09-07: 精算が顧客ブラウザ1本に依存していた)
+  try {
+    const last = (await getJson<{ job_id: string }>(`jobs/${p.clientId}/_last.json`)).value;
+    if (last?.job_id && JOB_RE.test(last.job_id)) { const m = (await getJson<JobMeta>(metaKey(p.clientId, last.job_id))).value; if (m && !m.settled) await pollJob(p.clientId, last.job_id, "", p.plan); }
+  } catch {}
+  // 常駐ワーカーが仕事中なら、ロックの状態に関わらず受けない(ロック失効→2つ目のコンテナを防ぐ)
+  const busyWorker = (await getJson<{ at?: number; busy?: boolean }>(`jobs/${p.clientId}/_worker.json`)).value;
+  if (busyWorker && Date.now() - Number(busyWorker.at) < WORKER_FRESH_MS && busyWorker.busy) return { ok: false, error: "busy" };
   if (!(await acquireLock(p.clientId, jobId))) return { ok: false, error: "busy" };
   try {
     const led = await readLedger(p.clientId, p.plan);
@@ -148,6 +156,7 @@ export async function startJob(p: { clientId: string; clientName: string; plan?:
       await putJson(`jobs/${p.clientId}/_queue/${jobId}.json`, { at: Date.now() });
       const meta: JobMeta = { job_id: jobId, client_id: p.clientId, task_arn: String(worker.task_arn || ""), started_at: new Date().toISOString(), prompt: p.prompt.slice(0, 4000), settled: false, status: "running", warm: true, thread_id: threadId };
       await putJson(metaKey(p.clientId, jobId), meta);
+      await putJson(`jobs/${p.clientId}/_last.json`, { job_id: jobId });
       return { ok: true, job_id: jobId, thread_id: threadId };
     }
     // 起動物: コード束 + node_modules/python 環境のS3キャッシュ(署名付きGET/PUT・boot.mjs が使う。コンテナにS3権限は要らない)
@@ -157,9 +166,11 @@ export async function startJob(p: { clientId: string; clientName: string; plan?:
     const sign = (key: string, put = false) => getSignedUrl(s3(), put ? new PutObjectCommand({ Bucket: BUCKET, Key: key })  /* ContentTypeを署名に入れない(boot側もヘッダを送らない) */ : new GetObjectCommand({ Bucket: BUCKET, Key: key }), { expiresIn: 3600 });
     const jobUrl = await sign(prefix + "job.json");
     const bundleUrl = await sign(bmeta.bundle_key);
+    // キャッシュへの書き込みURLは「まだ無い時」だけ渡す(監査 2026-09-07: 全タスクに PUT を渡すと1社のコンテナから全社の起動物を汚染できる)
+    const exists = async (key: string) => { try { await s3().send(new HeadObjectCommand({ Bucket: BUCKET, Key: key })); return true; } catch { return false; } };
     const cacheEnv: Array<{ name: string; value: string }> = [];
-    if (bmeta.lock_hash) { const k = `build/cache/nm-${bmeta.lock_hash}.tgz`; cacheEnv.push({ name: "NM_GET_URL", value: await sign(k) }, { name: "NM_PUT_URL", value: await sign(k, true) }); }
-    if (bmeta.py_ver && bmeta.py_src_url) { const k = `build/cache/py-${bmeta.py_ver.replace(/\+/g, "_")}.tgz`; cacheEnv.push({ name: "PY_GET_URL", value: await sign(k) }, { name: "PY_PUT_URL", value: await sign(k, true) }, { name: "PY_SRC_URL", value: bmeta.py_src_url }); }
+    if (bmeta.lock_hash) { const k = `build/cache/nm-${bmeta.lock_hash}.tgz`; cacheEnv.push({ name: "NM_GET_URL", value: await sign(k) }); if (!(await exists(k))) cacheEnv.push({ name: "NM_PUT_URL", value: await sign(k, true) }); }
+    if (bmeta.py_ver && bmeta.py_src_url) { const k = `build/cache/py-${bmeta.py_ver.replace(/\+/g, "_")}.tgz`; cacheEnv.push({ name: "PY_GET_URL", value: await sign(k) }, { name: "PY_SRC_URL", value: bmeta.py_src_url }); if (!(await exists(k))) cacheEnv.push({ name: "PY_PUT_URL", value: await sign(k, true) }); }
     const r = await ecs().send(new RunTaskCommand({
       cluster: CLUSTER, launchType: "FARGATE", taskDefinition: TASK_FAMILY, count: 1,
       networkConfiguration: { awsvpcConfiguration: { subnets: SUBNETS, securityGroups: [SECURITY_GROUP], assignPublicIp: "ENABLED" } },
@@ -172,6 +183,7 @@ export async function startJob(p: { clientId: string; clientName: string; plan?:
     if (r.failures?.length || !r.tasks?.length) { await releaseLock(p.clientId, jobId); return { ok: false, error: "run_task_failed:" + (r.failures?.[0]?.reason || "unknown") }; }
     const meta: JobMeta = { job_id: jobId, client_id: p.clientId, task_arn: r.tasks[0].taskArn || "", started_at: new Date().toISOString(), prompt: p.prompt.slice(0, 4000), settled: false, status: "running", thread_id: threadId };
     await putJson(metaKey(p.clientId, jobId), meta);
+    await putJson(`jobs/${p.clientId}/_last.json`, { job_id: jobId });
     return { ok: true, job_id: jobId, thread_id: threadId };
   } catch (e) {
     await releaseLock(p.clientId, jobId);
@@ -227,7 +239,15 @@ export async function pollJob(clientId: string, jobId: string, cursor: string, p
       }
     } catch {}
   }
-  if (age > 25 * 60 * 1000) { await releaseLock(clientId, jobId); return { ok: true, events, cursor: newCursor, done: true, status: "error", error: "timeout" }; }
+  if (age > 25 * 60 * 1000) {
+    // 打ち切り: タスクも止める(監査 2026-09-07: 止めないとコンテナが動き続けて課金が続き、ロックだけ外れて2つ目が立つ)
+    if (meta.task_arn) { try { await ecs().send(new StopTaskCommand({ cluster: CLUSTER, task: meta.task_arn, reason: "yuki job timeout" })); } catch {} }
+    const m2: JobMeta = { ...meta, settled: true, status: "error", error: "timeout" };
+    await putJson(metaKey(clientId, jobId), m2);
+    try { await s3().send(new DeleteObjectCommand({ Bucket: BUCKET, Key: `jobs/${clientId}/_worker.json` })); } catch {}
+    await releaseLock(clientId, jobId);
+    return { ok: true, events, cursor: newCursor, done: true, status: "error", error: "処理が長引いたため打ち切りました。もう一度お送りください", credits: creditsView(await readLedger(clientId, plan)) };
+  }
   return { ok: true, events, cursor: newCursor, done: false, status: "running" };
 }
 
@@ -246,13 +266,11 @@ const threadKey = (c: string, t: string) => `workspace/${c}/desk/threads/${t}.js
 async function collectText(clientId: string, jobId: string): Promise<string> {
   const prefix = `jobs/${clientId}/${jobId}/`;
   const list = await s3().send(new ListObjectsV2Command({ Bucket: BUCKET, Prefix: prefix + "ev-" }));
+  const keys = (list.Contents ?? []).map((o) => o.Key!).sort();
+  // 断片は並列に読む(監査 2026-09-07: 逐次だと長い仕事で /job の時間内に終わらない)
+  const bodies = await Promise.all(keys.map(async (k) => { try { return JSON.parse(await (await s3().send(new GetObjectCommand({ Bucket: BUCKET, Key: k }))).Body!.transformToString("utf-8")) as Array<{ type?: string; text?: string }>; } catch { return [] as Array<{ type?: string; text?: string }>; } }));
   let text = "";
-  for (const k of (list.Contents ?? []).map((o) => o.Key!).sort()) {
-    try {
-      const evs = JSON.parse(await (await s3().send(new GetObjectCommand({ Bucket: BUCKET, Key: k }))).Body!.transformToString("utf-8")) as Array<{ type?: string; text?: string }>;
-      for (const e of evs) { if (e.type === "text_start" && text && !text.endsWith("\n\n")) text += "\n\n"; if (e.type === "text" && e.text) text += e.text; }
-    } catch {}
-  }
+  for (const evs of bodies) for (const e of evs) { if (e.type === "text_start" && text && !text.endsWith("\n\n")) text += "\n\n"; if (e.type === "text" && e.text) text += e.text; }
   return text.trim();
 }
 

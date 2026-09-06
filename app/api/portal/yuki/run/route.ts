@@ -49,7 +49,8 @@ export async function POST(req: NextRequest) {
   const r = await startJob({ clientId, clientName: client.client_name ?? "", plan: client.plan, prompt, paidGrant: grant, threadId, usedVideosThisMonth: Number(client.used_this_month) || 0 });
   if (!r.ok) {
     const msg = r.error === "busy" ? "ユキが前のご依頼を進めています。終わってからお送りください" : "ただいま混み合っています。少し時間をおいてお試しください";
-    return NextResponse.json({ ok: false, error: msg, detail: r.error }, { status: r.error === "busy" ? 409 : 502 });
+    if (r.error !== "busy") console.error("[yuki/run] start failed", clientId, r.error);  // 生のエラー(ARN等)は顧客に返さない(監査 2026-09-07)
+    return NextResponse.json({ ok: false, error: msg }, { status: r.error === "busy" ? 409 : 502 });
   }
   return NextResponse.json({ ok: true, job_id: r.job_id, thread_id: r.thread_id, credits: view });
 }

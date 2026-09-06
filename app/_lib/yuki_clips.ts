@@ -75,7 +75,9 @@ const ASPECTS = new Set(["9:16", "16:9", "1:1", "4:3", "3:4", "21:9", "auto"]);
 /** 依頼: 残高(制作クレジット≥1)→fal待ち行列へ→記録。dry_run は fal を呼ばず既存の公開クリップを返す(配管の検証用・課金ゼロ) */
 export async function submitClip(p: { clientId: string; jobId: string; plan?: string; usedVideos: number; approval_id: string; scene: string; image_url: string; prompt: string; duration?: number; resolution?: string; aspect_ratio?: string; dry_run?: boolean }): Promise<{ ok: true; request_id: string; credits: number } | { ok: false; error: string; status: number }> {
   if (!APR_RE.test(p.approval_id) || !/^[a-z0-9_-]{1,32}$/i.test(p.scene)) return { ok: false, error: "invalid_scene", status: 400 };
-  if (!/^https:\/\/[^\s"']+\.(jpe?g|png|webp)(\?.*)?$/i.test(p.image_url)) return { ok: false, error: "元写真のURLが不正です", status: 400 };
+  // 元写真は当社のS3にある物だけ(監査 2026-09-07: 任意のhttps画像=他社や他所の物件写真から映像を作れてしまう)
+  if (!/^https:\/\/byakuyaai-media\.s3(\.ap-northeast-1)?\.amazonaws\.com\/[^\s"']+\.(jpe?g|png|webp)(\?.*)?$/i.test(p.image_url)) return { ok: false, error: "元写真が当社の保管場所にありません(作り直しは当社でお預かりした写真からだけ行えます)", status: 400 };
+  if (p.dry_run && process.env.NODE_ENV === "production") return { ok: false, error: "dry_run は本番では使えません", status: 400 };
   const prompt = String(p.prompt || "").trim().slice(0, 1500);
   if (prompt.length < 4) return { ok: false, error: "invalid_prompt", status: 400 };
   const duration = Math.min(8, Math.max(4, Math.round(Number(p.duration) || 4)));
