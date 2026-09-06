@@ -40,7 +40,16 @@ export async function verifyJobToken(clientId: string, jobId: string, token: str
   if (a.length !== b.length || !timingSafeEqual(a, b)) return { ok: false, error: "bad_token" };
   const meta = (await getJsonS3<JobMeta>(`jobs/${clientId}/${jobId}/meta.json`)).value;
   if (!meta || meta.settled || meta.status !== "running") return { ok: false, error: "job_not_running" };
+  if (Date.now() - new Date(meta.started_at).getTime() > 30 * 60_000) return { ok: false, error: "token_expired" };  // 仕事の上限より長くは生きない(監査 2026-09-07)
   return { ok: true, plan: job.plan };
+}
+
+/** 依頼の取り消し(コンテナ側のタイムアウト時。fal に走り続けさせない) */
+export async function cancelImage(p: { clientId: string; jobId: string; requestId: string }): Promise<boolean> {
+  if (!/^[a-z0-9-]{8,80}$/i.test(p.requestId)) return false;
+  const rec = (await getJsonS3<ImgRecord>(imgKey(p.clientId, p.jobId, p.requestId))).value;
+  if (!rec || rec.status !== "pending" || !rec.cancel_url) return false;
+  try { const r = await falFetch(rec.cancel_url, { method: "PUT" }); await putJsonS3(imgKey(p.clientId, p.jobId, p.requestId), { ...rec, status: "failed", error: "cancelled" }); return r.status < 300; } catch { return false; }
 }
 
 export async function presignImage(clientId: string, key: string, seconds = 600): Promise<string | null> {
@@ -133,10 +142,14 @@ export async function pollImage(p: { clientId: string; jobId: string; plan?: str
   const bin = await fetch(url);
   if (!bin.ok) return { ok: true, status: "pending" };
   const buf = Buffer.from(await bin.arrayBuffer());
-  const ct = bin.headers.get("content-type") || "image/png";
-  const ext = /jpe?g/.test(ct) ? "jpg" : /webp/.test(ct) ? "webp" : "png";
+  // 中身の先頭バイトで種類を決める(Content-Type を信じない=監査 2026-09-07)。画像でなければ失敗にして精算しない
+  let ext = "", ct = "";
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) { ext = "jpg"; ct = "image/jpeg"; }
+  else if (buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) { ext = "png"; ct = "image/png"; }
+  else if (buf.subarray(0, 4).toString("ascii") === "RIFF" && buf.subarray(8, 12).toString("ascii") === "WEBP") { ext = "webp"; ct = "image/webp"; }
+  if (!ext) { const err = "画像として読めない結果でした"; await putJsonS3(k, { ...rec, status: "failed", error: err }); return { ok: false, error: err, status: 502 }; }
   const key = `images/out/${Date.now().toString(36)}-${randomBytes(3).toString("hex")}.${ext}`;
-  await s3Client().send(new PutObjectCommand({ Bucket: YUKI_BUCKET, Key: `workspace/${p.clientId}/${key}`, Body: buf, ContentType: ct.split(";")[0], Metadata: { op: rec.op, request: p.requestId } }));
+  await s3Client().send(new PutObjectCommand({ Bucket: YUKI_BUCKET, Key: `workspace/${p.clientId}/${key}`, Body: buf, ContentType: ct, Metadata: { op: rec.op, request: p.requestId } }));
   const led = await settleLedger(p.clientId, p.plan, { job_id: `img-${p.requestId}`, cost_usd: rec.price_usd, tools_cost_usd: 0 });
   await putJsonS3(k, { ...rec, status: "done", key, width: Number(img?.width) || undefined, height: Number(img?.height) || undefined, settled: true });
   return { ok: true, status: "done", key, width: Number(img?.width) || undefined, height: Number(img?.height) || undefined, cost_usd: rec.price_usd, credits: creditsView(led) };

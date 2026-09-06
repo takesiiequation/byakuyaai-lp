@@ -21,6 +21,7 @@ export async function GET() {
   try {
     return NextResponse.json({ ok: true, credits: creditsView(await readLedger(clientId, client.plan)), production, build });
   } catch {
-    return NextResponse.json({ ok: true, credits: { stage: "たっぷり余裕があります", pct10: 0, exhausted: false }, production, build, degraded: true });
+    // 台帳が読めない時に「たっぷり余裕」を見せない(監査 2026-09-07)。画面は degraded の時は前の値を保つ
+    return NextResponse.json({ ok: true, credits: { stage: "確認中", pct10: 0, exhausted: false }, production, build, degraded: true });
   }
 }

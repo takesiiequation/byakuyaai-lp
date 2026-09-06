@@ -58,7 +58,28 @@ export async function verifyClipToken(clientId: string, jobId: string, token: st
   if (a.length !== b.length || !timingSafeEqual(a, b)) return { ok: false, error: "bad_token" };
   const meta = (await getJsonS3<JobMeta>(`jobs/${clientId}/${jobId}/meta.json`)).value;
   if (!meta || meta.settled || meta.status !== "running") return { ok: false, error: "job_not_running" };
+  if (Date.now() - new Date(meta.started_at).getTime() > 30 * 60_000) return { ok: false, error: "token_expired" };
   return { ok: true, plan: job.plan, usedVideos: Number(job.used_this_month) || 0 };
+}
+
+/** 複製完了の申告→ここで初めて制作クレジット1を精算(冪等)。監査 2026-09-07: 複製失敗でもクレジットだけ減っていた */
+export async function commitClip(p: { clientId: string; jobId: string; plan?: string; usedVideos: number; requestId: string }): Promise<{ ok: true; credits: ReturnType<typeof productionView> } | { ok: false; error: string; status: number }> {
+  if (!/^[a-z0-9-]{8,80}$/i.test(p.requestId)) return { ok: false, error: "invalid_request_id", status: 400 };
+  const k = clipKey(p.clientId, p.jobId, p.requestId);
+  const rec = (await getJsonS3<ClipRecord>(k)).value;
+  if (!rec || rec.status !== "done" || !rec.video_url) return { ok: false, error: "not_done", status: 409 };
+  const led = await settleProd(p.clientId, { id: p.requestId, approval_id: rec.approval_id, scene: rec.scene, credits: CREDITS_PER_REGEN, usd: rec.usd || 0 });
+  await putJsonS3(k, { ...rec, settled: true });
+  return { ok: true, credits: productionView(p.plan, p.usedVideos, led) };
+}
+
+/** 依頼の取り消し(コンテナ側のタイムアウト時) */
+export async function cancelClip(p: { clientId: string; jobId: string; requestId: string }): Promise<boolean> {
+  if (!/^[a-z0-9-]{8,80}$/i.test(p.requestId)) return false;
+  const k = clipKey(p.clientId, p.jobId, p.requestId);
+  const rec = (await getJsonS3<ClipRecord>(k)).value;
+  if (!rec || rec.status !== "pending" || !rec.cancel_url) return false;
+  try { const r = await falFetch(rec.cancel_url, { method: "PUT" }); await putJsonS3(k, { ...rec, status: "failed", error: "cancelled" }); return r.status < 300; } catch { return false; }
 }
 
 // ---------- fal ----------
@@ -68,7 +89,7 @@ async function falFetch(url: string, init?: RequestInit): Promise<{ status: numb
   let json: Record<string, unknown> = {}; try { json = (await r.json()) as Record<string, unknown>; } catch {}
   return { status: r.status, json };
 }
-type ClipRecord = { approval_id: string; scene: string; prompt: string; image_url: string; duration: number; resolution: string; aspect_ratio: string; at: string; status_url: string; response_url: string; status: "pending" | "done" | "failed"; video_url?: string; error?: string; usd?: number; dry_run?: boolean };
+type ClipRecord = { approval_id: string; scene: string; prompt: string; image_url: string; duration: number; resolution: string; aspect_ratio: string; at: string; status_url: string; response_url: string; cancel_url?: string; status: "pending" | "done" | "failed"; video_url?: string; error?: string; usd?: number; dry_run?: boolean; settled?: boolean };
 const clipKey = (c: string, j: string, rid: string) => `jobs/${c}/${j}/clip/${rid}.json`;
 const ASPECTS = new Set(["9:16", "16:9", "1:1", "4:3", "3:4", "21:9", "auto"]);
 
@@ -97,20 +118,19 @@ export async function submitClip(p: { clientId: string; jobId: string; plan?: st
   const r = await falFetch(`${FAL_BASE}/${MODEL}`, { method: "POST", body: JSON.stringify(body) });
   const rid = String(r.json.request_id || "");
   if (r.status >= 300 || !rid) return { ok: false, error: r.status === 422 ? "この内容では映像を作れませんでした(内容の制限に触れた可能性があります)" : `作り直しの依頼に失敗しました(${r.status})`, status: 502 };
-  await putJsonS3(clipKey(p.clientId, p.jobId, rid), { approval_id: p.approval_id, scene: p.scene, prompt, image_url: p.image_url, duration, resolution, aspect_ratio, at, status_url: String(r.json.status_url || ""), response_url: String(r.json.response_url || ""), status: "pending" } as ClipRecord);
+  await putJsonS3(clipKey(p.clientId, p.jobId, rid), { approval_id: p.approval_id, scene: p.scene, prompt, image_url: p.image_url, duration, resolution, aspect_ratio, at, status_url: String(r.json.status_url || ""), response_url: String(r.json.response_url || ""), cancel_url: String(r.json.cancel_url || ""), status: "pending" } as ClipRecord);
   return { ok: true, request_id: rid, credits: CREDITS_PER_REGEN };
 }
 
-/** 進捗: 完成なら fal の動画URLを返し、制作クレジット1を台帳に精算(冪等)。複製(当社S3へ)はコンテナが行う */
+/** 進捗: 完成なら fal の動画URLを返す。精算は複製後の commitClip で(複製はコンテナが行う) */
 export async function pollClip(p: { clientId: string; jobId: string; plan?: string; usedVideos: number; requestId: string }): Promise<{ ok: true; status: "pending" | "done"; video_url?: string; duration?: number; credits?: ReturnType<typeof productionView>; usd?: number } | { ok: false; error: string; status: number }> {
   if (!/^[a-z0-9-]{8,80}$/i.test(p.requestId)) return { ok: false, error: "invalid_request_id", status: 400 };
   const k = clipKey(p.clientId, p.jobId, p.requestId);
   const rec = (await getJsonS3<ClipRecord>(k)).value;
   if (!rec) return { ok: false, error: "not_found", status: 404 };
   const done = async (video_url: string, usd: number) => {
-    const led = await settleProd(p.clientId, { id: p.requestId, approval_id: rec.approval_id, scene: rec.scene, credits: CREDITS_PER_REGEN, usd });
     await putJsonS3(k, { ...rec, status: "done", video_url, usd });
-    return { ok: true as const, status: "done" as const, video_url, duration: rec.duration, usd, credits: productionView(p.plan, p.usedVideos, led) };
+    return { ok: true as const, status: "done" as const, video_url, duration: rec.duration, usd, credits: productionView(p.plan, p.usedVideos, await readProdLedger(p.clientId)) };
   };
   if (rec.status === "done" && rec.video_url) return { ok: true, status: "done", video_url: rec.video_url, duration: rec.duration, usd: rec.usd, credits: productionView(p.plan, p.usedVideos, await readProdLedger(p.clientId)) };
   if (rec.status === "failed") return { ok: false, error: rec.error || "failed", status: 502 };

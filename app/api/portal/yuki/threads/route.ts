@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   try {
     if (threadId) return NextResponse.json({ ok: true, messages: (await readThread(g.clientId!, threadId)).map((m) => ({ role: m.role, content: m.content })) });
     return NextResponse.json({ ok: true, threads: await listThreads(g.clientId!) });
-  } catch { return NextResponse.json({ ok: true, threads: [], messages: [], degraded: true }); }
+  } catch (e) { console.error("[yuki/threads] failed", g.clientId, String((e as Error)?.message ?? e).slice(0, 200)); return NextResponse.json({ ok: false, error: "読み込めませんでした。少し待ってからもう一度お試しください" }, { status: 503 }); }  // 障害を「相談なし」に見せない(監査 2026-09-07)
 }
 
 export async function POST(req: NextRequest) {

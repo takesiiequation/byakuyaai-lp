@@ -66,7 +66,7 @@ export default async function YukiDeskPage() {
   return (
     // PCでは1024pxまで広げ、ユキの長文が「文章として流れる」幅にする(スマホは従来幅)
     <Shell maxWidthClassName="max-w-lg lg:max-w-5xl">
-      <YukiDesk clientName={client.client_name} />
+      <YukiDesk clientName={client.client_name} clientId={clientId} />
     </Shell>
   );
 }

@@ -5,10 +5,13 @@ import { getClientById } from "@/app/_lib/sheets";
 import { isFlagOn } from "@/app/_lib/portalSubmitShared";
 import { deskVisibleFor } from "@/app/_lib/deskRelease";
 import { pollJob } from "@/app/_lib/yuki_cp";
+import { toolId } from "@/app/_lib/yuki_tool_ids";
 
 export const maxDuration = 60;  // 完了時の精算(全断片の読み込み)が長い仕事で30秒を超えることがある(監査 2026-09-07)
 // 画面に流してよいイベントだけ(道具の生の入力は出さない=内部構成の露出を避ける)
 const PASS = new Set(["text_start", "text", "tool", "tool_result", "deny", "cost", "done", "error", "job", "sync", "init", "result", "image"]);
+/** コンテナの生のエラー文(パス・バケット名・英語のスタック)は顧客に見せない。日本語の短い文だけ通す */
+const safeMessage = (m: unknown) => { const s = String(m ?? ""); return s && s.length < 160 && !/[A-Za-z]{4,}|[\\/:]/.test(s) ? s : "処理が途中で止まりました。もう一度お送りください"; };
 
 export async function GET(req: NextRequest) {
   const clientId = await getPortalClientId();
@@ -20,16 +23,16 @@ export async function GET(req: NextRequest) {
   const jobId = req.nextUrl.searchParams.get("job_id") || "";
   const cursor = req.nextUrl.searchParams.get("cursor") || "";
   if (cursor && !cursor.startsWith(`jobs/${clientId}/${jobId}/ev-`)) return NextResponse.json({ ok: false, error: "invalid_cursor" }, { status: 400 });
-  const r = await pollJob(clientId, jobId, cursor, client.plan);
+  let r; try { r = await pollJob(clientId, jobId, cursor, client.plan); } catch (e) { console.error("[yuki/job] poll failed", clientId, String((e as Error)?.message ?? e).slice(0, 200)); return NextResponse.json({ ok: false, error: "ただいま混み合っています。少し時間をおいてお試しください" }, { status: 503 }); }
   if (!r.ok) return NextResponse.json(r, { status: r.error === "not_found" ? 404 : 400 });
   const events = (r.events as Array<Record<string, unknown>>).filter((e) => PASS.has(String(e.type))).map((e) => {
     const t = String(e.type);
-    if (t === "tool") return { type: t, name: e.name };                                       // 入力は出さない
-    if (t === "tool_result") return { type: t, name: e.name };                                // 生の結果も出さない(本文はユキが書く)
-    if (t === "deny") return { type: t, name: e.name, reason: e.reason, proposal: e.proposal ? { tool: (e.proposal as Record<string, unknown>).tool, args_hash: (e.proposal as Record<string, unknown>).args_hash, cost_label: (e.proposal as Record<string, unknown>).cost_label } : undefined };
-    if (t === "image") return { type: t, key: /^images\/(in|out)\/[a-z0-9_-]+\.(png|jpe?g|webp)$/i.test(String(e.key)) ? String(e.key) : "", alt: String(e.alt ?? "").slice(0, 80) };  // 画像は当社S3のキーだけ(表示は /image 経由)
-    if (t === "text" || t === "text_start" || t === "error" || t === "done") return { type: t, ...(t === "text" ? { text: e.text } : {}), ...(t === "error" ? { message: e.message } : {}) };
+    if (t === "tool") return { type: t, name: toolId(String(e.name)) };                               // 入力は出さない・道具名は不透明ID
+    if (t === "tool_result") return { type: t, name: toolId(String(e.name)) };
+    if (t === "deny") return { type: t, name: toolId(String(e.name)), reason: safeMessage(e.reason) === "処理が途中で止まりました。もう一度お送りください" ? undefined : e.reason, proposal: e.proposal ? { tool: toolId(String((e.proposal as Record<string, unknown>).tool)), args_hash: (e.proposal as Record<string, unknown>).args_hash, cost_label: (e.proposal as Record<string, unknown>).cost_label } : undefined };
+    if (t === "image") return { type: t, key: /^images\/(in|out)\/[a-z0-9_-]+\.(png|jpe?g|webp)$/i.test(String(e.key)) ? String(e.key) : "", alt: String(e.alt ?? "").slice(0, 80) };
+    if (t === "text" || t === "text_start" || t === "error" || t === "done") return { type: t, ...(t === "text" ? { text: e.text } : {}), ...(t === "error" ? { message: safeMessage(e.message) } : {}) };
     return { type: t };
   });
-  return NextResponse.json({ ok: true, events, cursor: r.cursor, done: r.done, status: r.status, error: r.error, credits: r.credits });
+  return NextResponse.json({ ok: true, events, cursor: r.cursor, done: r.done, status: r.status, error: r.error ? safeMessage(r.error) : undefined, credits: r.credits });
 }

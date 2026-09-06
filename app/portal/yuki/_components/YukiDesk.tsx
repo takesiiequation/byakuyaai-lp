@@ -41,21 +41,20 @@ interface ThreadMeta { id: string; title: string; archived: boolean; updated_at:
 interface NoteMeta { path: string; size: number; updated_at: string; }
 
 const STARTERS = ["動画の設計図を検査してほしい", "物件の紹介文を一緒に考えたい", "SNS用の画像を作ってほしい", "うちの会社のことを覚えてもらう", "その他なんでも"];
+// 道具は不透明ID(制御面 yuki_tool_ids.ts)で届く。内部の道具名はブラウザに出さない(監査 2026-09-07)
 const TOOL_LABEL: Record<string, string> = {
-  mcp__byakuyaai__memory_list: "記憶ノートの索引を確認", mcp__byakuyaai__memory_read: "記憶ノートを読む", mcp__byakuyaai__memory_write: "記憶ノートを整理",
-  mcp__byakuyaai__video_list: "動画の一覧を確認", mcp__byakuyaai__video_info: "設計図を読む",
-  mcp__byakuyaai__layout_lint: "レイアウトを検査", mcp__byakuyaai__props_lint: "設計図を検査",
-  mcp__byakuyaai__credits_balance: "今月の稼働を確認", mcp__byakuyaai__render_lambda: "動画を仕上げ直す(数分)",
-  mcp__byakuyaai__seedance_regenerate: "映像を作り直す", mcp__byakuyaai__human_support: "担当者に申し送り",
-  mcp__byakuyaai__image_list: "画像の一覧を確認", mcp__byakuyaai__image_generate: "画像を生成(1分ほど)", mcp__byakuyaai__image_edit: "画像を加工(1分ほど)",
-  Read: "机の上の資料を確認", Write: "資料を書く", Edit: "設計図を直す", Glob: "机の上を探す", Grep: "机の上を探す",
+  t01: "記憶ノートの索引を確認", t02: "記憶ノートを読む", t03: "記憶ノートを整理",
+  t04: "動画の一覧を確認", t05: "設計図を読む", t06: "レイアウトを検査", t07: "設計図を検査",
+  t08: "今月の稼働を確認", t09: "動画を仕上げ直す(数分)", t10: "映像を作り直す(数分)", t11: "画像の一覧を確認", t12: "画像を生成(1分ほど)", t13: "画像を加工(1分ほど)", t14: "担当者に申し送り",
+  f1: "机の上の資料を確認", f2: "資料を書く", f3: "設計図を直す", f4: "机の上を探す", f5: "机の上を探す",
 };
-const labelOf = (name: string) => TOOL_LABEL[name] || (name.startsWith("mcp__byakuyaai__") ? "作業中" : "机の上を確認");
+const HIDDEN_TOOL = "x0";  // 道具の準備(ToolSearch)は作業として見せない
+const labelOf = (id: string) => TOOL_LABEL[id] || (id.startsWith("t") ? "作業中" : "机の上を確認");
 /** 作業カードの絵柄(話題で決める) */
 const stepIcon = (label: string) => /画像/.test(label) ? "🎨" : /検査/.test(label) ? "🔍" : /記憶|ノート/.test(label) ? "📝" : /仕上げ|映像/.test(label) ? "🎬" : /担当者/.test(label) ? "🤝" : /稼働/.test(label) ? "⏱" : /設計図/.test(label) ? "📐" : /一覧/.test(label) ? "🗂" : "📄";
 const threadIcon = (t: ThreadMeta) => { const s = t.title + " " + t.last_preview; return /覚え|記憶|決まり|ルール|ノート/.test(s) ? "📝" : /画像|サムネ|バナー|写真/.test(s) ? "🎨" : /紹介文|SNS|投稿|反響|ハッシュタグ/.test(s) ? "✍️" : /動画|設計図|テロップ|レンダー|検査|APR-/.test(s) ? "🎬" : "💬"; };
 const POLL_MS = 1500;
-const LS_KEY = "yuki_desk_active_job";
+const LS_KEY_BASE = "yuki_desk_active_job";  // 会社IDを付けて使う(同じブラウザで別会社としてログインした時に前の会社の依頼文を出さない=監査 2026-09-07)
 /** 相対時刻(3分前・昨日・9/5) */
 const fmtRel = (iso: string) => {
   const d = new Date(iso); if (isNaN(d.getTime())) return "";
@@ -269,9 +268,13 @@ function NotesPane({ compact, onBack }: { compact: boolean; onBack?: () => void 
   return <div className="grid h-full grid-cols-[280px_1fr]"><div className="min-h-0 border-r border-black/5">{list}</div><div className="min-h-0">{viewer}</div></div>;
 }
 
-export default function YukiDesk({ clientName }: { clientName: string }) {
+export default function YukiDesk({ clientName, clientId }: { clientName: string; clientId: string }) {
+  const LS_KEY = `${LS_KEY_BASE}:${clientId}`;
   const greeting = `こんにちは、${clientName ? `${clientName}さま専任の` : ""}AI担当 ユキです😊\n今日はどんなご相談でしょうか?`;
   const [tab, setTab] = useState<"chat" | "notes">("chat");
+  const [isPC, setIsPC] = useState(false);
+  const [threadsError, setThreadsError] = useState<string | null>(null);
+  const openGen = useRef(0);
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
   const [threads, setThreads] = useState<ThreadMeta[]>([]);
   const [threadId, setThreadId] = useState<string | null>(null);
@@ -287,7 +290,7 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
   const [credits, setCredits] = useState<CreditsView | null>(null);
   const [production, setProduction] = useState<ProductionView | null>(null);
   const refreshCredits = useCallback(() => {
-    fetch("/api/portal/yuki/credits").then((r) => r.json()).then((d: { ok?: boolean; credits?: CreditsView; production?: ProductionView }) => { if (d.ok) { if (d.credits) setCredits(d.credits); if (d.production) setProduction(d.production); } }).catch(() => {});
+    fetch("/api/portal/yuki/credits").then((r) => r.json()).then((d: { ok?: boolean; credits?: CreditsView; production?: ProductionView; degraded?: boolean }) => { if (d.ok && !d.degraded) { if (d.credits) setCredits(d.credits); if (d.production) setProduction(d.production); } }).catch(() => {});  // 読めない時は前の値を保つ
   }, []);
   const [finishedBanner, setFinishedBanner] = useState(false);
   const seriousRef = useRef(false);
@@ -300,18 +303,32 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
   busyRef.current = busy;
 
   const loadThreads = useCallback(async () => {
-    try { const d = (await (await fetch("/api/portal/yuki/threads")).json()) as { ok?: boolean; threads?: ThreadMeta[] }; if (d.ok) setThreads(d.threads ?? []); } catch {}
+    try {
+      const r = await fetch("/api/portal/yuki/threads");
+      const d = (await r.json()) as { ok?: boolean; threads?: ThreadMeta[]; error?: string };
+      if (d.ok) { setThreads(d.threads ?? []); setThreadsError(null); }
+      else setThreadsError(r.status === 401 ? "ログインが切れました。もう一度ログインしてください" : "相談の一覧を読み込めませんでした");
+    } catch { setThreadsError("相談の一覧を読み込めませんでした"); }
   }, []);
   const openThread = useCallback(async (id: string | null) => {
     // 仕事中の切替は不可(監査 2026-09-07: 進行中の出力や承認カードが別スレッドの画面に流れ込む)
     if (busyRef.current) { setError("ユキの作業が終わってから、相談を切り替えてください"); return; }
+    const gen = ++openGen.current;  // 素早く2つ開いた時、遅く返ってきた方を捨てる
     setThreadId(id); setProposal(null); setError(null); setMobileView("chat"); setTab("chat");
     if (!id) { setMessages([]); return; }
     setMessages([{ role: "assistant", content: "読み込んでいます…" }]);
     try {
-      const d = (await (await fetch(`/api/portal/yuki/threads?thread_id=${encodeURIComponent(id)}`)).json()) as { ok?: boolean; messages?: Msg[] };
-      setMessages(d.ok && d.messages?.length ? d.messages.map((m) => ({ role: m.role, content: m.content })) : []);
-    } catch { setMessages([]); }
+      const r = await fetch(`/api/portal/yuki/threads?thread_id=${encodeURIComponent(id)}`);
+      const d = (await r.json()) as { ok?: boolean; messages?: Msg[] };
+      if (gen !== openGen.current) return;
+      if (!d.ok) { setMessages([]); setError(r.status === 401 ? "ログインが切れました。もう一度ログインしてください" : "この相談を読み込めませんでした。少し待ってからもう一度開いてください"); return; }
+      setMessages(d.messages?.length ? d.messages.map((m) => ({ role: m.role, content: m.content })) : []);
+    } catch { if (gen === openGen.current) { setMessages([]); setError("この相談を読み込めませんでした。少し待ってからもう一度開いてください"); } }
+  }, []);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const f = () => setIsPC(mq.matches); f();
+    mq.addEventListener("change", f); return () => mq.removeEventListener("change", f);
   }, []);
 
   useEffect(() => {
@@ -401,8 +418,8 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
           const t = String(ev.type);
           if (t === "text_start") startBubble();
           else if (t === "text" && typeof ev.text === "string") { got += ev.text.length; addText(ev.text); }
-          else if (t === "tool") { const lbl = labelOf(String(ev.name)); statusRef.current = lbl + "しています"; setSpinner(lbl + "しています"); if (String(ev.name) !== "ToolSearch") addStep(lbl); }
-          else if (t === "tool_result") { statusRef.current = null; if (String(ev.name) !== "ToolSearch") finishStep(false); }
+          else if (t === "tool") { if (String(ev.name) !== HIDDEN_TOOL) { const lbl = labelOf(String(ev.name)); statusRef.current = lbl + "しています"; setSpinner(lbl + "しています"); addStep(lbl); } }
+          else if (t === "tool_result") { statusRef.current = null; if (String(ev.name) !== HIDDEN_TOOL) finishStep(false); }
           else if (t === "image" && typeof ev.key === "string" && IMG_KEY.test(ev.key)) addImage(ev.key, String(ev.alt ?? ""));
           else if (t === "deny") { statusRef.current = null; finishStep(true); if (ev.proposal) { const p = ev.proposal as Proposal; if (p.tool && p.args_hash) pendingProposal = { ...p, thread_id: threadRef.current ?? undefined }; } }
           else if (t === "error" && typeof ev.message === "string") failed = ev.message;
@@ -445,23 +462,29 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
   async function send(text: string, grant?: Proposal | null) {
     let body = text.trim();
     if ((!body && !attachments.length) || busy || uploading) return;
+    const keptInput = text, keptAttachments = attachments;
     if (attachments.length) { body = (body || "画像を添付しました。") + "\n\n" + attachments.map((a) => `添付画像: ${a.key}`).join("\n"); }
     setError(null); setProposal(null);
     setMessages((cur) => [...cur.map((m) => ({ ...m, live: false })), { role: "user", content: body }]);
-    setInput(""); setAttachments([]); nearBottomRef.current = true;
+    nearBottomRef.current = true;
     if (/解約|クレーム|苦情|返金|法律|訴/.test(body)) seriousRef.current = true;
     setBusy(true);
+    // 送信に失敗したら吹き出しを取り下げ、入力と添付を元に戻す(監査 2026-09-07: 文章と添付が消えていた)
+    const rollback = (msg: string) => { setMessages((cur) => cur.slice(0, -1)); setInput(keptInput); setAttachments(keptAttachments); setError(msg); setBusy(false); };
     try {
       // 承認は、それを出したスレッドに返す(別スレッドを開いていても取り違えない)
       const threadForSend = grant?.thread_id || threadRef.current;
       if (grant?.thread_id && grant.thread_id !== threadRef.current) setThreadId(grant.thread_id);
       const res = await fetch("/api/portal/yuki/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: body, ...(threadForSend ? { thread_id: threadForSend } : {}), ...(grant ? { paid_grant: { tool: grant.tool, args_hash: grant.args_hash } } : {}) }) });
-      const d = (await res.json()) as { ok?: boolean; job_id?: string; thread_id?: string; error?: string; credits?: CreditsView };
-      if (!d.ok || !d.job_id) { setError(d.error && d.error.length < 120 ? d.error : "送信に失敗しました。時間をおいてお試しください。"); if (d.credits) setCredits(d.credits); setBusy(false); return; }
+      const d = (await res.json()) as { ok?: boolean; job_id?: string; thread_id?: string; error?: string; credits?: CreditsView; production?: ProductionView };
+      if (d.credits) setCredits(d.credits);
+      if (d.production) setProduction(d.production);
+      if (!d.ok || !d.job_id) { rollback(res.status === 401 ? "ログインが切れました。もう一度ログインしてください" : d.error && d.error.length < 120 ? d.error : "送信に失敗しました。時間をおいてお試しください。"); return; }
+      setInput(""); setAttachments([]);
       if (d.thread_id && d.thread_id !== threadRef.current) setThreadId(d.thread_id);
       try { localStorage.setItem(LS_KEY, JSON.stringify({ job_id: d.job_id, prompt: body, at: Date.now(), thread_id: d.thread_id ?? threadRef.current })); } catch {}
       await followJob(d.job_id, body);
-    } catch { setError("通信に失敗しました。電波の良いところでお試しください。"); setBusy(false); }
+    } catch { rollback("通信に失敗しました。電波の良いところでお試しください。"); }
   }
 
   const archive = async (id: string, archived: boolean) => {
@@ -554,22 +577,24 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
       </header>
       <div className="border-b border-black/5"><CreditsBar c={credits} p={production} /></div>
 
-      {/* PC: 2ペイン */}
-      <div className="hidden min-h-0 flex-1 lg:grid lg:grid-cols-[300px_1fr]">
-        <aside className="flex min-h-0 flex-col border-r border-black/5">
-          {tabs}
-          <div className="min-h-0 flex-1">{tab === "chat" ? <ThreadList threads={threads} currentId={threadId} onOpen={(id) => void openThread(id)} onNew={() => void openThread(null)} onArchive={archive} /> : <p className="p-3 text-xs text-[#999]">右にノートの一覧と中身が出ます</p>}</div>
-        </aside>
-        <section className="min-h-0">{tab === "chat" ? chatPane : <NotesPane compact={false} />}</section>
-      </div>
-
-      {/* スマホ: セグメント → 一覧 → チャット */}
-      <div className="flex min-h-0 flex-1 flex-col lg:hidden">
-        {(tab === "notes" || mobileView === "list") && tabs}
-        <div className="min-h-0 flex-1">
-          {tab === "notes" ? <NotesPane compact onBack={() => setTab("chat")} /> : mobileView === "list" ? <ThreadList threads={threads} currentId={threadId} onOpen={(id) => void openThread(id)} onNew={() => void openThread(null)} onArchive={archive} /> : chatPane}
+      {threadsError && <div className="flex items-center gap-2 border-b border-black/5 px-4 py-1.5 text-xs font-bold text-red-500">{threadsError}<button onClick={() => void loadThreads()} className="rounded-md border border-red-200 px-2 py-0.5 text-[11px] font-bold text-red-500">再試行</button></div>}
+      {/* どちらか一方だけ描く(両方描くと ref とデータ取得が二重になる=監査 2026-09-07) */}
+      {isPC ? (
+        <div className="grid min-h-0 flex-1 grid-cols-[300px_1fr]">
+          <aside className="flex min-h-0 flex-col border-r border-black/5">
+            {tabs}
+            <div className="min-h-0 flex-1">{tab === "chat" ? <ThreadList threads={threads} currentId={threadId} onOpen={(id) => void openThread(id)} onNew={() => void openThread(null)} onArchive={archive} /> : <p className="p-3 text-xs text-[#999]">右にノートの一覧と中身が出ます</p>}</div>
+          </aside>
+          <section className="min-h-0">{tab === "chat" ? chatPane : <NotesPane compact={false} />}</section>
         </div>
-      </div>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col">
+          {(tab === "notes" || mobileView === "list") && tabs}
+          <div className="min-h-0 flex-1">
+            {tab === "notes" ? <NotesPane compact onBack={() => setTab("chat")} /> : mobileView === "list" ? <ThreadList threads={threads} currentId={threadId} onOpen={(id) => void openThread(id)} onNew={() => void openThread(null)} onArchive={archive} /> : chatPane}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

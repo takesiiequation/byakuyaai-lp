@@ -31,8 +31,9 @@ function sign(clientId: string, token: string): string {
  * signed payload (not just a lookup key), so forging a session for a
  * *different* client_id requires PORTAL_SESSION_SECRET itself — a tampered
  * cookie can never widen its own access. */
+const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;  // 発行から7日で失効(監査 2026-09-07: 期限が無く失効させる手段が無かった)
 export function createPortalSession(clientId: string): string {
-  const token = randomUUID();
+  const token = `t${Date.now().toString(36)}-${randomUUID()}`;  // 先頭に発行時刻(base36)を焼く。旧形式(素のUUID)は verify で失効扱い
   const sig = sign(clientId, token);
   return `${clientId}.${token}.${sig}`;
 }
@@ -61,6 +62,11 @@ export function verifyPortalSession(value: string): PortalSessionCheck {
   } catch {
     return { ok: false };
   }
+  // 発行時刻の検査: 旧形式(時刻なし)と7日超は失効。ログインし直せばよい
+  const m = /^t([0-9a-z]{6,12})-/.exec(token);
+  if (!m) return { ok: false };
+  const issued = parseInt(m[1], 36);
+  if (!Number.isFinite(issued) || Date.now() - issued > SESSION_MAX_AGE_MS || issued > Date.now() + 60_000) return { ok: false };
   return { ok: true, clientId };
 }
 

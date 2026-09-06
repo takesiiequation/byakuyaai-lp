@@ -25,6 +25,8 @@ const JOB_RE = /^[a-z0-9-]{8,64}$/i;
 const LOCK_TTL_MS = 30 * 60 * 1000;  // 1仕事の壁時計上限(コンテナ側20分)より長く(監査 2026-09-07: 15分だと実行中に失効して2つ目のコンテナが立った)
 
 function creds() {
+  // 本番は制御面専用の鍵(byakuyaai-control-plane)だけ。権限の広い n8n の鍵へ黙って落ちない(監査 2026-09-07)
+  if (process.env.NODE_ENV === "production" && !(process.env.ECS_AWS_ACCESS_KEY_ID && process.env.ECS_AWS_SECRET_ACCESS_KEY)) throw new Error("cp_not_configured");
   const ak = process.env.ECS_AWS_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID || "";
   const sk = process.env.ECS_AWS_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY || "";
   return ak && sk ? { accessKeyId: ak, secretAccessKey: sk } : undefined;
@@ -122,7 +124,8 @@ export type JobMeta = { job_id: string; client_id: string; task_arn: string; sta
 const WORKER_FRESH_MS = 15_000;  // 心拍がこの範囲なら常駐ワーカーへ enqueue(RunTaskしない)
 const metaKey = (c: string, j: string) => `jobs/${c}/${j}/meta.json`;
 
-export async function startJob(p: { clientId: string; clientName: string; plan?: string; prompt: string; paidGrant?: PaidGrant | null; threadId?: string | null; usedVideosThisMonth?: number }): Promise<{ ok: true; job_id: string; thread_id: string } | { ok: false; error: string }> {
+export type ProductionView = { cap: number; used: number; remaining: number; videos_left: number; regen_used: number };
+export async function startJob(p: { clientId: string; clientName: string; plan?: string; prompt: string; paidGrant?: PaidGrant | null; threadId?: string | null; usedVideosThisMonth?: number; production?: ProductionView | null; lintAliases?: string[] }): Promise<{ ok: true; job_id: string; thread_id: string } | { ok: false; error: string }> {
   if (!CLIENT_RE.test(p.clientId)) return { ok: false, error: "invalid_client" };
   const jobId = `${Date.now().toString(36)}-${randomBytes(4).toString("hex")}`;
   // 前の仕事が画面のポーリング切れで未精算のまま残っていたら、ここで精算する(監査 2026-09-07: 精算が顧客ブラウザ1本に依存していた)
@@ -147,6 +150,8 @@ export async function startJob(p: { clientId: string; clientName: string; plan?:
       paid_grant: p.paidGrant ?? null,
       plan: p.plan || "", tool_token: randomBytes(24).toString("hex"), cp_url: CP_URL,
       used_this_month: Math.max(0, Number(p.usedVideosThisMonth) || 0),  // 制作クレジットの表示(新規制作分=本数×10)に使う
+      production: p.production ?? null,  // 制作クレジットの数字(コンテナは台帳を読まない)
+      lint_aliases: (p.lintAliases || []).filter((a) => CLIENT_RE.test(a)),  // テスト顧客が借りている設計図の持ち主など(顧客名をコンテナのコードに置かない)
     };
     const prefix = `jobs/${p.clientId}/${jobId}/`;
     await putJson(prefix + "job.json", job);
@@ -193,6 +198,13 @@ export async function startJob(p: { clientId: string; clientName: string; plan?:
 
 export type PollResult = { ok: true; events: unknown[]; cursor: string; done: boolean; status: JobMeta["status"]; error?: string; credits?: ReturnType<typeof creditsView> } | { ok: false; error: string };
 
+/** result.json が出ないまま終わった仕事の見積精算(監査 2026-09-07: Anthropic/Lambda の実費が台帳に乗らず当社負担になっていた)。1仕事の予算上限(0.5ドル)か残高の小さい方を仮計上 */
+async function settleEstimate(clientId: string, plan: string | undefined, jobId: string): Promise<Ledger> {
+  const led = await readLedger(clientId, plan);
+  const est = Math.max(0, Math.min(Number(process.env.MAX_BUDGET_USD_PER_JOB || 0.5), led.cap_usd - led.used_usd));
+  return settleLedger(clientId, plan, { job_id: jobId, cost_usd: +est.toFixed(4), tools_cost_usd: 0 });
+}
+
 /** 断片を cursor(最後に読んだキー)以降だけ返す。result.json が出ていれば精算して done */
 export async function pollJob(clientId: string, jobId: string, cursor: string, plan?: string): Promise<PollResult> {
   if (!CLIENT_RE.test(clientId) || !JOB_RE.test(jobId)) return { ok: false, error: "invalid" };
@@ -227,26 +239,41 @@ export async function pollJob(clientId: string, jobId: string, cursor: string, p
     await releaseLock(clientId, jobId);
     return { ok: true, events, cursor: newCursor, done: true, status: "error", error: "ユキの応答がありませんでした。もう一度お送りください", credits: creditsView(await readLedger(clientId, plan)) };
   }
+  // 常駐ワーカーに渡した仕事で、ワーカーの心拍が止まっている(タスクARNが無くて DescribeTasks できない場合の生死判定)
+  if (meta.warm && age > 120_000) {
+    const w = (await getJson<{ at?: number }>(`jobs/${clientId}/_worker.json`)).value;
+    if (!w || Date.now() - Number(w.at) > 60_000) {
+      const led = await settleEstimate(clientId, plan, jobId);
+      const m2: JobMeta = { ...meta, settled: true, status: "error", error: "worker_dead" };
+      await putJson(metaKey(clientId, jobId), m2);
+      try { await s3().send(new DeleteObjectCommand({ Bucket: BUCKET, Key: `jobs/${clientId}/_worker.json` })); } catch {}
+      await releaseLock(clientId, jobId);
+      return { ok: true, events, cursor: newCursor, done: true, status: "error", error: "処理が途中で止まりました。もう一度お送りください", credits: creditsView(led) };
+    }
+  }
   // 結果が無いまま長い→タスクの生死を見る(コールドスタート≒2分を考慮して4分以降)
   if (age > 4 * 60 * 1000 && meta.task_arn) {
     try {
       const d = await ecs().send(new DescribeTasksCommand({ cluster: CLUSTER, tasks: [meta.task_arn] }));
       const t = d.tasks?.[0];
       if (!t || t.lastStatus === "STOPPED") {
+        const led = await settleEstimate(clientId, plan, jobId);  // 実費は取れないので見積で計上(当社負担で消さない)
         const m2: JobMeta = { ...meta, settled: true, status: "error", error: "task_stopped:" + String(t?.stoppedReason || "unknown").slice(0, 120) };
         await putJson(metaKey(clientId, jobId), m2); await releaseLock(clientId, jobId);
-        return { ok: true, events, cursor: newCursor, done: true, status: "error", error: "処理が途中で止まりました。もう一度お送りください", credits: creditsView(await readLedger(clientId, plan)) };
+        try { await s3().send(new DeleteObjectCommand({ Bucket: BUCKET, Key: `jobs/${clientId}/_worker.json` })); } catch {}
+        return { ok: true, events, cursor: newCursor, done: true, status: "error", error: "処理が途中で止まりました。もう一度お送りください", credits: creditsView(led) };
       }
     } catch {}
   }
   if (age > 25 * 60 * 1000) {
     // 打ち切り: タスクも止める(監査 2026-09-07: 止めないとコンテナが動き続けて課金が続き、ロックだけ外れて2つ目が立つ)
     if (meta.task_arn) { try { await ecs().send(new StopTaskCommand({ cluster: CLUSTER, task: meta.task_arn, reason: "yuki job timeout" })); } catch {} }
+    const led = await settleEstimate(clientId, plan, jobId);
     const m2: JobMeta = { ...meta, settled: true, status: "error", error: "timeout" };
     await putJson(metaKey(clientId, jobId), m2);
     try { await s3().send(new DeleteObjectCommand({ Bucket: BUCKET, Key: `jobs/${clientId}/_worker.json` })); } catch {}
     await releaseLock(clientId, jobId);
-    return { ok: true, events, cursor: newCursor, done: true, status: "error", error: "処理が長引いたため打ち切りました。もう一度お送りください", credits: creditsView(await readLedger(clientId, plan)) };
+    return { ok: true, events, cursor: newCursor, done: true, status: "error", error: "処理が長引いたため打ち切りました。もう一度お送りください", credits: creditsView(led) };
   }
   return { ok: true, events, cursor: newCursor, done: false, status: "running" };
 }
@@ -318,6 +345,8 @@ function threadTitle(prompt: string): string {
 async function settleThread(clientId: string, threadId: string, prompt: string, text: string, sessionId: string | undefined, jobId: string) {
   const at = new Date().toISOString();
   const doc = (await getJson<ThreadDoc>(threadKey(clientId, threadId))).value ?? { messages: [] };
+  // 同じ仕事を2つの画面が同時に精算しても会話を二重に書かない(監査 2026-09-07)
+  if (doc.messages.some((m) => m.job_id === jobId)) { if (sessionId && sessionId !== doc.session_id) await putJson(threadKey(clientId, threadId), { ...doc, session_id: sessionId } as ThreadDoc); return; }
   const msgs = [...doc.messages, { role: "user" as const, content: prompt.slice(0, 4000), at, job_id: jobId }, ...(text ? [{ role: "assistant" as const, content: text.slice(0, 20000), at, job_id: jobId }] : [])].slice(-200);
   await putJson(threadKey(clientId, threadId), { messages: msgs, session_id: sessionId || doc.session_id } as ThreadDoc);
   for (let i = 0; i < 4; i++) {
