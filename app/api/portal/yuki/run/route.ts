@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
   if (view.exhausted && grant) return NextResponse.json({ ok: false, error: "今月のユキクレジットの枠を使い切っているため、この操作は実行できません。来月また一緒に働けます", credits: view }, { status: 402 });
 
   const threadId = typeof body.thread_id === "string" && /^[a-z0-9]{6,32}$/i.test(body.thread_id) ? body.thread_id : null;
-  const r = await startJob({ clientId, clientName: client.client_name ?? "", plan: client.plan, prompt, paidGrant: grant, threadId });
+  const r = await startJob({ clientId, clientName: client.client_name ?? "", plan: client.plan, prompt, paidGrant: grant, threadId, usedVideosThisMonth: Number(client.used_this_month) || 0 });
   if (!r.ok) {
     const msg = r.error === "busy" ? "ユキが前のご依頼を進めています。終わってからお送りください" : "ただいま混み合っています。少し時間をおいてお試しください";
     return NextResponse.json({ ok: false, error: msg, detail: r.error }, { status: r.error === "busy" ? 409 : 502 });

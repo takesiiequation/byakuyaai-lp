@@ -36,6 +36,7 @@ async function shrinkImage(file: File): Promise<Blob> {
 }
 interface Proposal { tool: string; args_hash: string; cost_label: string; }
 interface CreditsView { stage: string; pct10: number; exhausted: boolean; }
+interface ProductionView { cap: number; used: number; remaining: number; videos_left: number; regen_used: number; }
 interface ThreadMeta { id: string; title: string; archived: boolean; updated_at: string; last_preview: string; }
 interface NoteMeta { path: string; size: number; updated_at: string; }
 
@@ -76,19 +77,26 @@ const STYLE = `
 .yuki-paper { background: #fbf8f2; box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 6px 16px -12px rgba(120, 80, 20, .25); }
 `;
 
-function CreditsBar({ c }: { c: CreditsView | null }) {
+function CreditsBar({ c, p }: { c: CreditsView | null; p: ProductionView | null }) {
   // 残りを濃い水色、使った分(枯渇分)をグレーで。残りが2割を切ったら残りをオレンジで注意(岡本 9/6: 濃淡の差が無いと分かりにくい)
   const used = c ? c.pct10 : 0;
   const remainingSeg = 10 - Math.round(used / 10);
   return (
-    <div className="flex items-center gap-3 px-4 py-2">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2">
       <span className="shrink-0 text-[11px] font-bold text-sky-700">今月のユキクレジット</span>
-      <div className="flex flex-1 gap-[3px]">
+      <div className="flex min-w-[160px] flex-1 gap-[3px]">
         {Array.from({ length: 10 }).map((_, i) => (
           <span key={i} className={"h-2 flex-1 rounded-sm " + (i < remainingSeg ? (used >= 80 ? "bg-orange-400" : "bg-sky-600") : "bg-gray-300")} />
         ))}
       </div>
       <span className="shrink-0 text-[11px] text-[#666]">{c ? c.stage : "確認中"}</span>
+      {/* 制作クレジット=お金が外に出る財布。こちらは数字で見せる(設計 yuki_workspace_design §4) */}
+      {p && (
+        <span className="ml-auto shrink-0 rounded-full bg-[#fff3e6] px-2.5 py-0.5 text-[11px] font-bold text-[#c96a00]" title="新規制作1本=10・映像1カットの作り直し=1">
+          制作クレジット <span className="text-[13px]">{p.remaining}</span><span className="text-[#c96a00]/60"> / {p.cap}</span>
+          <span className="ml-1 font-normal text-[#a35a08]">(あと{p.videos_left}本分)</span>
+        </span>
+      )}
     </div>
   );
 }
@@ -277,6 +285,10 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
   const [spinner, setSpinner] = useState(FIRST_LABEL);
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [credits, setCredits] = useState<CreditsView | null>(null);
+  const [production, setProduction] = useState<ProductionView | null>(null);
+  const refreshCredits = useCallback(() => {
+    fetch("/api/portal/yuki/credits").then((r) => r.json()).then((d: { ok?: boolean; credits?: CreditsView; production?: ProductionView }) => { if (d.ok) { if (d.credits) setCredits(d.credits); if (d.production) setProduction(d.production); } }).catch(() => {});
+  }, []);
   const [finishedBanner, setFinishedBanner] = useState(false);
   const seriousRef = useRef(false);
   const statusRef = useRef<string | null>(null);
@@ -302,7 +314,7 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
     let alive = true;
     (async () => {
       await loadThreads();
-      fetch("/api/portal/yuki/credits").then((r) => r.json()).then((d: { ok?: boolean; credits?: CreditsView }) => { if (alive && d.ok && d.credits) setCredits(d.credits); }).catch(() => {});
+      if (alive) refreshCredits();
       try {
         const raw = localStorage.getItem(LS_KEY);
         if (raw) {
@@ -399,6 +411,7 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
     if (document.hidden) { const t = document.title; document.title = "✅ ユキの作業が終わりました"; const back = () => { document.title = t; document.removeEventListener("visibilitychange", back); }; document.addEventListener("visibilitychange", back); }
     setBusy(false);
     void loadThreads();
+    refreshCredits();  // 作り直し(制作クレジット)は仕事の途中で精算されるので、終わったら数字を取り直す
   }
 
   /** 画像の添付: 縮めて /upload へ。返ってきたキーを依頼文の末尾に「添付画像: …」として付ける(ユキはこの行でキーを知る) */
@@ -527,7 +540,7 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
         </div>
         <a href="/portal" className="ml-auto shrink-0 text-xs text-[#999] underline">マイページ</a>
       </header>
-      <div className="border-b border-black/5"><CreditsBar c={credits} /></div>
+      <div className="border-b border-black/5"><CreditsBar c={credits} p={production} /></div>
 
       {/* PC: 2ペイン */}
       <div className="hidden min-h-0 flex-1 lg:grid lg:grid-cols-[300px_1fr]">

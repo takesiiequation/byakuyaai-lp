@@ -68,6 +68,7 @@ async function putJsonIf(key: string, value: unknown, etag: string | null): Prom
 const putJson = (key: string, value: unknown) => s3().send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: JSON.stringify(value), ContentType: "application/json" }));
 export const getJsonS3 = getJson;
 export const putJsonS3 = putJson;
+export const putJsonS3If = putJsonIf;
 
 // ---------- 台帳(ユキクレジット) ----------
 export type Ledger = { cap_usd: number; used_usd: number; reserve_usd: number; jobs: Array<{ job_id: string; at: string; cost_usd: number; tools_cost_usd: number }> };
@@ -120,7 +121,7 @@ export type JobMeta = { job_id: string; client_id: string; task_arn: string; sta
 const WORKER_FRESH_MS = 15_000;  // 心拍がこの範囲なら常駐ワーカーへ enqueue(RunTaskしない)
 const metaKey = (c: string, j: string) => `jobs/${c}/${j}/meta.json`;
 
-export async function startJob(p: { clientId: string; clientName: string; plan?: string; prompt: string; paidGrant?: PaidGrant | null; threadId?: string | null }): Promise<{ ok: true; job_id: string; thread_id: string } | { ok: false; error: string }> {
+export async function startJob(p: { clientId: string; clientName: string; plan?: string; prompt: string; paidGrant?: PaidGrant | null; threadId?: string | null; usedVideosThisMonth?: number }): Promise<{ ok: true; job_id: string; thread_id: string } | { ok: false; error: string }> {
   if (!CLIENT_RE.test(p.clientId)) return { ok: false, error: "invalid_client" };
   const jobId = `${Date.now().toString(36)}-${randomBytes(4).toString("hex")}`;
   if (!(await acquireLock(p.clientId, jobId))) return { ok: false, error: "busy" };
@@ -136,6 +137,7 @@ export async function startJob(p: { clientId: string; clientName: string; plan?:
       credits: { cap_usd: led.cap_usd, used_usd: led.used_usd, remaining_usd: remaining },
       paid_grant: p.paidGrant ?? null,
       plan: p.plan || "", tool_token: randomBytes(24).toString("hex"), cp_url: CP_URL,
+      used_this_month: Math.max(0, Number(p.usedVideosThisMonth) || 0),  // 制作クレジットの表示(新規制作分=本数×10)に使う
     };
     const prefix = `jobs/${p.clientId}/${jobId}/`;
     await putJson(prefix + "job.json", job);
