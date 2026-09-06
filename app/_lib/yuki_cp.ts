@@ -9,7 +9,8 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { ECSClient, RunTaskCommand, DescribeTasksCommand } from "@aws-sdk/client-ecs";
 import { randomBytes } from "crypto";
 
-const REGION = process.env.AWS_REGION || "ap-northeast-1";
+// ⚠️ Vercel の関数は AWS(us-east-1 等)で動き、AWS_REGION が自動で入る。それを拾うと東京のS3/ECSに届かない(2026-09-06 cp_check で判明: 301 PermanentRedirect / Unable to describe task definition)
+const REGION = process.env.YUKI_AWS_REGION || "ap-northeast-1";
 const BUCKET = process.env.YUKI_BUCKET || "byakuyaai-media";
 const CLUSTER = process.env.YUKI_CLUSTER || "byakuyaai-yuki";
 const TASK_FAMILY = process.env.YUKI_TASK_FAMILY || "byakuyaai-yuki-runtime";

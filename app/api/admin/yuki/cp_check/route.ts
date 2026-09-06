@@ -6,7 +6,7 @@ import { ECSClient, DescribeTaskDefinitionCommand } from "@aws-sdk/client-ecs";
 import { requireAuth } from "@/app/_lib/auth";
 
 export const maxDuration = 20;
-const REGION = process.env.AWS_REGION || "ap-northeast-1";
+const REGION = process.env.YUKI_AWS_REGION || "ap-northeast-1";  // AWS_REGION は Vercel 側で自動的に us-east-1 が入るので使わない
 
 export async function GET(req: NextRequest) {
   const denied = await requireAuth(req);
