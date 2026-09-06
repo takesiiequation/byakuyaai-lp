@@ -6,9 +6,12 @@
 
 import React from "react";
 
+// 画像は当社の表示口(/api/portal/yuki/image?key=…)だけ描く(外部URLは文字のまま=注入の余地を作らない)
+const IMG_SRC = /^\/api\/portal\/yuki\/image\?key=images(?:\/|%2F)(?:in|out)(?:\/|%2F)[A-Za-z0-9_-]+\.(?:png|jpe?g|webp)$/;  // key は encodeURIComponent 済み(%2F)でも素の / でもよい
+
 function inline(text: string, key: string): React.ReactNode[] {
   const out: React.ReactNode[] = [];
-  const re = /(\*\*[^*\n]+\*\*|`[^`\n]+`)/g;
+  const re = /(\*\*[^*\n]+\*\*|`[^`\n]+`|!\[[^\]\n]*\]\([^)\s]+\))/g;
   let last = 0;
   let i = 0;
   let m: RegExpExecArray | null;
@@ -16,6 +19,12 @@ function inline(text: string, key: string): React.ReactNode[] {
     if (m.index > last) out.push(text.slice(last, m.index));
     const tok = m[0];
     if (tok.startsWith("**")) out.push(<strong key={`${key}-b${i}`}>{tok.slice(2, -2)}</strong>);
+    else if (tok.startsWith("![")) {
+      const mm = /^!\[([^\]]*)\]\(([^)\s]+)\)$/.exec(tok);
+      const src = mm?.[2] ?? "";
+      if (mm && IMG_SRC.test(src)) out.push(<a key={`${key}-i${i}`} href={src} target="_blank" rel="noreferrer" className="chat-img"><img src={src} alt={mm[1]} loading="lazy" style={{ display: "block", maxWidth: "100%", maxHeight: 360, borderRadius: 12, margin: "6px 0", boxShadow: "0 1px 4px rgba(0,0,0,.12)" }} /></a>);
+      else out.push(tok);
+    }
     else out.push(<code key={`${key}-c${i}`}>{tok.slice(1, -1)}</code>);
     last = m.index + tok.length;
     i += 1;

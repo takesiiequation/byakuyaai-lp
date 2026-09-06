@@ -8,7 +8,7 @@ import { pollJob } from "@/app/_lib/yuki_cp";
 
 export const maxDuration = 30;
 // 画面に流してよいイベントだけ(道具の生の入力は出さない=内部構成の露出を避ける)
-const PASS = new Set(["text_start", "text", "tool", "tool_result", "deny", "cost", "done", "error", "job", "sync", "init", "result"]);
+const PASS = new Set(["text_start", "text", "tool", "tool_result", "deny", "cost", "done", "error", "job", "sync", "init", "result", "image"]);
 
 export async function GET(req: NextRequest) {
   const clientId = await getPortalClientId();
@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
     if (t === "tool") return { type: t, name: e.name };                                       // 入力は出さない
     if (t === "tool_result") return { type: t, name: e.name };                                // 生の結果も出さない(本文はユキが書く)
     if (t === "deny") return { type: t, name: e.name, reason: e.reason, proposal: e.proposal ? { tool: (e.proposal as Record<string, unknown>).tool, args_hash: (e.proposal as Record<string, unknown>).args_hash, cost_label: (e.proposal as Record<string, unknown>).cost_label } : undefined };
+    if (t === "image") return { type: t, key: /^images\/(in|out)\/[a-z0-9_-]+\.(png|jpe?g|webp)$/i.test(String(e.key)) ? String(e.key) : "", alt: String(e.alt ?? "").slice(0, 80) };  // 画像は当社S3のキーだけ(表示は /image 経由)
     if (t === "text" || t === "text_start" || t === "error" || t === "done") return { type: t, ...(t === "text" ? { text: e.text } : {}), ...(t === "error" ? { message: e.message } : {}) };
     return { type: t };
   });

@@ -18,7 +18,7 @@ const SECURITY_GROUP = process.env.YUKI_SECURITY_GROUP || "sg-068936bf2c51b9eb0"
 const JPY_PER_USD = 150;  // 内部固定レート(設計§9)
 export const PLAN_CAP_USD: Record<string, number> = { premium: 20000 / JPY_PER_USD, test: 20000 / JPY_PER_USD, standard: 20 };
 export const RESERVE_USD = 0.05;
-export const PAID_TOOL_LABELS: Record<string, string> = { "mcp__byakuyaai__render_lambda": "ユキクレジット(再レンダー・少量)", "mcp__byakuyaai__seedance_regenerate": "制作クレジット 1" };
+export const PAID_TOOL_LABELS: Record<string, string> = { "mcp__byakuyaai__render_lambda": "ユキクレジット(再レンダー・少量)", "mcp__byakuyaai__seedance_regenerate": "制作クレジット 1", "mcp__byakuyaai__image_generate": "ユキクレジット(画像1枚・少量)", "mcp__byakuyaai__image_edit": "ユキクレジット(画像1枚・少量)" };
 const CLIENT_RE = /^(?!\.+$)[a-z0-9][a-z0-9_.-]{0,39}$/i;
 const JOB_RE = /^[a-z0-9-]{8,64}$/i;
 const LOCK_TTL_MS = 15 * 60 * 1000;
@@ -37,6 +37,11 @@ let _s3: S3Client | null = null, _ecs: ECSClient | null = null;
 const s3 = () => (_s3 ??= new S3Client({ region: REGION, credentials: s3Creds() }));
 const ecs = () => (_ecs ??= new ECSClient({ region: REGION, credentials: creds() }));
 export const cpConfigured = () => !!(process.env.ECS_AWS_ACCESS_KEY_ID && process.env.ECS_AWS_SECRET_ACCESS_KEY);
+/** 画像リレー(yuki_images.ts)など、同じ鍵・同じバケットで動く仲間向けの出口 */
+export const s3Client = s3;
+export const YUKI_BUCKET = BUCKET;
+/** コンテナが制御面を叩く時の宛先(job.json に埋める)。ローカル検証では YUKI_CP_URL=http://localhost:3011 */
+const CP_URL = process.env.YUKI_CP_URL || "https://byakuyaai.com";
 
 async function getJson<T>(key: string): Promise<{ value: T | null; etag: string | null }> {
   try {
@@ -61,6 +66,8 @@ async function putJsonIf(key: string, value: unknown, etag: string | null): Prom
   }
 }
 const putJson = (key: string, value: unknown) => s3().send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: JSON.stringify(value), ContentType: "application/json" }));
+export const getJsonS3 = getJson;
+export const putJsonS3 = putJson;
 
 // ---------- 台帳(ユキクレジット) ----------
 export type Ledger = { cap_usd: number; used_usd: number; reserve_usd: number; jobs: Array<{ job_id: string; at: string; cost_usd: number; tools_cost_usd: number }> };
@@ -123,10 +130,12 @@ export async function startJob(p: { clientId: string; clientName: string; plan?:
     // スレッド(相談の器): 会話の文脈=Agent SDKのセッションはスレッド単位。記憶(memory/)は全スレッド共通
     const threadId = p.threadId && THREAD_RE.test(p.threadId) ? p.threadId : `t${Date.now().toString(36)}${randomBytes(3).toString("hex")}`;
     const thread = (await getJson<ThreadDoc>(threadKey(p.clientId, threadId))).value;
+    // tool_token: このジョブの間だけ有効な短命トークン。コンテナは鍵を持たず、これで制御面の画像リレー等を叩く(検証は verifyJobToken)
     const job = {
       prompt: p.prompt.slice(0, 8000), client_name: p.clientName, session_id: thread?.session_id || null, thread_id: threadId,
       credits: { cap_usd: led.cap_usd, used_usd: led.used_usd, remaining_usd: remaining },
       paid_grant: p.paidGrant ?? null,
+      plan: p.plan || "", tool_token: randomBytes(24).toString("hex"), cp_url: CP_URL,
     };
     const prefix = `jobs/${p.clientId}/${jobId}/`;
     await putJson(prefix + "job.json", job);

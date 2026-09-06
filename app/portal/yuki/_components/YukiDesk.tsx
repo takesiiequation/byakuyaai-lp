@@ -11,26 +11,48 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { pickSpinner, nextInterval, FIRST_LABEL, FIRST_HOLD_MS } from "@/app/_lib/spinner";
 import LiteMd from "@/app/_lib/lite_md";
 
-type Part = { kind: "text"; text: string } | { kind: "step"; label: string; done: boolean; failed?: boolean; startedAt: number; endedAt?: number };
+type Part = { kind: "text"; text: string } | { kind: "step"; label: string; done: boolean; failed?: boolean; startedAt: number; endedAt?: number } | { kind: "image"; key: string; alt: string };
 interface Msg { role: "user" | "assistant"; content: string; parts?: Part[]; live?: boolean; }
+interface Attachment { key: string; name: string; preview: string; }
+const imgUrl = (key: string) => `/api/portal/yuki/image?key=${encodeURIComponent(key)}`;
+const IMG_KEY = /^images\/(in|out)\/[A-Za-z0-9_-]+\.(png|jpe?g|webp)$/;
+/** お客様の吹き出し: 「添付画像: images/in/…」の行は文字でなくサムネで見せる */
+const splitUser = (content: string) => {
+  const images: string[] = []; const lines: string[] = [];
+  for (const l of content.split("\n")) { const m = /^添付画像:\s*(images\/in\/[A-Za-z0-9_-]+\.(?:png|jpe?g|webp))\s*$/.exec(l.trim()); if (m) images.push(m[1]); else lines.push(l); }
+  return { text: lines.join("\n").trim(), images };
+};
+/** 添付前に長辺1600pxへ縮める(通信量と本文上限4.5MBの内側に収める)。縮められない環境では元のまま */
+async function shrinkImage(file: File): Promise<Blob> {
+  try {
+    const bmp = await createImageBitmap(file);
+    const max = 1600; const s = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    if (s >= 1 && file.size < 1_500_000) return file;
+    const c = document.createElement("canvas"); c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
+    c.getContext("2d")!.drawImage(bmp, 0, 0, c.width, c.height);
+    const png = file.type === "image/png";
+    return await new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("toBlob"))), png ? "image/png" : "image/jpeg", 0.9));
+  } catch { return file; }
+}
 interface Proposal { tool: string; args_hash: string; cost_label: string; }
 interface CreditsView { stage: string; pct10: number; exhausted: boolean; }
 interface ThreadMeta { id: string; title: string; archived: boolean; updated_at: string; last_preview: string; }
 interface NoteMeta { path: string; size: number; updated_at: string; }
 
-const STARTERS = ["動画の設計図を検査してほしい", "物件の紹介文を一緒に考えたい", "うちの会社のことを覚えてもらう", "その他なんでも"];
+const STARTERS = ["動画の設計図を検査してほしい", "物件の紹介文を一緒に考えたい", "SNS用の画像を作ってほしい", "うちの会社のことを覚えてもらう", "その他なんでも"];
 const TOOL_LABEL: Record<string, string> = {
   mcp__byakuyaai__memory_list: "記憶ノートの索引を確認", mcp__byakuyaai__memory_read: "記憶ノートを読む", mcp__byakuyaai__memory_write: "記憶ノートを整理",
   mcp__byakuyaai__video_list: "動画の一覧を確認", mcp__byakuyaai__video_info: "設計図を読む",
   mcp__byakuyaai__layout_lint: "レイアウトを検査", mcp__byakuyaai__props_lint: "設計図を検査",
   mcp__byakuyaai__credits_balance: "今月の稼働を確認", mcp__byakuyaai__render_lambda: "動画を仕上げ直す(数分)",
   mcp__byakuyaai__seedance_regenerate: "映像を作り直す", mcp__byakuyaai__human_support: "担当者に申し送り",
+  mcp__byakuyaai__image_list: "画像の一覧を確認", mcp__byakuyaai__image_generate: "画像を生成(1分ほど)", mcp__byakuyaai__image_edit: "画像を加工(1分ほど)",
   Read: "机の上の資料を確認", Write: "資料を書く", Edit: "設計図を直す", Glob: "机の上を探す", Grep: "机の上を探す",
 };
 const labelOf = (name: string) => TOOL_LABEL[name] || (name.startsWith("mcp__byakuyaai__") ? "作業中" : "机の上を確認");
 /** 作業カードの絵柄(話題で決める) */
-const stepIcon = (label: string) => /検査/.test(label) ? "🔍" : /記憶|ノート/.test(label) ? "📝" : /仕上げ|映像/.test(label) ? "🎬" : /担当者/.test(label) ? "🤝" : /稼働/.test(label) ? "⏱" : /設計図/.test(label) ? "📐" : /一覧/.test(label) ? "🗂" : "📄";
-const threadIcon = (t: ThreadMeta) => { const s = t.title + " " + t.last_preview; return /覚え|記憶|決まり|ルール|ノート/.test(s) ? "📝" : /紹介文|SNS|投稿|反響|ハッシュタグ/.test(s) ? "✍️" : /動画|設計図|テロップ|レンダー|検査|APR-/.test(s) ? "🎬" : "💬"; };
+const stepIcon = (label: string) => /画像/.test(label) ? "🎨" : /検査/.test(label) ? "🔍" : /記憶|ノート/.test(label) ? "📝" : /仕上げ|映像/.test(label) ? "🎬" : /担当者/.test(label) ? "🤝" : /稼働/.test(label) ? "⏱" : /設計図/.test(label) ? "📐" : /一覧/.test(label) ? "🗂" : "📄";
+const threadIcon = (t: ThreadMeta) => { const s = t.title + " " + t.last_preview; return /覚え|記憶|決まり|ルール|ノート/.test(s) ? "📝" : /画像|サムネ|バナー|写真/.test(s) ? "🎨" : /紹介文|SNS|投稿|反響|ハッシュタグ/.test(s) ? "✍️" : /動画|設計図|テロップ|レンダー|検査|APR-/.test(s) ? "🎬" : "💬"; };
 const POLL_MS = 1500;
 const LS_KEY = "yuki_desk_active_job";
 /** 相対時刻(3分前・昨日・9/5) */
@@ -89,12 +111,14 @@ function AssistantBubble({ m }: { m: Msg }) {
   const parts = m.parts && m.parts.length ? m.parts : [{ kind: "text", text: m.content } as Part];
   const steps = parts.filter((p) => p.kind === "step").length;
   const collapsible = steps > 4 && !m.live;
-  // 連続するステップをひとかたまり(タイムライン)にする
-  const groups: Array<{ kind: "text"; text: string } | { kind: "steps"; items: Extract<Part, { kind: "step" }>[] }> = [];
+  // 連続するステップをひとかたまり(タイムライン)にする。画像はそのまま1枚ずつ
+  const groups: Array<{ kind: "text"; text: string } | { kind: "image"; key: string; alt: string } | { kind: "steps"; items: Extract<Part, { kind: "step" }>[] }> = [];
   for (const p of parts) {
-    if (p.kind === "text") groups.push(p);
+    if (p.kind === "text" || p.kind === "image") groups.push(p);
     else { const last = groups[groups.length - 1]; if (last && last.kind === "steps") last.items.push(p); else groups.push({ kind: "steps", items: [p] }); }
   }
+  // 本文に同じ画像が ![…](…) で貼られている時は、作業中に出した1枚(live)を二重に見せない
+  const inText = (key: string) => m.content.includes(`key=${encodeURIComponent(key)}`);
   return (
     <div className="yuki-paper max-w-[90%] rounded-3xl rounded-bl-lg px-4 py-3 text-sm leading-relaxed text-[#222] lg:max-w-[88%] lg:px-6 lg:py-4 lg:text-[15.5px]">
       {collapsible && (
@@ -105,6 +129,8 @@ function AssistantBubble({ m }: { m: Msg }) {
       {groups.map((g, gi) =>
         g.kind === "text" ? (
           g.text.trim() ? <div key={gi} className={gi > 0 ? "mt-2" : ""}><LiteMd text={g.text} /></div> : null
+        ) : g.kind === "image" ? (
+          inText(g.key) ? null : <a key={gi} href={imgUrl(g.key)} target="_blank" rel="noreferrer" className="yuki-in my-2 block"><img src={imgUrl(g.key)} alt={g.alt} loading="lazy" className="max-h-[360px] max-w-full rounded-xl shadow-sm" /></a>
         ) : (collapsible && !open) ? null : (
           <ol key={gi} className="my-2 ml-1 border-l-2 border-sky-200 pl-3">
             {g.items.map((p, i) => (
@@ -127,6 +153,7 @@ function AssistantBubble({ m }: { m: Msg }) {
 function Welcome({ clientName, onPick }: { clientName: string; onPick: (s: string) => void }) {
   const items = [
     { icon: "🎬", t: "動画の設計図を整える", d: "テロップの文言・順番・尺を見直し、検査してから仕上げ直します" },
+    { icon: "🎨", t: "画像づくり", d: "投稿用の画像・サムネ・お預かりした写真の加工。参考画像を添付して雰囲気を伝えられます" },
     { icon: "📝", t: "御社の決まりを覚える", d: "「今後はこうして」と伝えると記憶ノートに書き、次から活かします" },
     { icon: "💬", t: "日々の相談", d: "紹介文づくり・SNSの反響・社内の記録など、何でもどうぞ" },
   ];
@@ -135,7 +162,7 @@ function Welcome({ clientName, onPick }: { clientName: string; onPick: (s: strin
       <div className="yuki-paper rounded-3xl px-5 py-4 lg:px-7 lg:py-6">
         <p className="text-[15px] font-black text-[#222] lg:text-lg">{clientName ? `${clientName}さま、` : ""}ようこそ ユキのデスクへ😊</p>
         <p className="mt-1 text-xs text-[#777] lg:text-sm">御社専任のAI担当が、ここで一緒に働きます。今日はどんなご相談でしょうか?</p>
-        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {items.map((it) => (
             <div key={it.t} className="rounded-2xl border border-sky-100 bg-white/70 px-3 py-3">
               <div className="text-xl">{it.icon}</div>
@@ -242,6 +269,9 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
   const [threadId, setThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [spinner, setSpinner] = useState(FIRST_LABEL);
@@ -326,12 +356,13 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
     return { ...m, parts, content: m.content + t };
   });
   const addStep = (label: string) => withLive((m) => ({ ...m, parts: [...(m.parts ?? []), { kind: "step", label, done: false, startedAt: Date.now() }] }));
+  const addImage = (key: string, alt: string) => withLive((m) => ({ ...m, parts: [...(m.parts ?? []), { kind: "image", key, alt }] }));
   const finishStep = (failed = false) => withLive((m) => {
     const parts = [...(m.parts ?? [])];
     for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; if (p.kind === "step" && !p.done) { parts[i] = { ...p, done: true, failed, endedAt: Date.now() }; break; } }
     return { ...m, parts };
   });
-  const seal = () => setMessages((cur) => cur.map((m) => ({ ...m, live: false })).filter((m) => !(m.role === "assistant" && !m.content.trim() && !(m.parts ?? []).some((p) => p.kind === "step"))));
+  const seal = () => setMessages((cur) => cur.map((m) => ({ ...m, live: false })).filter((m) => !(m.role === "assistant" && !m.content.trim() && !(m.parts ?? []).some((p) => p.kind === "step" || p.kind === "image"))));
 
   async function followJob(jobId: string, prompt: string, resumed = false) {
     setBusy(true); statusRef.current = null; setError(null); setFinishedBanner(false);
@@ -351,6 +382,7 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
           else if (t === "text" && typeof ev.text === "string") { got += ev.text.length; addText(ev.text); }
           else if (t === "tool") { const lbl = labelOf(String(ev.name)); statusRef.current = lbl + "しています"; setSpinner(lbl + "しています"); if (String(ev.name) !== "ToolSearch") addStep(lbl); }
           else if (t === "tool_result") { statusRef.current = null; if (String(ev.name) !== "ToolSearch") finishStep(false); }
+          else if (t === "image" && typeof ev.key === "string" && IMG_KEY.test(ev.key)) addImage(ev.key, String(ev.alt ?? ""));
           else if (t === "deny") { statusRef.current = null; finishStep(true); if (ev.proposal) { const p = ev.proposal as Proposal; if (p.tool && p.args_hash) pendingProposal = p; } }
           else if (t === "error" && typeof ev.message === "string") failed = ev.message;
         }
@@ -369,12 +401,32 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
     void loadThreads();
   }
 
+  /** 画像の添付: 縮めて /upload へ。返ってきたキーを依頼文の末尾に「添付画像: …」として付ける(ユキはこの行でキーを知る) */
+  async function attach(files: FileList | null) {
+    if (!files || !files.length || uploading) return;
+    setUploading(true); setError(null);
+    try {
+      for (const f of Array.from(files).slice(0, 4 - attachments.length)) {
+        if (!/^image\/(jpeg|png|webp)$/.test(f.type)) { setError("JPEG / PNG / WebP の画像だけ添付できます"); continue; }
+        const blob = await shrinkImage(f);
+        const fd = new FormData(); fd.append("file", blob, f.name);
+        const r = await fetch("/api/portal/yuki/upload", { method: "POST", body: fd });
+        const d = (await r.json()) as { ok?: boolean; key?: string; error?: string };
+        if (!d.ok || !d.key) { setError(d.error && d.error.length < 80 ? d.error : "画像を添付できませんでした"); continue; }
+        setAttachments((cur) => [...cur, { key: d.key!, name: f.name, preview: URL.createObjectURL(blob) }]);
+      }
+    } catch { setError("画像を添付できませんでした"); }
+    setUploading(false);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
   async function send(text: string, grant?: Proposal | null) {
-    const body = text.trim();
-    if (!body || busy) return;
+    let body = text.trim();
+    if ((!body && !attachments.length) || busy || uploading) return;
+    if (attachments.length) { body = (body || "画像を添付しました。") + "\n\n" + attachments.map((a) => `添付画像: ${a.key}`).join("\n"); }
     setError(null); setProposal(null);
     setMessages((cur) => [...cur.map((m) => ({ ...m, live: false })), { role: "user", content: body }]);
-    setInput(""); nearBottomRef.current = true;
+    setInput(""); setAttachments([]); nearBottomRef.current = true;
     if (/解約|クレーム|苦情|返金|法律|訴/.test(body)) seriousRef.current = true;
     setBusy(true);
     try {
@@ -408,9 +460,12 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
         {fresh && !busy && <Welcome clientName={clientName} onPick={(s) => void send(s === "その他なんでも" ? "相談したいことがあります。" : s)} />}
         {messages.map((m, i) => (
           <div key={i} className={"yuki-in " + (m.role === "user" ? "flex justify-end" : "flex justify-start")}>
-            {m.role === "user" ? (
-              <div className="max-w-[85%] whitespace-pre-wrap rounded-3xl rounded-br-lg bg-orange-500 px-4 py-2.5 text-sm leading-relaxed text-white shadow-sm lg:max-w-[70%] lg:text-[15px]">{m.content}</div>
-            ) : (m.content.trim() || (m.parts ?? []).some((p) => p.kind === "step")) ? <AssistantBubble m={m} /> : null}
+            {m.role === "user" ? (() => { const u = splitUser(m.content); return (
+              <div className="max-w-[85%] rounded-3xl rounded-br-lg bg-orange-500 px-4 py-2.5 text-sm leading-relaxed text-white shadow-sm lg:max-w-[70%] lg:text-[15px]">
+                {u.text && <div className="whitespace-pre-wrap">{u.text}</div>}
+                {u.images.length > 0 && <div className={"flex flex-wrap gap-1.5 " + (u.text ? "mt-2" : "")}>{u.images.map((k) => <a key={k} href={imgUrl(k)} target="_blank" rel="noreferrer"><img src={imgUrl(k)} alt="添付画像" loading="lazy" className="h-24 w-24 rounded-lg object-cover ring-2 ring-white/60" /></a>)}</div>}
+              </div>); })()
+            : (m.content.trim() || (m.parts ?? []).some((p) => p.kind === "step" || p.kind === "image")) ? <AssistantBubble m={m} /> : null}
           </div>
         ))}
         {proposal && !busy && (
@@ -431,12 +486,24 @@ export default function YukiDesk({ clientName }: { clientName: string }) {
       )}
       {error && <p className="px-4 pb-1 text-xs font-bold text-red-500">{error}</p>}
       {exhausted && <p className="px-4 pb-1 text-xs font-bold text-[#c96a00]">今月のユキクレジットの枠を使い切りました。来月また一緒に働けます(ご相談の閲覧はできます)</p>}
+      {attachments.length > 0 && (
+        <div className="flex flex-wrap gap-2 px-3 pt-2">
+          {attachments.map((a) => (
+            <div key={a.key} className="relative">
+              <img src={a.preview} alt={a.name} className="h-16 w-16 rounded-lg object-cover ring-1 ring-black/10" />
+              <button onClick={() => setAttachments((cur) => cur.filter((x) => x.key !== a.key))} title="外す" className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#222] text-[11px] font-bold text-white">×</button>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="flex items-end gap-2 border-t border-black/5 p-3">
+        <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(e) => void attach(e.target.files)} />
+        <button onClick={() => fileRef.current?.click()} disabled={busy || exhausted || uploading || attachments.length >= 4} title="画像を添付(参考画像・加工したい写真)" className="h-[44px] w-[44px] shrink-0 rounded-2xl border border-black/10 text-lg text-[#666] transition-colors hover:border-sky-300 hover:bg-sky-50 disabled:opacity-40">{uploading ? <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-sky-400 border-t-transparent" /> : "📎"}</button>
         <textarea value={input} onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send(input); } }}
-          rows={2} maxLength={4000} disabled={exhausted} placeholder={exhausted ? "今月の枠を使い切りました" : busy ? "ユキが作業中です(終わったら続けて送れます)" : "ご相談・ご依頼を入力"}
+          rows={2} maxLength={4000} disabled={exhausted} placeholder={exhausted ? "今月の枠を使い切りました" : busy ? "ユキが作業中です(終わったら続けて送れます)" : attachments.length ? "この画像をどうしたいか(例: この写真の雰囲気で投稿用の画像を)" : "ご相談・ご依頼を入力(📎で画像も添付できます)"}
           className="min-h-[44px] flex-1 resize-none rounded-2xl border border-black/10 px-3 py-2.5 text-sm outline-none transition-colors focus:border-orange-400 disabled:bg-black/5 lg:min-h-[72px] lg:text-[15px]" />
-        <button onClick={() => void send(input)} disabled={busy || exhausted || !input.trim()} className="h-[44px] shrink-0 rounded-2xl bg-orange-500 px-4 text-sm font-bold text-white shadow-sm transition-transform active:scale-95 disabled:opacity-40">送信</button>
+        <button onClick={() => void send(input)} disabled={busy || exhausted || uploading || (!input.trim() && !attachments.length)} className="h-[44px] shrink-0 rounded-2xl bg-orange-500 px-4 text-sm font-bold text-white shadow-sm transition-transform active:scale-95 disabled:opacity-40">送信</button>
       </div>
     </div>
   );
