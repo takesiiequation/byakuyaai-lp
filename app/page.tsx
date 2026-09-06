@@ -454,6 +454,8 @@ function PricingSection() {
     { label: "公式LINEの内見予約AI自動対応(24時間)", standard: false, premium: true },
     { label: "AI検索対策(SEO・AEO／毎月AIが自動更新)", standard: false, premium: true },
     { label: "月次効果分析レポート(再生数・問い合わせ・成約推移)", standard: false, premium: true },
+    { label: "専任AI担当「ユキ」のデスク(動画の直し・投稿用画像・紹介文・御社の決まりごとの記憶)", standard: false, premium: true },
+    { label: "専用動画ページ(物件動画をGoogle・AI検索が拾える形で公開／順次提供)", standard: false, premium: true },
     { label: "専属担当(LINE直通・優先対応)", standard: false, premium: true },
   ];
 
@@ -519,6 +521,9 @@ function PricingSection() {
                 <li className="flex items-start gap-2">
                   <Check /> ハッシュタグ・投稿時間の最適化
                 </li>
+                <li className="flex items-start gap-2">
+                  <Check /> 仕上がりはマイページで確認・修正依頼
+                </li>
               </ul>
               <a
                 href="#contact"
@@ -575,7 +580,15 @@ function PricingSection() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
-                  月次効果分析レポート
+                  月次効果分析レポート(翌月の打ち手を毎月更新)
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
+                  専任AI担当「ユキ」のデスク(動画の直し・投稿用画像・紹介文)
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[var(--brand-orange-light)]">✓</span>{" "}
+                  専用動画ページ(AI検索が拾える形で公開／順次提供)
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-[var(--brand-orange-light)]">✓</span>{" "}

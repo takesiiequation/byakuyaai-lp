@@ -87,7 +87,8 @@ const PREMIUM_COSTS = {
       { label: "SNS自動投稿+最適化", cost: "込み" },
       { label: "LINE公式AI自動応答", cost: "込み" },
       { label: "AI検索対策(SEO・AEO/毎月自動更新)", cost: "込み" },
-      { label: "月次効果分析レポート", cost: "込み" },
+      { label: "月次効果分析レポート+翌月の打ち手", cost: "込み" },
+      { label: "専任AI担当「ユキ」のデスク", cost: "込み" },
     ],
     totalLabel: "月額(プレミアムプラン)",
     total: "¥300,000",
@@ -206,7 +207,7 @@ function CycleSection() {
           <p className="mt-4 text-sm leading-relaxed text-white/70 sm:text-base">
             動画生成・SNS投稿・AI検索対策・LINE応答まで自動化。
             <br className="hidden sm:block" />
-            月次レポートで AI が学習し、毎月さらに賢くなります。
+            月次レポートで AI が学習し、毎月さらに賢くなります。部門の窓口は、御社専任のAI担当「ユキ」。
           </p>
         </div>
 
